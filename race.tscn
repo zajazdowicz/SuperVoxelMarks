@@ -1,0 +1,71 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://block_library_setup.gd" id="Script_setup"]
+[ext_resource type="Script" path="res://track_loader.gd" id="Script_loader"]
+[ext_resource type="Script" path="res://car_controller.gd" id="Script_car"]
+[ext_resource type="Script" path="res://iso_camera.gd" id="Script_cam"]
+
+[sub_resource type="VoxelBlockyLibrary" id="VoxelBlockyLibrary_1"]
+
+[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_1"]
+channel = 0
+height = 1
+voxel_type = 2
+
+[sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_1"]
+library = SubResource("VoxelBlockyLibrary_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 1
+background_color = Color(0.45, 0.7, 0.95, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.9, 0.9, 0.95, 1)
+ambient_light_energy = 0.6
+tonemap_mode = 2
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape_car"]
+radius = 0.6
+height = 2.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_car"]
+size = Vector3(1.2, 0.6, 2.0)
+
+[sub_resource type="StandardMaterial3D" id="Material_car"]
+albedo_color = Color(0.9, 0.15, 0.1, 1)
+
+[node name="Race" type="Node3D"]
+script = ExtResource("Script_setup")
+
+[node name="VoxelTerrain" type="VoxelTerrain" parent="."]
+mesher = SubResource("VoxelMesherBlocky_1")
+generator = SubResource("VoxelGeneratorFlat_1")
+
+[node name="VoxelViewer" type="VoxelViewer" parent="Car"]
+
+[node name="TrackLoader" type="Node3D" parent="."]
+script = ExtResource("Script_loader")
+
+[node name="Car" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 5, 0)
+script = ExtResource("Script_car")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Car"]
+shape = SubResource("CapsuleShape_car")
+rotation = Vector3(1.5708, 0, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Car"]
+mesh = SubResource("BoxMesh_car")
+surface_material_override/0 = SubResource("Material_car")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707, 0.707, 0, -0.707, 0.707, 0, 30, 20)
+current = true
+script = ExtResource("Script_cam")
+target = NodePath("../Car")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.25, 0.433, 0, 0.866, 0.5, -0.5, -0.433, 0.75, 0, 50, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")

@@ -1,0 +1,120 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://block_library_setup.gd" id="Script_setup"]
+[ext_resource type="Script" path="res://track_editor.gd" id="Script_editor"]
+[ext_resource type="Script" path="res://editor_camera.gd" id="Script_cam"]
+
+[sub_resource type="VoxelBlockyLibrary" id="VoxelBlockyLibrary_1"]
+
+[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_1"]
+channel = 0
+height = 1
+voxel_type = 2
+
+[sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_1"]
+library = SubResource("VoxelBlockyLibrary_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 1
+background_color = Color(0.45, 0.7, 0.95, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.9, 0.9, 0.95, 1)
+ambient_light_energy = 0.6
+tonemap_mode = 2
+
+[sub_resource type="BoxMesh" id="BoxMesh_cursor"]
+size = Vector3(12, 0.2, 12)
+
+[sub_resource type="StandardMaterial3D" id="Material_cursor"]
+transparency = 1
+albedo_color = Color(0.2, 0.8, 1.0, 0.3)
+
+[sub_resource type="LabelSettings" id="LabelSettings_1"]
+font_size = 22
+font_color = Color(1, 1, 1, 1)
+outline_size = 3
+outline_color = Color(0, 0, 0, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_2"]
+font_size = 16
+font_color = Color(0.8, 0.8, 0.8, 1)
+outline_size = 2
+outline_color = Color(0, 0, 0, 1)
+
+[node name="Editor" type="Node3D"]
+script = ExtResource("Script_setup")
+
+[node name="VoxelTerrain" type="VoxelTerrain" parent="."]
+mesher = SubResource("VoxelMesherBlocky_1")
+generator = SubResource("VoxelGeneratorFlat_1")
+
+[node name="VoxelViewer" type="VoxelViewer" parent="."]
+
+[node name="TrackEditor" type="Node3D" parent="."]
+script = ExtResource("Script_editor")
+
+[node name="CursorMesh" type="MeshInstance3D" parent="TrackEditor"]
+mesh = SubResource("BoxMesh_cursor")
+surface_material_override/0 = SubResource("Material_cursor")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.574, 0.819, 0, -0.819, 0.574, 0, 40, 20)
+current = true
+script = ExtResource("Script_cam")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.25, 0.433, 0, 0.866, 0.5, -0.5, -0.433, 0.75, 0, 50, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="TopBar" type="HBoxContainer" parent="UI"]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 600.0
+offset_bottom = 45.0
+theme_override_constants/separation = 10
+
+[node name="NameLabel" type="Label" parent="UI/TopBar"]
+layout_mode = 2
+label_settings = SubResource("LabelSettings_1")
+text = "Trasa:"
+
+[node name="TrackName" type="LineEdit" parent="UI/TopBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 0)
+text = "moja_trasa"
+placeholder_text = "nazwa trasy"
+
+[node name="TrackList" type="ItemList" parent="UI/TopBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 30)
+max_text_lines = 1
+
+[node name="PieceLabel" type="Label" parent="UI"]
+offset_left = 10.0
+offset_top = 55.0
+offset_right = 500.0
+offset_bottom = 85.0
+label_settings = SubResource("LabelSettings_1")
+text = "Prosta | Rot: N"
+
+[node name="HelpLabel" type="Label" parent="UI"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -350.0
+offset_top = -40.0
+offset_right = 350.0
+grow_horizontal = 2
+grow_vertical = 0
+label_settings = SubResource("LabelSettings_2")
+horizontal_alignment = 1
+text = "..."
+
+[connection signal="item_selected" from="UI/TopBar/TrackList" to="TrackEditor" method="_on_track_list_item_selected"]
