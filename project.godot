@@ -21,6 +21,7 @@ config/features=PackedStringArray("4.6")
 [autoload]
 
 TrackData="*res://track_data.gd"
+RaceManager="*res://race_manager.gd"
 
 [display]
 

@@ -1,9 +1,10 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://block_library_setup.gd" id="Script_setup"]
 [ext_resource type="Script" path="res://track_loader.gd" id="Script_loader"]
 [ext_resource type="Script" path="res://car_controller.gd" id="Script_car"]
 [ext_resource type="Script" path="res://iso_camera.gd" id="Script_cam"]
+[ext_resource type="Script" path="res://race_hud.gd" id="Script_hud"]
 
 [sub_resource type="VoxelBlockyLibrary" id="VoxelBlockyLibrary_1"]
 
@@ -40,8 +41,6 @@ script = ExtResource("Script_setup")
 mesher = SubResource("VoxelMesherBlocky_1")
 generator = SubResource("VoxelGeneratorFlat_1")
 
-[node name="VoxelViewer" type="VoxelViewer" parent="Car"]
-
 [node name="TrackLoader" type="Node3D" parent="."]
 script = ExtResource("Script_loader")
 
@@ -57,6 +56,8 @@ rotation = Vector3(1.5708, 0, 0)
 mesh = SubResource("BoxMesh_car")
 surface_material_override/0 = SubResource("Material_car")
 
+[node name="VoxelViewer" type="VoxelViewer" parent="Car"]
+
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707, 0.707, 0, -0.707, 0.707, 0, 30, 20)
 current = true
@@ -69,3 +70,6 @@ shadow_enabled = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_1")
+
+[node name="RaceHUD" type="CanvasLayer" parent="."]
+script = ExtResource("Script_hud")

@@ -31,6 +31,9 @@ var _preview_colors := {
 	TrackPieces.RAMP_S: Color(0.3, 0.3, 0.33, 0.6),
 	TrackPieces.RAMP_W: Color(0.3, 0.3, 0.33, 0.6),
 	TrackPieces.RAMP_SURFACE: Color(0.25, 0.25, 0.28, 0.6),
+	TrackPieces.BOOST: Color(0.1, 0.8, 0.9, 0.6),
+	TrackPieces.ICE: Color(0.7, 0.85, 0.95, 0.6),
+	TrackPieces.DIRT: Color(0.45, 0.3, 0.15, 0.6),
 }
 
 

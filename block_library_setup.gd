@@ -3,8 +3,8 @@ extends Node3D
 
 # Block IDs - order matters!
 # 0 = AIR, 1 = ASPHALT, 2 = GRASS, 3 = WALL, 4 = CURB, 5 = SAND
-# 6 = RAMP_N, 7 = RAMP_E, 8 = RAMP_S, 9 = RAMP_W (slopes rising toward that direction)
-# 10 = RAMP_SURFACE (looks like asphalt, NO collision - for smooth ramp driving)
+# 6 = RAMP_N, 7 = RAMP_E, 8 = RAMP_S, 9 = RAMP_W
+# 10 = RAMP_SURFACE, 11 = BOOST, 12 = ICE, 13 = DIRT
 
 var _cube_blocks := [
 	{"name": "air", "color": Color.TRANSPARENT, "is_empty": true},
@@ -57,14 +57,31 @@ func _ready() -> void:
 		library.add_model(model)
 
 	# Add RAMP_SURFACE (ID 10) - looks like asphalt, NO voxel collision
-	# Must use VoxelBlockyModelMesh (not Cube) so collision_aabbs=[] is respected
 	var ramp_surface_mesh := _create_cube_array_mesh()
 	var ramp_surface := VoxelBlockyModelMesh.new()
 	ramp_surface.mesh = ramp_surface_mesh
 	ramp_surface.set_material_override(0, mat)
 	ramp_surface.color = Color(0.25, 0.25, 0.28)
-	ramp_surface.collision_aabbs = []  # NO collision!
+	ramp_surface.collision_aabbs = []
 	library.add_model(ramp_surface)
+
+	# Add BOOST (ID 11) - cyan
+	var boost_cube := VoxelBlockyModelCube.new()
+	boost_cube.set_material_override(0, mat)
+	boost_cube.color = Color(0.1, 0.8, 0.9)
+	library.add_model(boost_cube)
+
+	# Add ICE (ID 12) - light blue
+	var ice_cube := VoxelBlockyModelCube.new()
+	ice_cube.set_material_override(0, mat)
+	ice_cube.color = Color(0.7, 0.85, 0.95)
+	library.add_model(ice_cube)
+
+	# Add DIRT (ID 13) - brown
+	var dirt_cube := VoxelBlockyModelCube.new()
+	dirt_cube.set_material_override(0, mat)
+	dirt_cube.color = Color(0.45, 0.3, 0.15)
+	library.add_model(dirt_cube)
 
 	library.bake()
 	terrain.mesher.library = library

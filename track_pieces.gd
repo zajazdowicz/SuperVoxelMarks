@@ -17,6 +17,9 @@ const RAMP_E := 7
 const RAMP_S := 8
 const RAMP_W := 9
 const RAMP_SURFACE := 10  # Looks like asphalt but NO voxel collision (for smooth ramps)
+const BOOST := 11
+const ICE := 12
+const DIRT := 13
 
 const ROAD_W := 4  # road -4..+4, walls at +-5
 
@@ -28,6 +31,10 @@ const PIECE_NAMES := [
 	"Rampa dol",
 	"Start/Meta",
 	"Szykana",
+	"Boost",
+	"Checkpoint",
+	"Lod",
+	"Ziemia",
 ]
 
 static func get_ports(index: int) -> Array[Dictionary]:
@@ -39,6 +46,10 @@ static func get_ports(index: int) -> Array[Dictionary]:
 		4: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 		5: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 		6: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
+		7: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
+		8: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
+		9: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
+		10: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
 static func rotate_ports(ports: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -60,6 +71,10 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		4: return _ramp_down()
 		5: return _start_finish()
 		6: return _chicane()
+		7: return _boost_pad()
+		8: return _checkpoint()
+		9: return _ice_section()
+		10: return _dirt_section()
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -221,6 +236,69 @@ static func _chicane() -> Array[Dictionary]:
 			if absf(local_x) <= float(ROAD_W):
 				blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
 			elif absf(local_x) <= float(ROAD_W) + 1.5:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+# === BOOST PAD ===
+static func _boost_pad() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				if absi(x) <= 2:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": BOOST})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+# === CHECKPOINT ===
+static func _checkpoint() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				# Checkpoint stripes at z=-1..0
+				if z >= -1 and z <= 0:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+				# Tall gate posts at checkpoint line
+				if z >= -1 and z <= 0:
+					blocks.append({"pos": Vector3i(x, 2, z), "type": WALL})
+					blocks.append({"pos": Vector3i(x, 3, z), "type": WALL})
+	return blocks
+
+
+# === ICE SECTION ===
+static func _ice_section() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": ICE})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+# === DIRT SECTION ===
+static func _dirt_section() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": DIRT})
+			elif absi(x) == ROAD_W + 1:
 				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
 				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
 	return blocks
