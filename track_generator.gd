@@ -14,7 +14,7 @@ const P_ICE := 9
 const P_DIRT := 10
 
 # 0=N(+Z), 1=E(+X), 2=S(-Z), 3=W(-X)
-const DIR_VECS := [Vector2i(0, 1), Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, 0)]
+static var DIR_VECS: Array[Vector2i] = [Vector2i(0, 1), Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, 0)]
 
 const VARIETY_PIECES := [P_STRAIGHT, P_STRAIGHT, P_CHICANE, P_BOOST, P_ICE, P_DIRT]
 
@@ -101,51 +101,43 @@ static func _try_generate(length: int) -> Array[Dictionary]:
 
 
 static func _pick_piece(pos: Vector2i, dir: int, occupied: Dictionary, placed: int, total: int, height: int) -> Dictionary:
+	var check: Vector2i
+
 	if height > 0:
-		# On elevated section, just go straight
-		var next := pos + DIR_VECS[dir]
-		if not occupied.has(next):
-			var piece: int = VARIETY_PIECES[randi() % VARIETY_PIECES.size()]
-			return {"piece": piece, "dir": dir}
+		check = pos + DIR_VECS[dir]
+		if not occupied.has(check):
+			return {"piece": VARIETY_PIECES[randi() % VARIETY_PIECES.size()], "dir": dir}
 		return {}
 
 	# Ramp chance (flat only, not near end)
 	if randf() < 0.06 and placed < total - 6:
-		var next := pos + DIR_VECS[dir]
-		var next2 := next + DIR_VECS[dir]
-		if not occupied.has(next) and not occupied.has(next2):
+		check = pos + DIR_VECS[dir]
+		if not occupied.has(check) and not occupied.has(check + DIR_VECS[dir]):
 			return {"piece": P_RAMP_UP, "dir": dir}
 
-	# Turn probability increases if going straight too long
-	var turn_chance := 0.25
-
 	var roll := randf()
-	if roll < turn_chance:
-		# Try right turn
-		var new_dir := (dir + 1) % 4
-		var next := pos + DIR_VECS[new_dir]
-		if not occupied.has(next):
-			return {"piece": P_TURN_R, "dir": new_dir}
-	if roll < turn_chance * 2:
-		# Try left turn
-		var new_dir := (dir + 3) % 4
-		var next := pos + DIR_VECS[new_dir]
-		if not occupied.has(next):
-			return {"piece": P_TURN_L, "dir": new_dir}
+	if roll < 0.25:
+		var rd := (dir + 1) % 4
+		check = pos + DIR_VECS[rd]
+		if not occupied.has(check):
+			return {"piece": P_TURN_R, "dir": rd}
+	elif roll < 0.50:
+		var ld := (dir + 3) % 4
+		check = pos + DIR_VECS[ld]
+		if not occupied.has(check):
+			return {"piece": P_TURN_L, "dir": ld}
 
 	# Straight
-	var next := pos + DIR_VECS[dir]
-	if not occupied.has(next):
-		var piece: int = VARIETY_PIECES[randi() % VARIETY_PIECES.size()]
-		return {"piece": piece, "dir": dir}
+	check = pos + DIR_VECS[dir]
+	if not occupied.has(check):
+		return {"piece": VARIETY_PIECES[randi() % VARIETY_PIECES.size()], "dir": dir}
 
 	# Blocked ahead, try any turn
-	for delta in [1, 3]:
-		var new_dir := (dir + delta) % 4
-		var nnext := pos + DIR_VECS[new_dir]
-		if not occupied.has(nnext):
-			var piece := P_TURN_R if delta == 1 else P_TURN_L
-			return {"piece": piece, "dir": new_dir}
+	for td: int in [1, 3]:
+		var nd: int = (dir + td) % 4
+		check = pos + DIR_VECS[nd]
+		if not occupied.has(check):
+			return {"piece": P_TURN_R if td == 1 else P_TURN_L, "dir": nd}
 
 	return {}  # completely stuck
 
@@ -195,10 +187,10 @@ static func _try_close(pos: Vector2i, dir: int, start: Vector2i, occupied: Dicti
 		var best_dir := -1
 		var best_dist := 999.0
 		for d in range(4):
-			var next := cur + DIR_VECS[d]
-			if visited.has(next) or (occupied.has(next) and next != start):
+			var npos: Vector2i = cur + DIR_VECS[d]
+			if visited.has(npos) or (occupied.has(npos) and npos != start):
 				continue
-			var dist := Vector2(target - next).length()
+			var dist := Vector2(target - npos).length()
 			if dist < best_dist:
 				best_dist = dist
 				best_dir = d

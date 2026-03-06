@@ -152,18 +152,27 @@ func _physics_process(delta: float) -> void:
 
 	# --- Movement ---
 	var forward := -transform.basis.z
-	var target_vel := forward * speed
 
 	if airborne:
+		var target_vel := forward * speed
 		velocity.x = lerp(velocity.x, target_vel.x, stats.air_control * delta * 5.0)
 		velocity.z = lerp(velocity.z, target_vel.z, stats.air_control * delta * 5.0)
+		# Gravity in air
+		velocity += _gravity_dir * stats.gravity * delta
 	else:
-		var drift_blend: float = grip * stats.drift_factor
-		velocity.x = lerp(velocity.x, target_vel.x, clampf(drift_blend, 0.1, 1.0))
-		velocity.z = lerp(velocity.z, target_vel.z, clampf(drift_blend, 0.1, 1.0))
+		# Project forward direction onto floor plane
+		var fn := get_floor_normal()
+		var slope_forward := (forward - fn * forward.dot(fn)).normalized()
+		var target_vel := slope_forward * speed
 
-	# --- Gravity ---
-	velocity += _gravity_dir * stats.gravity * delta
+		var drift_blend: float = grip * stats.drift_factor
+		velocity = velocity.lerp(target_vel, clampf(drift_blend, 0.1, 1.0))
+
+		# Slope gravity: accelerate downhill, decelerate uphill
+		var slope_dot := fn.dot(Vector3.UP)  # 1.0 = flat, <1.0 = slope
+		if slope_dot < 0.99:
+			var gravity_along_slope := Vector3.DOWN - fn * Vector3.DOWN.dot(fn)
+			velocity += gravity_along_slope * stats.gravity * 0.5 * delta
 
 	# --- Boost timer ---
 	if _boost_timer > 0:
