@@ -135,7 +135,20 @@ func _physics_process(delta: float) -> void:
 		if _boost_timer <= 0:
 			_boost_mult = 1.0
 
+	var pre_speed := velocity.length()
 	move_and_slide()
+
+	# --- Wall bounce ---
+	if get_slide_collision_count() > 0:
+		var col := get_slide_collision(0)
+		var normal := col.get_normal()
+		if absf(normal.y) < 0.3 and pre_speed > 3.0:
+			# Reflect velocity off wall
+			var reflect := velocity.reflect(normal)
+			velocity = reflect * 0.4
+			speed = maxf(speed * 0.5, 0.0)
+			# Nudge car away from wall
+			global_position += normal * 0.15
 
 	# --- Track safe position ---
 	if is_on_floor() and surface.grip >= 0.8:
@@ -171,14 +184,14 @@ func _check_offtrack(surface: Dictionary, airborne: bool, delta: float) -> void:
 
 	# Fall off the world
 	if global_position.y < FALL_THRESHOLD:
-		_explode()
+		_respawn()
 		return
 
-	# On grass = off track
+	# On grass = off track → instant respawn
 	if not airborne and surface.grip <= 0.5:
 		_offtrack_timer += delta
 		if _offtrack_timer >= OFFTRACK_TIME:
-			_explode()
+			_respawn()
 	else:
 		_offtrack_timer = 0.0
 

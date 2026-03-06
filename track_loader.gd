@@ -99,6 +99,11 @@ func _respawn_at_start() -> void:
 		_ghost_best.start_playback()
 
 
+func _start_ghost() -> void:
+	if _ghost_best and _ghost_best.has_method("start_playback"):
+		_ghost_best.start_playback()
+
+
 func toggle_ghost() -> void:
 	_ghost_visible = not _ghost_visible
 	if _ghost_best and _ghost_best.has_method("toggle_visible"):
@@ -134,25 +139,22 @@ func _on_trigger_entered(body: Node3D, trigger_name: String) -> void:
 
 	if trigger_name == "start":
 		if RaceManager.is_sprint:
-			# Sprint: crossing start after finish = restart
 			if RaceManager.state == RaceManager.State.FINISHED:
-				_respawn_at_start()
 				RaceManager.reset()
 				RaceManager.start_race()
+				_start_ghost()
 			elif RaceManager.state == RaceManager.State.IDLE:
 				RaceManager.cross_start()
-				if _ghost_best and _ghost_best.has_method("start_playback"):
-					_ghost_best.start_playback()
+				_start_ghost()
 		else:
 			if RaceManager.state == RaceManager.State.TIME_UP or RaceManager.state == RaceManager.State.FINISHED:
-				_respawn_at_start()
 				RaceManager.reset()
 				RaceManager.start_race()
+				_start_ghost()
 			else:
 				RaceManager.cross_start_finish()
 				if RaceManager.state == RaceManager.State.RACING and RaceManager.lap_count <= 1:
-					if _ghost_best and _ghost_best.has_method("start_playback"):
-						_ghost_best.start_playback()
+					_start_ghost()
 
 	elif trigger_name == "finish":
 		RaceManager.cross_finish()
