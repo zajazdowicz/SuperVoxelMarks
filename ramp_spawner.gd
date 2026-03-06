@@ -1,8 +1,9 @@
 class_name RampSpawner
 
-## Spawns smooth ramp: collision wedge + visible mesh.
+## Spawns smooth ramp: trimesh collision surface + visible mesh.
 ## Road voxels in ramp area are AIR - this is the ONLY collision surface.
 ## Ground surface = y=1 (top of y=0 voxel blocks).
+## hl = HALF exactly — blocks fit the grid perfectly.
 
 const GRID := TrackPieces.SEGMENT_SIZE
 const ROAD_W := TrackPieces.ROAD_W
@@ -20,52 +21,78 @@ static func spawn_ramp(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 	ramp.name = "RampCollision_%d_%d" % [grid_pos.x, grid_pos.y]
 
 	var hw: float = float(ROAD_W) + 0.5  # half-width of road
-	var hl: float = float(HALF) + 0.5     # half-length of segment
+	var hl: float = float(HALF)            # exact grid fit
 	var h: float = float(RAMP_H)
 
-	# Ground surface is at y=1 (top of y=0 voxel block)
-	# Ramp goes from ground level to ground+RAMP_HEIGHT
 	var ground: float = 1.0
 	var low_y: float = ground
 	var high_y: float = ground + h
 
-	# 8 points for ConvexPolygonShape3D wedge
-	var points := PackedVector3Array()
+	# 4 corner points of the ramp surface
+	var tl_s: Vector3  # top-left south
+	var tr_s: Vector3  # top-right south
+	var tl_n: Vector3  # top-left north
+	var tr_n: Vector3  # top-right north
 
-	# Bottom 4 points (underground - fill the volume)
-	points.append(Vector3(-hw, -0.5, -hl))
-	points.append(Vector3(hw, -0.5, -hl))
-	points.append(Vector3(hw, -0.5, hl))
-	points.append(Vector3(-hw, -0.5, hl))
-
-	# Top 4 points (the smooth driving surface)
 	if is_up:
-		# South = low, North = high
-		points.append(Vector3(-hw, low_y, -hl))
-		points.append(Vector3(hw, low_y, -hl))
-		points.append(Vector3(hw, high_y, hl))
-		points.append(Vector3(-hw, high_y, hl))
+		tl_s = Vector3(-hw, low_y, -hl)
+		tr_s = Vector3(hw, low_y, -hl)
+		tl_n = Vector3(-hw, high_y, hl)
+		tr_n = Vector3(hw, high_y, hl)
 	else:
-		# South = high, North = low
-		points.append(Vector3(-hw, high_y, -hl))
-		points.append(Vector3(hw, high_y, -hl))
-		points.append(Vector3(hw, low_y, hl))
-		points.append(Vector3(-hw, low_y, hl))
+		tl_s = Vector3(-hw, high_y, -hl)
+		tr_s = Vector3(hw, high_y, -hl)
+		tl_n = Vector3(-hw, low_y, hl)
+		tr_n = Vector3(hw, low_y, hl)
 
 	# Apply piece rotation around Y
 	var rot_angle: float = -float(rotation) * PI / 2.0
 	var basis_rot := Basis(Vector3.UP, rot_angle)
-	for i in range(points.size()):
+	tl_s = basis_rot * tl_s
+	tr_s = basis_rot * tr_s
+	tl_n = basis_rot * tl_n
+	tr_n = basis_rot * tr_n
+
+	# Trimesh collision (ConcavePolygonShape3D) — just the driving surface
+	# Two triangles forming a quad, plus a thin bottom to give it volume
+	var bl_s := basis_rot * Vector3(-hw, low_y - 0.5, -hl)
+	var br_s := basis_rot * Vector3(hw, low_y - 0.5, -hl)
+	var bl_n := basis_rot * Vector3(-hw, low_y - 0.5, hl)
+	var br_n := basis_rot * Vector3(hw, low_y - 0.5, hl)
+
+	# Use ConvexPolygonShape3D but with entry edge at surface level (no lip)
+	var points := PackedVector3Array()
+	if is_up:
+		# Entry (south): bottom matches surface — no lip
+		points.append(Vector3(-hw, low_y - 0.05, -hl))
+		points.append(Vector3(hw, low_y - 0.05, -hl))
+		# Exit (north): deep bottom for support
+		points.append(Vector3(hw, -0.5, hl))
+		points.append(Vector3(-hw, -0.5, hl))
+	else:
+		# Entry (south): deep bottom for support
+		points.append(Vector3(-hw, -0.5, -hl))
+		points.append(Vector3(hw, -0.5, -hl))
+		# Exit (north): bottom matches surface — no lip
+		points.append(Vector3(hw, low_y - 0.05, hl))
+		points.append(Vector3(-hw, low_y - 0.05, hl))
+	# Top surface points
+	points.append(tl_s)
+	points.append(tr_s)
+	points.append(tr_n)
+	points.append(tl_n)
+
+	# Rotate bottom points
+	for i in range(4):
 		points[i] = basis_rot * points[i]
 
-	# Collision
 	var col_shape := CollisionShape3D.new()
 	var shape := ConvexPolygonShape3D.new()
 	shape.points = points
 	col_shape.shape = shape
 	ramp.add_child(col_shape)
 
-	# Visual mesh (solid wedge prism)
+	# Visual mesh
 	var visual := _create_ramp_visual(hw, hl, h, ground, is_up, basis_rot)
 	ramp.add_child(visual)
 
@@ -86,21 +113,15 @@ static func _create_ramp_visual(hw: float, hl: float, h: float, ground: float, i
 	var low_y: float = ground
 	var high_y: float = ground + h
 
-	# Wedge vertices (before rotation)
-	var bl_s: Vector3  # bottom-left south
-	var br_s: Vector3  # bottom-right south
-	var bl_n: Vector3  # bottom-left north
-	var br_n: Vector3  # bottom-right north
-	var tl_s: Vector3  # top-left south
-	var tr_s: Vector3  # top-right south
-	var tl_n: Vector3  # top-left north
-	var tr_n: Vector3  # top-right north
+	var bl_s := Vector3(-hw, low_y, -hl)
+	var br_s := Vector3(hw, low_y, -hl)
+	var bl_n := Vector3(-hw, low_y, hl)
+	var br_n := Vector3(hw, low_y, hl)
 
-	# Bottom face (at ground level, horizontal)
-	bl_s = Vector3(-hw, low_y, -hl)
-	br_s = Vector3(hw, low_y, -hl)
-	bl_n = Vector3(-hw, low_y, hl)
-	br_n = Vector3(hw, low_y, hl)
+	var tl_s: Vector3
+	var tr_s: Vector3
+	var tl_n: Vector3
+	var tr_n: Vector3
 
 	if is_up:
 		tl_s = Vector3(-hw, low_y, -hl)
@@ -123,29 +144,25 @@ static func _create_ramp_visual(hw: float, hl: float, h: float, ground: float, i
 	tl_n = basis_rot * tl_n
 	tr_n = basis_rot * tr_n
 
-	# Top face (slope - the driving surface)
+	# Top face (slope - driving surface)
 	var slope_normal := (tl_n - tl_s).cross(tr_s - tl_s).normalized()
 	_add_quad(verts, normals, indices, tl_s, tr_s, tr_n, tl_n, slope_normal)
 
 	# Bottom face
 	_add_quad(verts, normals, indices, bl_n, br_n, br_s, bl_s, -slope_normal)
 
-	# Back face (tall end - vertical wall)
+	# Back face (tall end)
 	if is_up:
 		_add_quad(verts, normals, indices, bl_n, tl_n, tr_n, br_n, basis_rot * Vector3.FORWARD)
 	else:
 		_add_quad(verts, normals, indices, bl_s, tl_s, tr_s, br_s, basis_rot * Vector3.BACK)
 
-	# Left side triangle
+	# Side triangles
 	if is_up:
 		_add_tri(verts, normals, indices, bl_n, tl_n, tl_s, basis_rot * Vector3.LEFT)
-	else:
-		_add_tri(verts, normals, indices, bl_s, tl_s, tl_n, basis_rot * Vector3.LEFT)
-
-	# Right side triangle
-	if is_up:
 		_add_tri(verts, normals, indices, br_n, tr_s, tr_n, basis_rot * Vector3.RIGHT)
 	else:
+		_add_tri(verts, normals, indices, bl_s, tl_s, tl_n, basis_rot * Vector3.LEFT)
 		_add_tri(verts, normals, indices, br_s, tr_n, tr_s, basis_rot * Vector3.RIGHT)
 
 	var arrays := []

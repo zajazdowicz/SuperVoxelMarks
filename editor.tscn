@@ -49,6 +49,7 @@ mesher = SubResource("VoxelMesherBlocky_1")
 generator = SubResource("VoxelGeneratorFlat_1")
 
 [node name="VoxelViewer" type="VoxelViewer" parent="."]
+view_distance = 512
 
 [node name="TrackEditor" type="Node3D" parent="."]
 script = ExtResource("Script_editor")

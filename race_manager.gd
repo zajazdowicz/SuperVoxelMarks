@@ -1,29 +1,39 @@
 extends Node
-## Autoload singleton managing race state, timer, checkpoints, and ghost recording.
+## Autoload singleton managing race state, lap timer, and ghost recording.
+## TrackMania-style: TIME_LIMIT to drive laps, best lap time saved.
 
-enum State { IDLE, RACING, FINISHED }
+enum State { IDLE, RACING, TIME_UP, FINISHED }
 
 var state := State.IDLE
-var race_time := 0.0
+var race_time := 0.0         # total elapsed time
+var lap_time := 0.0          # current lap timer
+var lap_count := 0
 var checkpoints_hit := 0
 var total_checkpoints := 0
-var splits: Array[float] = []
+var laps: Array[float] = []  # finished lap times
 
-# Ghost recording: array of {t: float, px/py/pz: float, ry: float}
+# Ghost recording per lap
 var ghost_frames: Array[Dictionary] = []
+var _lap_ghost: Array[Dictionary] = []  # current lap ghost
 var best_ghost: Array[Dictionary] = []
 var best_time := INF
+var is_sprint := false  # true = separate start/finish (no laps)
 
 var _record_timer := 0.0
-const GHOST_INTERVAL := 0.05  # 20 fps recording
+const GHOST_INTERVAL := 0.05
+
+const TIME_LIMIT := 120.0  # 2 minutes
 
 
 func reset() -> void:
 	state = State.IDLE
 	race_time = 0.0
+	lap_time = 0.0
+	lap_count = 0
 	checkpoints_hit = 0
-	splits.clear()
+	laps.clear()
 	ghost_frames.clear()
+	_lap_ghost.clear()
 	_record_timer = 0.0
 
 
@@ -32,9 +42,12 @@ func start_race() -> void:
 		return
 	state = State.RACING
 	race_time = 0.0
+	lap_time = 0.0
+	lap_count = 0
 	checkpoints_hit = 0
-	splits.clear()
+	laps.clear()
 	ghost_frames.clear()
+	_lap_ghost.clear()
 	_record_timer = 0.0
 
 
@@ -43,21 +56,78 @@ func hit_checkpoint(index: int) -> void:
 		return
 	if index == checkpoints_hit:
 		checkpoints_hit += 1
-		splits.append(race_time)
 
 
-func finish_race() -> void:
+func cross_start_finish() -> void:
+	## Called when car crosses start/finish line.
+	print("cross_start_finish: state=%s lap_count=%d lap_time=%.2f checkpoints=%d/%d" % [
+		State.keys()[state], lap_count, lap_time, checkpoints_hit, total_checkpoints])
+
+	if state == State.IDLE:
+		start_race()
+		return
+
+	if state == State.TIME_UP:
+		# Allow restart after time up
+		reset()
+		start_race()
+		return
+
+	if state != State.RACING:
+		return
+
+	# First crossing = race start (lap_count == 0, lap_time ~0)
+	if lap_count == 0 and lap_time < 1.0:
+		return
+
+	# Must hit all checkpoints
+	if total_checkpoints > 0 and checkpoints_hit < total_checkpoints:
+		print("  -> missing checkpoints, need %d more" % (total_checkpoints - checkpoints_hit))
+		return
+
+	# Lap complete!
+	print("  -> LAP COMPLETE! time=%.3f" % lap_time)
+	_finish_lap()
+
+
+func cross_start() -> void:
+	## Sprint mode: crossing start line begins the run.
+	print("cross_start: state=%s" % State.keys()[state])
+	if state == State.IDLE:
+		start_race()
+	elif state == State.FINISHED:
+		reset()
+		start_race()
+
+
+func cross_finish() -> void:
+	## Sprint mode: crossing finish line ends the run.
+	print("cross_finish: state=%s lap_time=%.2f checkpoints=%d/%d" % [
+		State.keys()[state], lap_time, checkpoints_hit, total_checkpoints])
 	if state != State.RACING:
 		return
 	if total_checkpoints > 0 and checkpoints_hit < total_checkpoints:
-		return  # must hit all checkpoints
-
+		print("  -> missing checkpoints")
+		return
+	print("  -> SPRINT FINISH! time=%.3f" % lap_time)
+	_finish_lap()
 	state = State.FINISHED
-	if race_time < best_time:
-		best_time = race_time
-		best_ghost = ghost_frames.duplicate()
-		# Save locally
+
+
+func _finish_lap() -> void:
+	laps.append(lap_time)
+	lap_count += 1
+
+	# Check for best lap
+	if lap_time < best_time:
+		best_time = lap_time
+		best_ghost = _lap_ghost.duplicate()
 		_save_best_time()
+
+	# Reset for next lap
+	checkpoints_hit = 0
+	lap_time = 0.0
+	_lap_ghost.clear()
 
 
 func record_frame(pos: Vector3, rot_y: float) -> void:
@@ -67,25 +137,43 @@ func record_frame(pos: Vector3, rot_y: float) -> void:
 	if _record_timer < GHOST_INTERVAL:
 		return
 	_record_timer -= GHOST_INTERVAL
-	ghost_frames.append({
-		"t": race_time,
+	var frame := {
+		"t": lap_time,
 		"px": pos.x, "py": pos.y, "pz": pos.z,
 		"ry": rot_y,
-	})
+	}
+	ghost_frames.append(frame)
+	_lap_ghost.append(frame)
 
 
 func _process(delta: float) -> void:
 	if state == State.RACING:
 		race_time += delta
+		lap_time += delta
+		if race_time >= TIME_LIMIT:
+			state = State.TIME_UP
 
 
 func get_time_string(t: float = -1.0) -> String:
 	if t < 0:
-		t = race_time
+		t = lap_time
 	var mins: int = int(t) / 60
 	var secs: int = int(t) % 60
 	var ms: int = int(fmod(t, 1.0) * 1000)
 	return "%d:%02d.%03d" % [mins, secs, ms]
+
+
+func get_remaining_string() -> String:
+	var remaining := maxf(TIME_LIMIT - race_time, 0.0)
+	var mins: int = int(remaining) / 60
+	var secs: int = int(remaining) % 60
+	return "%d:%02d" % [mins, secs]
+
+
+func get_last_lap_time() -> float:
+	if laps.is_empty():
+		return -1.0
+	return laps[-1]
 
 
 func get_medal(t: float, author_time: float) -> String:

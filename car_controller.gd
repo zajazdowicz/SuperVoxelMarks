@@ -47,6 +47,17 @@ func _ready() -> void:
 	_last_safe_pos = _spawn_pos
 	_last_safe_rot = _spawn_rot
 
+	# Yellow nose so you can see which end is forward
+	var nose := MeshInstance3D.new()
+	var nose_mesh := BoxMesh.new()
+	nose_mesh.size = Vector3(0.8, 0.2, 0.3)
+	nose.mesh = nose_mesh
+	nose.position = Vector3(0, 0.05, -1.1)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.85, 0.0)
+	nose.material_override = mat
+	mesh.add_child(nose)
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
@@ -56,6 +67,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_R:
 				RaceManager.reset()
 				get_tree().reload_current_scene()
+			KEY_G:
+				# Toggle ghost visibility
+				var loader := get_parent().get_node_or_null("TrackLoader")
+				if loader and loader.has_method("toggle_ghost"):
+					loader.toggle_ghost()
 
 
 func _physics_process(delta: float) -> void:
@@ -128,13 +144,20 @@ func _physics_process(delta: float) -> void:
 
 	# --- Visual ---
 	if mesh:
+		# Roll on steering
 		mesh.rotation.z = lerp(mesh.rotation.z, steer * 0.2, 5.0 * delta)
+		# Pitch: align to floor slope
 		var pitch_target: float = 0.0
-		if throttle < 0 and speed > 5.0:
-			pitch_target = 0.05
-		elif airborne:
+		if airborne:
 			pitch_target = -0.1
-		mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 3.0 * delta)
+		elif is_on_floor():
+			var fn := get_floor_normal()
+			var right := transform.basis.x
+			var forward_on_slope := fn.cross(right).normalized()
+			pitch_target = asin(clampf(-forward_on_slope.y, -0.8, 0.8))
+			if throttle < 0 and speed > 5.0:
+				pitch_target += 0.05
+		mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 8.0 * delta)
 
 	# --- Ghost recording ---
 	RaceManager.record_frame(global_position, rotation.y)

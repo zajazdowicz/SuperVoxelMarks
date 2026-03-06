@@ -70,4 +70,4 @@ text = "GRAJ"
 [node name="EditorButton" type="Button" parent="VBox/Buttons"]
 layout_mode = 2
 custom_minimum_size = Vector2(170, 50)
-text = "EDYTOR TRAS"
+text = "EDYTUJ / NOWA"

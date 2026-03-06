@@ -39,15 +39,19 @@ var _preview_colors := {
 
 func _ready() -> void:
 	_create_piece_toolbar()
+	_create_top_buttons()
 	_update_cursor()
 	_update_ui()
 	_refresh_track_list()
-	help_label.text = "Strzalki=rusz | 1-7=segment | R=obroc | ENTER=postaw | X=gumka | T=testuj | PgUp/Dn=wys"
+	help_label.text = "Strzalki=rusz | 1-9=segment | R=obroc | ENTER=postaw | X=gumka | T=testuj | PgUp/Dn=wys"
 
-	# Load track if coming back from test
-	if TrackData.current_track != "":
+	# Load track only if coming back from test (not from menu)
+	if TrackData.current_track != "" and TrackData.current_track != "_new_":
 		track_name_edit.text = TrackData.current_track
 		_load_track(TrackData.current_track)
+	else:
+		TrackData.current_track = ""
+		track_name_edit.text = "nowa_trasa"
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -126,6 +130,48 @@ func _update_ui() -> void:
 	else:
 		piece_label.text = "%s | Rot: %s | H: %d" % [TrackPieces.PIECE_NAMES[current_piece], rot_label, current_height]
 	_highlight_piece_button()
+
+
+func _create_top_buttons() -> void:
+	var topbar: HBoxContainer = $"../UI/TopBar"
+
+	var save_btn := Button.new()
+	save_btn.text = "ZAPISZ"
+	save_btn.custom_minimum_size = Vector2(80, 30)
+	save_btn.focus_mode = Control.FOCUS_NONE
+	save_btn.pressed.connect(_on_save_pressed)
+	topbar.add_child(save_btn)
+
+	var new_btn := Button.new()
+	new_btn.text = "NOWA"
+	new_btn.custom_minimum_size = Vector2(70, 30)
+	new_btn.focus_mode = Control.FOCUS_NONE
+	new_btn.pressed.connect(_on_new_pressed)
+	topbar.add_child(new_btn)
+
+	var test_btn := Button.new()
+	test_btn.text = "TESTUJ (T)"
+	test_btn.custom_minimum_size = Vector2(90, 30)
+	test_btn.focus_mode = Control.FOCUS_NONE
+	test_btn.pressed.connect(_test_track)
+	topbar.add_child(test_btn)
+
+
+func _on_save_pressed() -> void:
+	var tname := track_name_edit.text.strip_edges()
+	if tname == "":
+		track_name_edit.text = "nowa_trasa"
+		tname = "nowa_trasa"
+	TrackData.save_track(tname, placed_pieces)
+	TrackData.current_track = tname
+	_refresh_track_list()
+	print("Track saved: %s (%d pieces)" % [tname, placed_pieces.size()])
+
+
+func _on_new_pressed() -> void:
+	# Clear everything and reload scene
+	TrackData.current_track = "_new_"
+	get_tree().reload_current_scene()
 
 
 func _create_piece_toolbar() -> void:
@@ -281,13 +327,18 @@ func _place_piece() -> void:
 	var tool := terrain.get_voxel_tool()
 	tool.channel = VoxelBuffer.CHANNEL_TYPE
 
-	var offset := Vector3i(cursor_grid.x * GRID, current_height, cursor_grid.y * GRID)
+	# Ramp down: place at lower height so top matches current road level
+	var place_height := current_height
+	if current_piece == 4:  # ramp down
+		place_height = maxi(0, current_height - TrackPieces.RAMP_HEIGHT)
+
+	var offset := Vector3i(cursor_grid.x * GRID, place_height, cursor_grid.y * GRID)
 	for block in rotated:
 		tool.set_voxel(offset + block.pos, block.type)
 
 	# Spawn ramp collision if needed
 	if current_piece == 3 or current_piece == 4:
-		RampSpawner.spawn_ramp(self, cursor_grid, current_piece, current_rotation, current_height)
+		RampSpawner.spawn_ramp(self, cursor_grid, current_piece, current_rotation, place_height)
 
 	# Remove existing piece at this grid position
 	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
@@ -295,7 +346,7 @@ func _place_piece() -> void:
 		"grid": cursor_grid,
 		"piece": current_piece,
 		"rotation": current_rotation,
-		"base_height": current_height,
+		"base_height": place_height,
 	})
 	_auto_save()
 	_snap_to_next_port()
@@ -354,7 +405,7 @@ func _test_track() -> void:
 func _load_track(track_name: String) -> void:
 	placed_pieces = TrackData.load_track(track_name)
 	# Rebuild all pieces on terrain
-	await get_tree().create_timer(1.5).timeout
+	await get_tree().create_timer(0.5).timeout
 	var tool := terrain.get_voxel_tool()
 	tool.channel = VoxelBuffer.CHANNEL_TYPE
 	for p in placed_pieces:
@@ -387,10 +438,10 @@ func _snap_to_next_port() -> void:
 	# so user can seamlessly continue building the track
 
 	# Adjust height based on piece type
+	# Ramp up: next piece starts at higher level
+	# Ramp down: place_height already adjusted in _place_piece, no change needed here
 	if current_piece == 3:  # ramp up
 		current_height += TrackPieces.RAMP_HEIGHT
-	elif current_piece == 4:  # ramp down
-		current_height = maxi(0, current_height - TrackPieces.RAMP_HEIGHT)
 
 	var ports := TrackPieces.get_ports(current_piece)
 	var rotated_ports := TrackPieces.rotate_ports(ports, current_rotation)

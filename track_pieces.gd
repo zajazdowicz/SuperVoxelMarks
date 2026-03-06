@@ -35,6 +35,7 @@ const PIECE_NAMES := [
 	"Checkpoint",
 	"Lod",
 	"Ziemia",
+	"Meta (Sprint)",
 ]
 
 static func get_ports(index: int) -> Array[Dictionary]:
@@ -50,6 +51,7 @@ static func get_ports(index: int) -> Array[Dictionary]:
 		8: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 		9: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 		10: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
+		11: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
 static func rotate_ports(ports: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -75,6 +77,7 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		8: return _checkpoint()
 		9: return _ice_section()
 		10: return _dirt_section()
+		11: return _finish_line()
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -301,4 +304,26 @@ static func _dirt_section() -> Array[Dictionary]:
 			elif absi(x) == ROAD_W + 1:
 				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
 				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+# === FINISH LINE (Sprint mode) ===
+static func _finish_line() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				if z >= -1 and z <= 0:
+					var checker := (x + z) % 2 == 0
+					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB if checker else ASPHALT})
+				elif z >= 1 and z <= 2:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+				if z >= -1 and z <= 0:
+					blocks.append({"pos": Vector3i(x, 2, z), "type": WALL})
+					blocks.append({"pos": Vector3i(x, 3, z), "type": WALL})
 	return blocks
