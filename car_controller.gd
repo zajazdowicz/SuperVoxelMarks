@@ -26,8 +26,12 @@ const SPAWN_GRACE := 3.0      # seconds of immunity after spawn/respawn
 
 var _grace_timer := SPAWN_GRACE
 
-@onready var mesh: MeshInstance3D = $Mesh
+@onready var mesh: Node3D = $Mesh
 @onready var collision: CollisionShape3D = $CollisionShape3D
+
+var _front_wheels: Array[Node3D] = []
+var _rear_wheels: Array[Node3D] = []
+var _wheel_spin := 0.0
 
 
 func _ready() -> void:
@@ -47,16 +51,48 @@ func _ready() -> void:
 	_last_safe_pos = _spawn_pos
 	_last_safe_rot = _spawn_rot
 
-	# Yellow nose so you can see which end is forward
-	var nose := MeshInstance3D.new()
-	var nose_mesh := BoxMesh.new()
-	nose_mesh.size = Vector3(0.8, 0.2, 0.3)
-	nose.mesh = nose_mesh
-	nose.position = Vector3(0, 0.05, -1.1)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(1.0, 0.85, 0.0)
-	nose.material_override = mat
-	mesh.add_child(nose)
+	# Load F1 car model
+	_load_car_model()
+
+
+func _load_car_model() -> void:
+	var f1_scene: PackedScene = load("res://assets/models/f1_car.glb")
+	if not f1_scene:
+		push_warning("F1 model not found, keeping default mesh")
+		return
+
+	for child in mesh.get_children():
+		child.queue_free()
+
+	var model := f1_scene.instantiate()
+	model.rotation.y = PI  # Model faces +Z in Blender, flip to -Z for Godot
+	model.scale = Vector3(1.1, 1.0, 1.0)  # Slightly wider
+	mesh.add_child(model)
+
+	# Find wheel nodes by name pattern and position
+	_find_wheels(model)
+
+
+func _find_wheels(root: Node3D) -> void:
+	_front_wheels.clear()
+	_rear_wheels.clear()
+	# Front wheel empties: pCylinder2-11 (Blender Y≈-8.76 → Godot Z≈+1.0 before flip)
+	# Rear wheel empties: pCylinder12-21 (Blender Y≈2.84-2.99 → Godot Z≈-0.35 before flip)
+	var front_names := ["pCylinder2", "pCylinder3", "pCylinder4", "pCylinder5",
+		"pCylinder6", "pCylinder7", "pCylinder8", "pCylinder9",
+		"pCylinder10", "pCylinder11"]
+	var rear_names := ["pCylinder12", "pCylinder13", "pCylinder14", "pCylinder15",
+		"pCylinder16", "pCylinder17", "pCylinder18", "pCylinder19",
+		"pCylinder20", "pCylinder21"]
+	_collect_named_nodes(root, front_names, _front_wheels)
+	_collect_named_nodes(root, rear_names, _rear_wheels)
+
+
+func _collect_named_nodes(node: Node, names: Array, result: Array[Node3D]) -> void:
+	if node is Node3D and node.name in names:
+		result.append(node)
+	for child in node.get_children():
+		_collect_named_nodes(child, names, result)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -157,8 +193,8 @@ func _physics_process(delta: float) -> void:
 
 	# --- Visual ---
 	if mesh:
-		# Roll on steering
-		mesh.rotation.z = lerp(mesh.rotation.z, steer * 0.2, 5.0 * delta)
+		# Body roll on steering
+		mesh.rotation.z = lerp(mesh.rotation.z, steer * 0.15, 5.0 * delta)
 		# Pitch: align to floor slope
 		var pitch_target: float = 0.0
 		if airborne:
@@ -171,6 +207,16 @@ func _physics_process(delta: float) -> void:
 			if throttle < 0 and speed > 5.0:
 				pitch_target += 0.05
 		mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 8.0 * delta)
+
+		# Front wheel steering
+		var steer_angle: float = steer * 0.4
+		for w in _front_wheels:
+			w.rotation.y = lerp(w.rotation.y, steer_angle, 10.0 * delta)
+
+		# Wheel spin (all wheels)
+		_wheel_spin += speed * delta * 3.0
+		for w in _front_wheels + _rear_wheels:
+			w.rotation.x = _wheel_spin
 
 	# --- Ghost recording ---
 	RaceManager.record_frame(global_position, rotation.y)

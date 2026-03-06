@@ -152,8 +152,9 @@ func _on_trigger_entered(body: Node3D, trigger_name: String) -> void:
 				RaceManager.start_race()
 				_start_ghost()
 			else:
+				var prev_lap := RaceManager.lap_count
 				RaceManager.cross_start_finish()
-				if RaceManager.state == RaceManager.State.RACING and RaceManager.lap_count <= 1:
+				if RaceManager.state == RaceManager.State.RACING and RaceManager.lap_count != prev_lap:
 					_start_ghost()
 
 	elif trigger_name == "finish":

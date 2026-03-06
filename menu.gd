@@ -15,6 +15,7 @@ func _ready() -> void:
 	editor_button.pressed.connect(_on_editor)
 	_load_track_list()
 	_create_player_ui()
+	_create_generate_button()
 	_create_delete_button()
 
 
@@ -274,6 +275,32 @@ func _on_flag_selected(code: String) -> void:
 	if flag_modal:
 		flag_modal.queue_free()
 		flag_modal = null
+
+
+func _create_generate_button() -> void:
+	var buttons: HBoxContainer = $VBox/Buttons
+	var gen_btn := Button.new()
+	gen_btn.text = "GENERUJ"
+	gen_btn.custom_minimum_size = Vector2(130, 50)
+	var gen_style := StyleBoxFlat.new()
+	gen_style.bg_color = Color(0.05, 0.2, 0.05)
+	gen_style.border_color = Color(0.2, 0.8, 0.3)
+	gen_style.set_border_width_all(2)
+	gen_btn.add_theme_stylebox_override("normal", gen_style)
+	gen_btn.pressed.connect(_on_generate)
+	buttons.add_child(gen_btn)
+
+
+func _on_generate() -> void:
+	var length: int = randi_range(15, 30)
+	var gen_name := "gen_%d" % (randi() % 9999)
+	TrackGenerator.generate(length, gen_name)
+	_load_track_list()
+	# Select and play the generated track
+	for i in range(tracks.size()):
+		if tracks[i] == gen_name:
+			track_list.select(i)
+			break
 
 
 func _create_delete_button() -> void:

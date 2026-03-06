@@ -1,132 +1,272 @@
-extends Node3D
-## Generates a racing circuit using waypoints and blocky voxels.
+class_name TrackGenerator
+## Generates random closed-loop tracks using the grid piece system.
 
-const TRACK_WIDTH := 7
-const WALL_HEIGHT := 2
-const CURB_WIDTH := 1
+const P_STRAIGHT := 0
+const P_TURN_R := 1
+const P_TURN_L := 2
+const P_RAMP_UP := 3
+const P_RAMP_DOWN := 4
+const P_START := 5
+const P_CHICANE := 6
+const P_BOOST := 7
+const P_CHECKPOINT := 8
+const P_ICE := 9
+const P_DIRT := 10
 
-# Block type IDs
-const AIR := 0
-const ASPHALT := 1
-const GRASS := 2
-const WALL := 3
-const CURB := 4
-const SAND := 5
+# 0=N(+Z), 1=E(+X), 2=S(-Z), 3=W(-X)
+const DIR_VECS := [Vector2i(0, 1), Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, 0)]
 
-@onready var terrain: VoxelTerrain = $"../VoxelTerrain"
-
-
-func _ready() -> void:
-	await get_tree().create_timer(1.5).timeout
-	_generate_track()
+const VARIETY_PIECES := [P_STRAIGHT, P_STRAIGHT, P_CHICANE, P_BOOST, P_ICE, P_DIRT]
 
 
-func _generate_track() -> void:
-	var tool := terrain.get_voxel_tool()
-	tool.channel = VoxelBuffer.CHANNEL_TYPE
-
-	# Circuit defined as waypoints - a GP-style track
-	var waypoints: Array[Vector2] = _build_circuit()
-
-	# Interpolate smooth path from waypoints
-	var path := _smooth_path(waypoints, 4)
-
-	# Paint track along path
-	for i in range(path.size()):
-		var pos := path[i]
-		var next_pos := path[(i + 1) % path.size()]
-		var dir := (next_pos - pos).normalized()
-		var normal := Vector2(-dir.y, dir.x)
-
-		# Sand runoff
-		for w in range(-TRACK_WIDTH - 3, TRACK_WIDTH + 4):
-			var p := pos + normal * float(w)
-			tool.set_voxel(Vector3i(int(p.x), 0, int(p.y)), SAND)
-
-		# Asphalt
-		for w in range(-TRACK_WIDTH, TRACK_WIDTH + 1):
-			var p := pos + normal * float(w)
-			tool.set_voxel(Vector3i(int(p.x), 0, int(p.y)), ASPHALT)
-
-		# Curbs on edges
-		for w in [TRACK_WIDTH - CURB_WIDTH, TRACK_WIDTH, -TRACK_WIDTH, -TRACK_WIDTH + CURB_WIDTH]:
-			# Alternating red/white curb pattern
-			if (i / 3) % 2 == 0:
-				var p := pos + normal * float(w)
-				tool.set_voxel(Vector3i(int(p.x), 0, int(p.y)), CURB)
-
-		# Walls on outer edges
-		for side in [-1, 1]:
-			var w_offset := float(TRACK_WIDTH + 3) * float(side)
-			var p := pos + normal * w_offset
-			var base := Vector3i(int(p.x), 0, int(p.y))
-			tool.set_voxel(base, WALL)
-			for h in range(1, WALL_HEIGHT + 1):
-				tool.set_voxel(base + Vector3i(0, h, 0), WALL)
+static func generate(length: int = 20, track_name: String = "generated") -> Array[Dictionary]:
+	# Try multiple times to get a closed loop
+	for _attempt in range(10):
+		var result := _try_generate(length)
+		if not result.is_empty():
+			TrackData.save_track(track_name, result)
+			TrackData.current_track = track_name
+			return result
+	# Fallback: simple oval
+	var fallback := _generate_oval()
+	TrackData.save_track(track_name, fallback)
+	TrackData.current_track = track_name
+	return fallback
 
 
-func _build_circuit() -> Array[Vector2]:
-	# GP-style circuit with varied corners
-	var pts: Array[Vector2] = []
+static func _try_generate(length: int) -> Array[Dictionary]:
+	var pieces: Array[Dictionary] = []
+	var occupied := {}
+	var pos := Vector2i(0, 0)
+	var dir := 0  # facing North
+	var height := 0
 
-	# Start/finish straight
-	pts.append(Vector2(50, 0))
-	pts.append(Vector2(30, 0))
+	# Place start
+	occupied[pos] = true
+	pieces.append(_make(pos, P_START, dir, height))
+	pos += DIR_VECS[dir]
 
-	# Turn 1 - tight hairpin
-	pts.append(Vector2(15, 5))
-	pts.append(Vector2(5, 18))
-	pts.append(Vector2(0, 35))
+	# Build middle section
+	var target := length - 1
+	var placed := 0
+	var ramp_debt := 0  # >0 means we need to come down
 
-	# Back straight
-	pts.append(Vector2(-5, 50))
-	pts.append(Vector2(-10, 60))
+	while placed < target:
+		# Must come down from ramp before turning
+		if ramp_debt > 0:
+			pieces.append(_make(pos, P_RAMP_DOWN, dir, height))
+			occupied[pos] = true
+			height = maxi(0, height - TrackPieces.RAMP_HEIGHT)
+			ramp_debt -= 1
+			pos += DIR_VECS[dir]
+			placed += 1
+			continue
 
-	# Chicane (S-curve)
-	pts.append(Vector2(-20, 68))
-	pts.append(Vector2(-30, 65))
-	pts.append(Vector2(-40, 68))
+		# Near end: try to close loop
+		if placed >= target - 8:
+			var closing := _try_close(pos, dir, Vector2i(0, 0), occupied, height)
+			if not closing.is_empty():
+				pieces.append_array(closing)
+				return pieces
 
-	# Long sweeping left
-	pts.append(Vector2(-50, 60))
-	pts.append(Vector2(-55, 45))
-	pts.append(Vector2(-50, 30))
+		# Pick next piece
+		var action := _pick_piece(pos, dir, occupied, placed, target, height)
+		if action.is_empty():
+			return []  # stuck, retry
 
-	# Short straight
-	pts.append(Vector2(-40, 20))
+		var piece_id: int = action.piece
+		var new_dir: int = action.dir
 
-	# Final complex - tight right then left
-	pts.append(Vector2(-30, 10))
-	pts.append(Vector2(-15, 5))
-	pts.append(Vector2(-5, -5))
+		# Checkpoint every ~6 pieces
+		if piece_id == P_STRAIGHT and placed > 0 and placed % 6 == 0 and height == 0:
+			piece_id = P_CHECKPOINT
 
-	# Return to start
-	pts.append(Vector2(10, -10))
-	pts.append(Vector2(30, -8))
-	pts.append(Vector2(45, -5))
+		# Ramp tracking
+		if piece_id == P_RAMP_UP:
+			height += TrackPieces.RAMP_HEIGHT
+			ramp_debt += 1
 
-	return pts
+		pieces.append(_make(pos, piece_id, dir if piece_id <= P_STRAIGHT else (dir if piece_id >= P_RAMP_UP else dir), height if piece_id != P_RAMP_UP else height - TrackPieces.RAMP_HEIGHT))
+
+		# Fix: ramp_up base_height is before going up
+		if piece_id == P_RAMP_UP:
+			pieces[-1]["base_height"] = height - TrackPieces.RAMP_HEIGHT
+
+		occupied[pos] = true
+		dir = new_dir
+		pos += DIR_VECS[dir]
+		placed += 1
+
+	return []  # couldn't close
 
 
-func _smooth_path(waypoints: Array[Vector2], subdivisions: int) -> Array[Vector2]:
-	var result: Array[Vector2] = []
-	var count := waypoints.size()
+static func _pick_piece(pos: Vector2i, dir: int, occupied: Dictionary, placed: int, total: int, height: int) -> Dictionary:
+	if height > 0:
+		# On elevated section, just go straight
+		var next := pos + DIR_VECS[dir]
+		if not occupied.has(next):
+			var piece: int = VARIETY_PIECES[randi() % VARIETY_PIECES.size()]
+			return {"piece": piece, "dir": dir}
+		return {}
 
-	for i in range(count):
-		var p0 := waypoints[(i - 1 + count) % count]
-		var p1 := waypoints[i]
-		var p2 := waypoints[(i + 1) % count]
-		var p3 := waypoints[(i + 2) % count]
+	# Ramp chance (flat only, not near end)
+	if randf() < 0.06 and placed < total - 6:
+		var next := pos + DIR_VECS[dir]
+		var next2 := next + DIR_VECS[dir]
+		if not occupied.has(next) and not occupied.has(next2):
+			return {"piece": P_RAMP_UP, "dir": dir}
 
-		for t in range(subdivisions):
-			var ft := float(t) / float(subdivisions)
-			# Catmull-Rom spline
-			var point := 0.5 * (
-				2.0 * p1 +
-				(-p0 + p2) * ft +
-				(2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * ft * ft +
-				(-p0 + 3.0 * p1 - 3.0 * p2 + p3) * ft * ft * ft
-			)
-			result.append(point)
+	# Turn probability increases if going straight too long
+	var turn_chance := 0.25
 
-	return result
+	var roll := randf()
+	if roll < turn_chance:
+		# Try right turn
+		var new_dir := (dir + 1) % 4
+		var next := pos + DIR_VECS[new_dir]
+		if not occupied.has(next):
+			return {"piece": P_TURN_R, "dir": new_dir}
+	if roll < turn_chance * 2:
+		# Try left turn
+		var new_dir := (dir + 3) % 4
+		var next := pos + DIR_VECS[new_dir]
+		if not occupied.has(next):
+			return {"piece": P_TURN_L, "dir": new_dir}
+
+	# Straight
+	var next := pos + DIR_VECS[dir]
+	if not occupied.has(next):
+		var piece: int = VARIETY_PIECES[randi() % VARIETY_PIECES.size()]
+		return {"piece": piece, "dir": dir}
+
+	# Blocked ahead, try any turn
+	for delta in [1, 3]:
+		var new_dir := (dir + delta) % 4
+		var nnext := pos + DIR_VECS[new_dir]
+		if not occupied.has(nnext):
+			var piece := P_TURN_R if delta == 1 else P_TURN_L
+			return {"piece": piece, "dir": new_dir}
+
+	return {}  # completely stuck
+
+
+static func _try_close(pos: Vector2i, dir: int, start: Vector2i, occupied: Dictionary, height: int) -> Array[Dictionary]:
+	# BFS-like approach to find path back to start (entering from south = dir 0)
+	# Simple: try direct routing with max ~8 pieces
+	var result: Array[Dictionary] = []
+	var cur := pos
+	var cur_dir := dir
+	var cur_h := height
+	var visited := {}
+
+	for _step in range(12):
+		visited[cur] = true
+
+		# Come down first
+		if cur_h > 0:
+			result.append(_make(cur, P_RAMP_DOWN, cur_dir, maxi(0, cur_h - TrackPieces.RAMP_HEIGHT)))
+			cur_h = maxi(0, cur_h - TrackPieces.RAMP_HEIGHT)
+			cur += DIR_VECS[cur_dir]
+			continue
+
+		# Check: are we one step south of start, heading north?
+		if cur + DIR_VECS[cur_dir] == start and cur_dir == 0:
+			result.append(_make(cur, P_STRAIGHT, cur_dir, 0))
+			return result
+
+		# Find which direction gets us closer to one-south-of-start heading north
+		var target := start - DIR_VECS[0]  # one south of start
+		var diff := target - cur
+
+		# Already at target, need to face north
+		if diff == Vector2i.ZERO:
+			if cur_dir == 0:
+				result.append(_make(cur, P_STRAIGHT, 0, 0))
+				return result
+			# Turn toward north
+			var td := _turn_delta(cur_dir, 0)
+			var piece := P_TURN_R if td == 1 else P_TURN_L
+			result.append(_make(cur, piece, cur_dir, 0))
+			cur_dir = (cur_dir + td) % 4
+			cur += DIR_VECS[cur_dir]
+			continue
+
+		# Pick best free direction toward target
+		var best_dir := -1
+		var best_dist := 999.0
+		for d in range(4):
+			var next := cur + DIR_VECS[d]
+			if visited.has(next) or (occupied.has(next) and next != start):
+				continue
+			var dist := Vector2(target - next).length()
+			if dist < best_dist:
+				best_dist = dist
+				best_dir = d
+
+		if best_dir < 0:
+			return []  # can't close
+
+		if best_dir == cur_dir:
+			result.append(_make(cur, P_STRAIGHT, cur_dir, 0))
+		else:
+			var td := _turn_delta(cur_dir, best_dir)
+			if td == 1 or td == 3:
+				var piece := P_TURN_R if td == 1 else P_TURN_L
+				result.append(_make(cur, piece, cur_dir, 0))
+				cur_dir = best_dir
+			else:
+				# 180 degree - do two rights
+				var piece := P_TURN_R
+				result.append(_make(cur, piece, cur_dir, 0))
+				cur_dir = (cur_dir + 1) % 4
+				cur += DIR_VECS[cur_dir]
+				visited[cur] = true
+				# Check if new direction works
+				var td2 := _turn_delta(cur_dir, best_dir)
+				if td2 == 1:
+					result.append(_make(cur, P_TURN_R, cur_dir, 0))
+				else:
+					result.append(_make(cur, P_TURN_L, cur_dir, 0))
+				cur_dir = best_dir
+
+		cur += DIR_VECS[cur_dir]
+
+	return []  # couldn't close in time
+
+
+static func _turn_delta(from: int, to: int) -> int:
+	return (to - from + 4) % 4
+
+
+static func _make(grid: Vector2i, piece: int, dir: int, height: int) -> Dictionary:
+	return {"grid": grid, "piece": piece, "rotation": dir, "base_height": height}
+
+
+static func _generate_oval() -> Array[Dictionary]:
+	var pieces: Array[Dictionary] = []
+	# Simple: Start, 3 straights, right turn, 3 straights, right turn, 3 straights, right turn, 3 straights, right turn → closed
+	var pos := Vector2i(0, 0)
+	var dir := 0
+
+	pieces.append(_make(pos, P_START, dir, 0))
+	pos += DIR_VECS[dir]
+
+	for side in range(4):
+		var leg_len := 3 if side % 2 == 0 else 2
+		for _i in range(leg_len):
+			var p := P_BOOST if _i == 1 and side == 2 else P_STRAIGHT
+			pieces.append(_make(pos, p, dir, 0))
+			pos += DIR_VECS[dir]
+		if side < 3:
+			pieces.append(_make(pos, P_TURN_R, dir, 0))
+			dir = (dir + 1) % 4
+			pos += DIR_VECS[dir]
+		else:
+			# Last turn back to start
+			pieces.append(_make(pos, P_TURN_R, dir, 0))
+			dir = (dir + 1) % 4
+			pos += DIR_VECS[dir]
+			# Final straight to close
+			pieces.append(_make(pos, P_STRAIGHT, dir, 0))
+
+	return pieces
