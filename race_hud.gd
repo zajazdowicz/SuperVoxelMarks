@@ -134,10 +134,17 @@ func _process(_delta: float) -> void:
 			msg += "\nR = restart | G = duch | ESC = menu"
 			info_label.text = msg
 
-	# Speed
+	# Speed + drift indicator
 	if car:
 		var spd: int = int(abs(car.speed) * 3.6)
-		speed_label.text = "%d km/h" % spd
+		var drift_text := ""
+		if car.get("_drifting") and car._drifting:
+			var dt: float = car._drift_timer
+			if dt >= car.DRIFT_BOOST_TIME:
+				drift_text = " BOOST!"
+			else:
+				drift_text = " DRIFT"
+		speed_label.text = "%d km/h%s" % [spd, drift_text]
 
 	# Best + Last lap always visible
 	var extra := ""

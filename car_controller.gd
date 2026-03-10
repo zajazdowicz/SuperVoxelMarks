@@ -33,6 +33,24 @@ var _front_wheels: Array[Node3D] = []
 var _rear_wheels: Array[Node3D] = []
 var _wheel_spin := 0.0
 
+# Drift
+var _drifting := false
+var _drift_timer := 0.0
+var _drift_dir := 0.0  # -1 left, +1 right
+const DRIFT_GRIP := 0.15
+const DRIFT_TURN_MULT := 1.8
+const DRIFT_BOOST_TIME := 0.6  # drift this long for boost
+const DRIFT_BOOST_MULT := 1.35
+const DRIFT_BOOST_DUR := 0.8
+
+# Skidmarks
+var _skid_left: MeshInstance3D
+var _skid_right: MeshInstance3D
+var _skid_left_points: PackedVector3Array = []
+var _skid_right_points: PackedVector3Array = []
+const SKID_WIDTH := 0.12
+const SKID_FADE_TIME := 8.0
+
 
 func _ready() -> void:
 	if not stats:
@@ -126,6 +144,7 @@ func _physics_process(delta: float) -> void:
 
 	var throttle := Input.get_axis("ui_down", "ui_up")
 	var steer := Input.get_axis("ui_right", "ui_left")
+	var handbrake := Input.is_action_pressed("ui_accept")  # Space
 
 	# --- Surface properties ---
 	var grip: float = surface.grip
@@ -136,16 +155,45 @@ func _physics_process(delta: float) -> void:
 	if surface.get("is_boost", false) and is_on_floor():
 		_apply_boost()
 
+	# --- Drift / handbrake state ---
+	var was_drifting := _drifting
+	if handbrake and not airborne and abs(speed) > 5.0:
+		if not _drifting:
+			_drifting = true
+			_drift_timer = 0.0
+			_drift_dir = signf(steer) if abs(steer) > 0.1 else 0.0
+		_drift_timer += delta
+		if abs(steer) > 0.1:
+			_drift_dir = signf(steer)
+		# Handbrake slows down
+		speed = move_toward(speed, speed * 0.7, stats.brake_force * 0.8 * delta)
+	elif _drifting:
+		_drifting = false
+		# Drift boost if drifted long enough while steering
+		if _drift_timer >= DRIFT_BOOST_TIME and abs(_drift_dir) > 0.1:
+			_boost_mult = DRIFT_BOOST_MULT
+			_boost_timer = DRIFT_BOOST_DUR
+			speed = minf(speed * 1.15, stats.max_speed * DRIFT_BOOST_MULT)
+
 	# --- Acceleration ---
 	if throttle > 0:
-		speed = move_toward(speed, speed_limit, stats.acceleration * delta)
+		var accel := stats.acceleration
+		if _drifting:
+			accel *= 0.8  # slightly less acceleration while drifting
+		speed = move_toward(speed, speed_limit, accel * delta)
 	elif throttle < 0:
 		speed = move_toward(speed, -stats.reverse_speed, stats.brake_force * delta)
 	else:
 		speed = move_toward(speed, 0, friction * delta)
 
 	# --- Steering ---
-	var turn_mult: float = stats.air_control if airborne else grip
+	var turn_mult: float
+	if airborne:
+		turn_mult = stats.air_control
+	elif _drifting:
+		turn_mult = grip * DRIFT_TURN_MULT
+	else:
+		turn_mult = grip
 	if abs(speed) > 1.0:
 		var turn: float = steer * stats.turn_speed * delta * signf(speed) * turn_mult
 		rotation.y += turn
@@ -157,19 +205,21 @@ func _physics_process(delta: float) -> void:
 		var target_vel := forward * speed
 		velocity.x = lerp(velocity.x, target_vel.x, stats.air_control * delta * 5.0)
 		velocity.z = lerp(velocity.z, target_vel.z, stats.air_control * delta * 5.0)
-		# Gravity in air
 		velocity += _gravity_dir * stats.gravity * delta
 	else:
-		# Project forward direction onto floor plane
 		var fn := get_floor_normal()
 		var slope_forward := (forward - fn * forward.dot(fn)).normalized()
 		var target_vel := slope_forward * speed
 
-		var drift_blend: float = grip * stats.drift_factor
-		velocity = velocity.lerp(target_vel, clampf(drift_blend, 0.1, 1.0))
+		var blend: float
+		if _drifting:
+			blend = DRIFT_GRIP
+		else:
+			blend = grip * stats.drift_factor
+		velocity = velocity.lerp(target_vel, clampf(blend, 0.1, 1.0))
 
-		# Slope gravity: accelerate downhill, decelerate uphill
-		var slope_dot := fn.dot(Vector3.UP)  # 1.0 = flat, <1.0 = slope
+		# Slope gravity
+		var slope_dot := fn.dot(Vector3.UP)
 		if slope_dot < 0.99:
 			var gravity_along_slope := Vector3.DOWN - fn * Vector3.DOWN.dot(fn)
 			velocity += gravity_along_slope * stats.gravity * 0.5 * delta
@@ -183,17 +233,18 @@ func _physics_process(delta: float) -> void:
 	var pre_speed := velocity.length()
 	move_and_slide()
 
-	# --- Wall bounce ---
-	if get_slide_collision_count() > 0:
-		var col := get_slide_collision(0)
-		var normal := col.get_normal()
-		if absf(normal.y) < 0.3 and pre_speed > 3.0:
-			# Reflect velocity off wall
-			var reflect := velocity.reflect(normal)
-			velocity = reflect * 0.4
-			speed = maxf(speed * 0.5, 0.0)
-			# Nudge car away from wall
-			global_position += normal * 0.15
+	# --- Wall bounce (only on flat ground, not on ramps) ---
+	if get_slide_collision_count() > 0 and is_on_floor():
+		var fn := get_floor_normal()
+		var on_slope := fn.dot(Vector3.UP) < 0.95
+		if not on_slope:
+			var col := get_slide_collision(0)
+			var normal := col.get_normal()
+			if absf(normal.y) < 0.3 and pre_speed > 3.0:
+				var reflect := velocity.reflect(normal)
+				velocity = reflect * 0.4
+				speed = maxf(speed * 0.5, 0.0)
+				global_position += normal * 0.15
 
 	# --- Track safe position ---
 	if is_on_floor() and surface.grip >= 0.8:
@@ -202,23 +253,32 @@ func _physics_process(delta: float) -> void:
 
 	# --- Visual ---
 	if mesh:
-		# Body roll on steering
-		mesh.rotation.z = lerp(mesh.rotation.z, steer * 0.15, 5.0 * delta)
-		# Pitch: align to floor slope
+		# Body roll — more when drifting
+		var roll_target: float = steer * 0.15
+		if _drifting:
+			roll_target = _drift_dir * 0.25 + steer * 0.1
+		mesh.rotation.z = lerp(mesh.rotation.z, roll_target, 5.0 * delta)
+
+		# Pitch: align to floor slope or velocity
 		var pitch_target: float = 0.0
-		if airborne:
-			pitch_target = -0.1
-		elif is_on_floor():
+		var pitch_speed: float = 12.0
+		if is_on_floor():
 			var fn := get_floor_normal()
 			var right := transform.basis.x
 			var forward_on_slope := fn.cross(right).normalized()
-			pitch_target = asin(clampf(-forward_on_slope.y, -0.8, 0.8))
-			if throttle < 0 and speed > 5.0:
-				pitch_target += 0.05
-		mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 8.0 * delta)
+			pitch_target = -asin(clampf(-forward_on_slope.y, -0.8, 0.8))
+			pitch_speed = 15.0
+		elif velocity.length() > 3.0:
+			# Airborne or on ramp without floor detect — follow velocity
+			var vel_dir := velocity.normalized()
+			pitch_target = -asin(clampf(-vel_dir.y, -0.6, 0.6))
+			pitch_speed = 8.0
+		mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, pitch_speed * delta)
 
 		# Front wheel steering
 		var steer_angle: float = steer * 0.4
+		if _drifting:
+			steer_angle = steer * 0.6  # more wheel angle when drifting
 		for w in _front_wheels:
 			w.rotation.y = lerp(w.rotation.y, steer_angle, 10.0 * delta)
 
@@ -227,8 +287,88 @@ func _physics_process(delta: float) -> void:
 		for w in _front_wheels + _rear_wheels:
 			w.rotation.x = _wheel_spin
 
+	# --- Skidmarks ---
+	if _drifting and not airborne:
+		_add_skidmarks()
+	elif was_drifting:
+		_freeze_skidmarks()
+
 	# --- Ghost recording ---
 	RaceManager.record_frame(global_position, rotation.y)
+
+
+func _add_skidmarks() -> void:
+	if not _skid_left:
+		_create_skid_meshes()
+	if not _skid_left:
+		return
+
+	var right := transform.basis.x
+	var rear_offset := transform.basis.z * 0.8
+	var down := Vector3(0, -0.45, 0)
+
+	_skid_left_points.append(global_position + rear_offset - right * 0.4 + down)
+	_skid_right_points.append(global_position + rear_offset + right * 0.4 + down)
+
+	_rebuild_skid_mesh(_skid_left, _skid_left_points)
+	_rebuild_skid_mesh(_skid_right, _skid_right_points)
+
+
+func _rebuild_skid_mesh(mi: MeshInstance3D, points: PackedVector3Array) -> void:
+	if points.size() < 2:
+		return
+	var imm := ImmediateMesh.new()
+	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in range(points.size()):
+		var p := points[i]
+		var perp := Vector3.RIGHT * SKID_WIDTH
+		if i < points.size() - 1:
+			var seg := points[i + 1] - p
+			if seg.length_squared() > 0.001:
+				perp = seg.cross(Vector3.UP).normalized() * SKID_WIDTH
+		imm.surface_add_vertex(p - perp)
+		imm.surface_add_vertex(p + perp)
+	imm.surface_end()
+	mi.mesh = imm
+
+
+func _freeze_skidmarks() -> void:
+	# Keep current skidmarks on the ground, start fresh next time
+	if _skid_left and _skid_left_points.size() > 1:
+		var old_left := _skid_left
+		var old_right := _skid_right
+		# Fade out and remove after time
+		var tween := get_tree().create_tween()
+		tween.tween_method(func(t: float):
+			var alpha := lerpf(0.7, 0.0, t)
+			if is_instance_valid(old_left) and old_left.material_override:
+				old_left.material_override.albedo_color.a = alpha
+			if is_instance_valid(old_right) and old_right.material_override:
+				old_right.material_override.albedo_color.a = alpha
+		, 0.0, 1.0, SKID_FADE_TIME)
+		tween.tween_callback(func():
+			if is_instance_valid(old_left): old_left.queue_free()
+			if is_instance_valid(old_right): old_right.queue_free()
+		)
+	_skid_left = null
+	_skid_right = null
+	_skid_left_points.clear()
+	_skid_right_points.clear()
+
+
+func _create_skid_meshes() -> void:
+	var skid_mat := StandardMaterial3D.new()
+	skid_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	skid_mat.albedo_color = Color(0.05, 0.05, 0.05, 0.7)
+	skid_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+
+	_skid_left = MeshInstance3D.new()
+	_skid_left.material_override = skid_mat
+	get_parent().add_child(_skid_left)
+
+	_skid_right = MeshInstance3D.new()
+	_skid_right.material_override = skid_mat.duplicate()
+	get_parent().add_child(_skid_right)
 
 
 func _check_offtrack(surface: Dictionary, airborne: bool, delta: float) -> void:
