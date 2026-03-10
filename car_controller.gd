@@ -115,6 +115,7 @@ func _find_wheels(root: Node3D) -> void:
 		"pCylinder20", "pCylinder21"]
 	_collect_named_nodes(root, front_names, _front_wheels)
 	_collect_named_nodes(root, rear_names, _rear_wheels)
+	print("Wheels found: front=%d rear=%d" % [_front_wheels.size(), _rear_wheels.size()])
 
 
 func _collect_named_nodes(node: Node, names: Array, result: Array[Node3D]) -> void:
@@ -304,8 +305,8 @@ func _physics_process(delta: float) -> void:
 		if slope_dot < 0.7:
 			# Steep surface (wall ride / loop)
 			# Speed-based adhesion: need minimum speed to stick to wall
-			var min_speed := 15.0  # below this, car slides off
-			var hold_speed := 25.0  # above this, full grip
+			var min_speed := stats.min_wallride_speed
+			var hold_speed := stats.min_loop_speed
 			var speed_factor := clampf((absf(speed) - min_speed) / (hold_speed - min_speed), 0.0, 1.0)
 
 			if speed_factor > 0.0:
@@ -362,6 +363,11 @@ func _physics_process(delta: float) -> void:
 
 	# --- Visual ---
 	if mesh:
+		# Build target basis for mesh alignment
+		var pitch_target := 0.0
+		var roll_target := 0.0
+		var surface_basis := Basis()
+
 		if is_on_floor():
 			var fn := get_floor_normal()
 			var slope_dot2 := fn.dot(Vector3.UP)
@@ -371,36 +377,36 @@ func _physics_process(delta: float) -> void:
 				var car_forward := -transform.basis.z
 				var right := car_forward.cross(fn).normalized()
 				var aligned_forward := fn.cross(right).normalized()
-				var target_basis := Basis(right, fn, -aligned_forward)
-				mesh.basis = mesh.basis.slerp(target_basis, 8.0 * delta)
+				surface_basis = Basis(right, fn, -aligned_forward)
 			else:
-				# Flat ground — slerp back to identity + cosmetic roll/pitch
-				mesh.basis = mesh.basis.slerp(Basis(), 8.0 * delta)
-				var roll_target: float = steer * 0.15
-				if _drifting:
-					roll_target = _drift_dir * 0.25 + steer * 0.1
-				mesh.rotation.z = lerp(mesh.rotation.z, roll_target, 5.0 * delta)
-
+				# Flat ground — pitch from slope
 				var right := transform.basis.x
 				var forward_on_slope := fn.cross(right).normalized()
-				var pitch_target := -asin(clampf(-forward_on_slope.y, -0.8, 0.8))
-				mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 15.0 * delta)
+				pitch_target = -asin(clampf(-forward_on_slope.y, -0.8, 0.8))
 		else:
-			# Airborne — follow velocity for pitch, reset roll
-			var roll_target: float = steer * 0.15
-			if _drifting:
-				roll_target = _drift_dir * 0.25 + steer * 0.1
-			mesh.rotation.z = lerp(mesh.rotation.z, roll_target, 5.0 * delta)
-
+			# Airborne — pitch from velocity
 			if velocity.length() > 3.0:
 				var vel_dir := velocity.normalized()
-				var pitch_target := -asin(clampf(-vel_dir.y, -0.6, 0.6))
-				mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 8.0 * delta)
+				pitch_target = -asin(clampf(-vel_dir.y, -0.6, 0.6))
+
+		# Cosmetic roll from steering
+		roll_target = steer * 0.15
+		if _drifting:
+			roll_target = _drift_dir * 0.25 + steer * 0.1
+
+		# Apply: surface alignment OR euler pitch/roll
+		if surface_basis != Basis():
+			mesh.basis = mesh.basis.slerp(surface_basis, 8.0 * delta)
+		else:
+			# Smoothly return to identity then apply pitch/roll as euler
+			mesh.basis = mesh.basis.slerp(Basis(), 8.0 * delta)
+			mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 12.0 * delta)
+			mesh.rotation.z = lerp(mesh.rotation.z, roll_target, 5.0 * delta)
 
 		# Front wheel steering
 		var steer_angle: float = steer * 0.4
 		if _drifting:
-			steer_angle = steer * 0.6  # more wheel angle when drifting
+			steer_angle = steer * 0.6
 		for w in _front_wheels:
 			w.rotation.y = lerp(w.rotation.y, steer_angle, 10.0 * delta)
 
