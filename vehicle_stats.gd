@@ -10,7 +10,7 @@ class_name VehicleStats extends Resource
 
 @export_group("Handling")
 @export var turn_speed := 2.5
-@export var drift_factor := 0.92       # 1.0 = no drift, 0.0 = full drift
+@export var drift_factor := 0.82       # 1.0 = no drift, 0.0 = full drift
 @export var air_control := 0.3         # steering in air (0-1)
 
 @export_group("Physics")

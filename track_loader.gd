@@ -15,7 +15,9 @@ var _ghost_visible := true
 
 
 func _ready() -> void:
-	await get_tree().create_timer(0.5).timeout
+	if car:
+		car.visible = false
+	await get_tree().create_timer(2.0).timeout
 	_build_track()
 
 
@@ -65,10 +67,14 @@ func _build_track() -> void:
 	RaceManager.total_checkpoints = _checkpoint_count
 	RaceManager.is_sprint = has_finish
 
+	# Wait for voxel meshing to complete
+	await get_tree().create_timer(0.5).timeout
+
 	if car:
 		car.global_position = _spawn_pos
 		car.rotation.y = _spawn_rot
 		car.velocity = Vector3.ZERO
+		car.visible = true
 		car.set_physics_process(true)
 
 	# Spawn ghost for personal best

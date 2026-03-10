@@ -44,12 +44,22 @@ const DRIFT_BOOST_MULT := 1.35
 const DRIFT_BOOST_DUR := 0.8
 
 # Skidmarks
-var _skid_left: MeshInstance3D
-var _skid_right: MeshInstance3D
-var _skid_left_points: PackedVector3Array = []
-var _skid_right_points: PackedVector3Array = []
-const SKID_WIDTH := 0.12
-const SKID_FADE_TIME := 8.0
+var _skid_mesh: MeshInstance3D
+var _skid_mat: StandardMaterial3D
+var _skid_verts: PackedVector3Array = []
+var _skid_indices: PackedInt32Array = []
+var _skid_prev_l := Vector3.ZERO  # previous left tire pos
+var _skid_prev_r := Vector3.ZERO  # previous right tire pos
+var _skid_active := false
+var _skid_cooldown := 0.0
+const SKID_WIDTH := 0.07
+const SKID_MIN_DIST := 0.3
+const SKID_COOLDOWN_TIME := 0.15
+const SKID_MAX_VERTS := 4000
+
+# Particles
+var _boost_flame: GPUParticles3D
+var _drift_smoke: GPUParticles3D
 
 
 func _ready() -> void:
@@ -71,6 +81,7 @@ func _ready() -> void:
 
 	# Load F1 car model
 	_load_car_model()
+	_setup_particles()
 
 
 func _load_car_model() -> void:
@@ -111,6 +122,73 @@ func _collect_named_nodes(node: Node, names: Array, result: Array[Node3D]) -> vo
 		result.append(node)
 	for child in node.get_children():
 		_collect_named_nodes(child, names, result)
+
+
+func _setup_particles() -> void:
+	# Boost flame (behind car)
+	_boost_flame = _create_boost_emitter()
+	_boost_flame.position = Vector3(0, 0.0, 1.2)
+	add_child(_boost_flame)
+
+	# Drift smoke
+	_drift_smoke = _create_smoke_emitter()
+	_drift_smoke.position = Vector3(0, -0.2, 0.8)
+	add_child(_drift_smoke)
+
+
+func _make_particle_mesh(size: float, color: Color) -> QuadMesh:
+	var m := QuadMesh.new()
+	m.size = Vector2(size, size)
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = color
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.material = mat
+	return m
+
+
+func _create_boost_emitter() -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.emitting = false
+	p.amount = 24
+	p.lifetime = 0.4
+	p.speed_scale = 2.0
+	p.visibility_aabb = AABB(Vector3(-5, -2, -5), Vector3(10, 6, 10))
+
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3(0, 0, 1)
+	mat.spread = 20.0
+	mat.initial_velocity_min = 5.0
+	mat.initial_velocity_max = 10.0
+	mat.gravity = Vector3(0, 3.0, 0)
+	mat.scale_min = 0.15
+	mat.scale_max = 0.4
+	mat.color = Color(1.0, 0.5, 0.0, 0.8)
+	p.process_material = mat
+	p.draw_pass_1 = _make_particle_mesh(0.12, Color(1.0, 0.5, 0.0, 0.8))
+	return p
+
+
+func _create_smoke_emitter() -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.emitting = false
+	p.amount = 20
+	p.lifetime = 1.0
+	p.visibility_aabb = AABB(Vector3(-6, -2, -6), Vector3(12, 6, 12))
+
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3(0, 1, 0)
+	mat.spread = 50.0
+	mat.initial_velocity_min = 1.0
+	mat.initial_velocity_max = 3.0
+	mat.gravity = Vector3(0, 1.0, 0)
+	mat.scale_min = 0.3
+	mat.scale_max = 0.8
+	mat.color = Color(0.7, 0.7, 0.7, 0.4)
+	p.process_material = mat
+	p.draw_pass_1 = _make_particle_mesh(0.2, Color(0.7, 0.7, 0.7, 0.4))
+	return p
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -157,7 +235,8 @@ func _physics_process(delta: float) -> void:
 
 	# --- Drift / handbrake state ---
 	var was_drifting := _drifting
-	if handbrake and not airborne and abs(speed) > 5.0:
+	var drift_end_speed := 2.0 if _drifting else 5.0  # hysteresis
+	if handbrake and not airborne and abs(speed) > drift_end_speed:
 		if not _drifting:
 			_drifting = true
 			_drift_timer = 0.0
@@ -245,6 +324,7 @@ func _physics_process(delta: float) -> void:
 				velocity = reflect * 0.4
 				speed = maxf(speed * 0.5, 0.0)
 				global_position += normal * 0.15
+				_spawn_wall_sparks(global_position, normal)
 
 	# --- Track safe position ---
 	if is_on_floor() and surface.grip >= 0.8:
@@ -288,87 +368,146 @@ func _physics_process(delta: float) -> void:
 			w.rotation.x = _wheel_spin
 
 	# --- Skidmarks ---
-	if _drifting and not airborne:
+	var skidding: bool = false
+	if not airborne:
+		if _drifting:
+			skidding = true
+		elif throttle < 0 and abs(speed) > 20.0:
+			# Hard braking at high speed
+			skidding = true
+	if skidding:
+		_skid_cooldown = SKID_COOLDOWN_TIME
 		_add_skidmarks()
-	elif was_drifting:
-		_freeze_skidmarks()
+	elif _skid_active:
+		_skid_cooldown -= delta
+		if _skid_cooldown > 0:
+			_add_skidmarks()
+		else:
+			_skid_active = false
+
+	# --- Particles ---
+	_update_particles(airborne)
 
 	# --- Ghost recording ---
 	RaceManager.record_frame(global_position, rotation.y)
 
 
+func _update_particles(airborne: bool) -> void:
+	if _drift_smoke:
+		_drift_smoke.emitting = _drifting and not airborne
+	if _boost_flame:
+		_boost_flame.emitting = _boost_timer > 0
+
+
+func _spawn_wall_sparks(hit_pos: Vector3, normal: Vector3) -> void:
+	var sparks := GPUParticles3D.new()
+	sparks.emitting = true
+	sparks.amount = 20
+	sparks.lifetime = 0.5
+	sparks.one_shot = true
+	sparks.explosiveness = 0.95
+	sparks.visibility_aabb = AABB(Vector3(-5, -2, -5), Vector3(10, 6, 10))
+
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = normal
+	mat.spread = 45.0
+	mat.initial_velocity_min = 4.0
+	mat.initial_velocity_max = 12.0
+	mat.gravity = Vector3(0, -15.0, 0)
+	mat.scale_min = 0.2
+	mat.scale_max = 0.4
+	mat.color = Color(1.0, 0.8, 0.2, 1.0)
+	sparks.process_material = mat
+	sparks.draw_pass_1 = _make_particle_mesh(0.08, Color(1.0, 0.8, 0.2, 1.0))
+
+	sparks.global_position = hit_pos
+	get_parent().add_child(sparks)
+	get_tree().create_timer(1.0).timeout.connect(sparks.queue_free)
+
+
 func _add_skidmarks() -> void:
-	if not _skid_left:
-		_create_skid_meshes()
-	if not _skid_left:
-		return
+	if not _skid_mesh:
+		_init_skid_mesh()
 
 	var right := transform.basis.x
-	var rear_offset := transform.basis.z * 0.8
-	var down := Vector3(0, -0.45, 0)
+	var rear_center := global_position + transform.basis.z * 0.8
+	var ground_y := global_position.y - 0.4
 
-	_skid_left_points.append(global_position + rear_offset - right * 0.4 + down)
-	_skid_right_points.append(global_position + rear_offset + right * 0.4 + down)
+	var lp := Vector3(rear_center.x - right.x * 0.35, ground_y, rear_center.z - right.z * 0.35)
+	var rp := Vector3(rear_center.x + right.x * 0.35, ground_y, rear_center.z + right.z * 0.35)
 
-	_rebuild_skid_mesh(_skid_left, _skid_left_points)
-	_rebuild_skid_mesh(_skid_right, _skid_right_points)
-
-
-func _rebuild_skid_mesh(mi: MeshInstance3D, points: PackedVector3Array) -> void:
-	if points.size() < 2:
+	if not _skid_active:
+		_skid_prev_l = lp
+		_skid_prev_r = rp
+		_skid_active = true
 		return
-	var imm := ImmediateMesh.new()
-	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
-	for i in range(points.size()):
-		var p := points[i]
-		var perp := Vector3.RIGHT * SKID_WIDTH
-		if i < points.size() - 1:
-			var seg := points[i + 1] - p
-			if seg.length_squared() > 0.001:
-				perp = seg.cross(Vector3.UP).normalized() * SKID_WIDTH
-		imm.surface_add_vertex(p - perp)
-		imm.surface_add_vertex(p + perp)
-	imm.surface_end()
-	mi.mesh = imm
+
+	# Skip if haven't moved enough
+	if _skid_prev_l.distance_to(lp) < SKID_MIN_DIST:
+		return
+
+	# Add quad for each tire: prev_pos → cur_pos, extruded by SKID_WIDTH
+	_add_tire_quad(_skid_prev_l, lp)
+	_add_tire_quad(_skid_prev_r, rp)
+
+	_skid_prev_l = lp
+	_skid_prev_r = rp
+
+	# Trim if too many verts
+	if _skid_verts.size() > SKID_MAX_VERTS:
+		var trim := _skid_verts.size() - SKID_MAX_VERTS
+		_skid_verts = _skid_verts.slice(trim)
+		_skid_indices.clear()
+		for i in range(_skid_verts.size() / 4):
+			var b := i * 4
+			_skid_indices.append_array([b, b+1, b+2, b+2, b+1, b+3])
+
+	_rebuild_skid_mesh()
 
 
-func _freeze_skidmarks() -> void:
-	# Keep current skidmarks on the ground, start fresh next time
-	if _skid_left and _skid_left_points.size() > 1:
-		var old_left := _skid_left
-		var old_right := _skid_right
-		# Fade out and remove after time
-		var tween := get_tree().create_tween()
-		tween.tween_method(func(t: float):
-			var alpha := lerpf(0.7, 0.0, t)
-			if is_instance_valid(old_left) and old_left.material_override:
-				old_left.material_override.albedo_color.a = alpha
-			if is_instance_valid(old_right) and old_right.material_override:
-				old_right.material_override.albedo_color.a = alpha
-		, 0.0, 1.0, SKID_FADE_TIME)
-		tween.tween_callback(func():
-			if is_instance_valid(old_left): old_left.queue_free()
-			if is_instance_valid(old_right): old_right.queue_free()
-		)
-	_skid_left = null
-	_skid_right = null
-	_skid_left_points.clear()
-	_skid_right_points.clear()
+func _add_tire_quad(from: Vector3, to: Vector3) -> void:
+	var dir := to - from
+	if dir.length_squared() < 0.0001:
+		return
+	var perp := dir.cross(Vector3.UP).normalized() * SKID_WIDTH
+
+	var i := _skid_verts.size()
+	_skid_verts.append(from - perp)
+	_skid_verts.append(from + perp)
+	_skid_verts.append(to - perp)
+	_skid_verts.append(to + perp)
+
+	_skid_indices.append_array([i, i+1, i+2, i+2, i+1, i+3])
+	if _skid_verts.size() % 40 == 0:
+		print("SKID: %d verts, from=%s to=%s" % [_skid_verts.size(), from, to])
 
 
-func _create_skid_meshes() -> void:
-	var skid_mat := StandardMaterial3D.new()
-	skid_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	skid_mat.albedo_color = Color(0.05, 0.05, 0.05, 0.7)
-	skid_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+func _rebuild_skid_mesh() -> void:
+	if _skid_verts.size() < 4:
+		return
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = _skid_verts
+	arr[Mesh.ARRAY_INDEX] = _skid_indices
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	m.surface_set_material(0, _skid_mat)
+	_skid_mesh.mesh = m
 
-	_skid_left = MeshInstance3D.new()
-	_skid_left.material_override = skid_mat
-	get_parent().add_child(_skid_left)
 
-	_skid_right = MeshInstance3D.new()
-	_skid_right.material_override = skid_mat.duplicate()
-	get_parent().add_child(_skid_right)
+func _init_skid_mesh() -> void:
+	_skid_mat = StandardMaterial3D.new()
+	_skid_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_skid_mat.albedo_color = Color(0.1, 0.1, 0.1, 0.8)
+	_skid_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_skid_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_skid_mat.render_priority = 1
+
+	_skid_mesh = MeshInstance3D.new()
+	_skid_mesh.material_override = _skid_mat
+	_skid_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	get_parent().add_child(_skid_mesh)
+	print("SKID: mesh initialized")
 
 
 func _check_offtrack(surface: Dictionary, airborne: bool, delta: float) -> void:
