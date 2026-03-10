@@ -205,6 +205,24 @@ static func _add_tri(verts: PackedVector3Array, normals: PackedVector3Array,
 	indices.append(idx); indices.append(idx + 1); indices.append(idx + 2)
 
 
+static func _add_collision_quad(body: StaticBody3D, a: Vector3, b: Vector3,
+		c: Vector3, d: Vector3, bottom_y: float, basis_rot: Basis) -> void:
+	## Add a flat collision quad with bottom support.
+	var col_points := PackedVector3Array()
+	col_points.append(a); col_points.append(b)
+	col_points.append(c); col_points.append(d)
+	# Bottom support
+	col_points.append(Vector3(a.x, bottom_y, a.z))
+	col_points.append(Vector3(b.x, bottom_y, b.z))
+	col_points.append(Vector3(c.x, bottom_y, c.z))
+	col_points.append(Vector3(d.x, bottom_y, d.z))
+	var col_shape := CollisionShape3D.new()
+	var shape := ConvexPolygonShape3D.new()
+	shape.points = col_points
+	col_shape.shape = shape
+	body.add_child(col_shape)
+
+
 # =======================================================================
 # WALL RIDE
 # =======================================================================
@@ -318,23 +336,23 @@ static func spawn_wall_ride(parent: Node3D, grid_pos: Vector2i, piece_id: int, r
 # =======================================================================
 # LOOP (full 360° in one segment)
 # =======================================================================
-# Circle in YZ plane: car enters from south at ground, loops up and over,
-# exits to north at ground. R = HALF (6) fits in SEGMENT_SIZE (12).
-#
-# Parametrization (angle a from 0 to 2*PI):
-#   Y(a) = center_y - R * cos(a)  → bottom: ground, top: ground + 2R
-#   Z(a) = R * sin(a)             → ranges -R..+R = -6..+6 = fits segment
-# Road width in X (perpendicular to loop plane).
+# Circle in YZ plane with straight entry/exit ramps.
+# Circle R=5, center at (0, ground+R, 0). Bottom of circle at (z=0, y=ground).
+# Entry straight: z=-HALF to z=0 at ground (connects road to circle bottom).
+# Exit straight: z=0 to z=+HALF at ground.
+# Car enters south, drives to circle bottom, loops 360°, exits north.
 
-const LOOP_SEGMENTS := 24  # segments for full circle (smooth)
+const LOOP_SEGMENTS := 24  # segments for full circle
+const LOOP_R := 5.0  # loop radius
 
 static func spawn_loop(parent: Node3D, grid_pos: Vector2i, rotation: int, base_height: int = 0) -> void:
 	var body := StaticBody3D.new()
 	body.name = "Loop_%d_%d" % [grid_pos.x, grid_pos.y]
 
 	var hw: float = float(ROAD_W) + 0.5
+	var hl: float = float(HALF)
 	var ground: float = 1.0
-	var R: float = float(HALF)  # 6.0 — fits in segment
+	var R: float = LOOP_R
 	var center_y: float = ground + R
 	var rot_angle: float = -float(rotation) * PI / 2.0
 	var basis_rot := Basis(Vector3.UP, rot_angle)
@@ -343,40 +361,45 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, rotation: int, base_h
 	var normals := PackedVector3Array()
 	var indices := PackedInt32Array()
 
+	# --- Entry straight: z=-hl to z=0 at ground level ---
+	var entry_s := basis_rot * Vector3(-hw, ground, -hl)
+	var entry_e := basis_rot * Vector3(hw, ground, -hl)
+	var entry_n_s := basis_rot * Vector3(-hw, ground, 0.0)
+	var entry_n_e := basis_rot * Vector3(hw, ground, 0.0)
+	_add_quad(verts, normals, indices, entry_s, entry_e, entry_n_e, entry_n_s, basis_rot * Vector3.UP)
+	_add_collision_quad(body, entry_s, entry_e, entry_n_e, entry_n_s, ground - 0.5, basis_rot)
+
+	# --- Full 360° circle ---
 	for seg in range(LOOP_SEGMENTS):
 		var t0: float = float(seg) / float(LOOP_SEGMENTS)
 		var t1: float = float(seg + 1) / float(LOOP_SEGMENTS)
-		var a0: float = t0 * TAU  # 0 to 2*PI
+		var a0: float = t0 * TAU
 		var a1: float = t1 * TAU
 
-		# Circle positions in YZ plane
+		# Circle: bottom at (z=0, y=ground), top at (z=0, y=ground+2R)
 		var y0: float = center_y - R * cos(a0)
 		var y1: float = center_y - R * cos(a1)
 		var z0: float = R * sin(a0)
 		var z1: float = R * sin(a1)
 
-		# Road surface: left/right in X, perpendicular to loop plane
 		var p0l := basis_rot * Vector3(-hw, y0, z0)
 		var p0r := basis_rot * Vector3(hw, y0, z0)
 		var p1l := basis_rot * Vector3(-hw, y1, z1)
 		var p1r := basis_rot * Vector3(hw, y1, z1)
 
-		# Normal: points inward (toward center) = (0, cos(a), -sin(a))
 		var mid_a := (a0 + a1) * 0.5
 		var n := basis_rot * Vector3(0, cos(mid_a), -sin(mid_a)).normalized()
-
 		_add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
-		# Collision: ConvexPolygon per segment (quad + inner support)
+		# Collision with inner support
 		var col_points := PackedVector3Array()
 		col_points.append(p0l); col_points.append(p0r)
 		col_points.append(p1l); col_points.append(p1r)
-		# Inner support (slightly toward center)
-		var inner_offset := 0.5
-		var iy0: float = center_y - (R - inner_offset) * cos(a0)
-		var iz0: float = (R - inner_offset) * sin(a0)
-		var iy1: float = center_y - (R - inner_offset) * cos(a1)
-		var iz1: float = (R - inner_offset) * sin(a1)
+		var d := 0.5  # inner offset
+		var iy0 := center_y - (R - d) * cos(a0)
+		var iz0 := (R - d) * sin(a0)
+		var iy1 := center_y - (R - d) * cos(a1)
+		var iz1 := (R - d) * sin(a1)
 		col_points.append(basis_rot * Vector3(-hw, iy0, iz0))
 		col_points.append(basis_rot * Vector3(hw, iy0, iz0))
 		col_points.append(basis_rot * Vector3(-hw, iy1, iz1))
@@ -387,6 +410,14 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, rotation: int, base_h
 		shape.points = col_points
 		col_shape.shape = shape
 		body.add_child(col_shape)
+
+	# --- Exit straight: z=0 to z=+hl at ground level ---
+	var exit_s := basis_rot * Vector3(-hw, ground, 0.0)
+	var exit_e := basis_rot * Vector3(hw, ground, 0.0)
+	var exit_n_s := basis_rot * Vector3(-hw, ground, hl)
+	var exit_n_e := basis_rot * Vector3(hw, ground, hl)
+	_add_quad(verts, normals, indices, exit_s, exit_e, exit_n_e, exit_n_s, basis_rot * Vector3.UP)
+	_add_collision_quad(body, exit_s, exit_e, exit_n_e, exit_n_s, ground - 0.5, basis_rot)
 
 	# Visual mesh
 	var arrays := []

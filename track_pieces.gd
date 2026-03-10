@@ -358,10 +358,10 @@ static func _wall_ride_exit() -> Array[Dictionary]:
 
 
 # === LOOP 360°: full loop in one segment, collision from spawner ===
-# Circle R = HALF (6), diameter = 12 = SEGMENT_SIZE. Height = 2R + 2 = 14.
+# Circle R=5, diameter=10, height clearance=12.
 static func _loop_full() -> Array[Dictionary]:
 	var blocks: Array[Dictionary] = []
-	var total_h := HALF * 2 + 2  # diameter + clearance
+	var total_h := 12  # 2*R + clearance
 	for z in range(LO, HI + 1):
 		for x in range(LO, HI + 1):
 			if absi(x) <= ROAD_W + 1:

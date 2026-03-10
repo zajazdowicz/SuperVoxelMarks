@@ -434,11 +434,24 @@ func _update_shape_preview() -> void:
 			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
 	elif current_piece == 15:
-		# Loop 360° preview — circle in YZ plane
-		var R := float(TrackPieces.HALF)
+		# Loop 360° preview — circle R=5 with entry/exit straights
+		var R := RampSpawner.LOOP_R
 		var center_y := ground + R
 		var segs := 16
 
+		# Entry/exit straights
+		var es := basis_rot * Vector3(-hw, ground, -hl)
+		var ee := basis_rot * Vector3(hw, ground, -hl)
+		var ens := basis_rot * Vector3(-hw, ground, 0.0)
+		var ene := basis_rot * Vector3(hw, ground, 0.0)
+		RampSpawner._add_quad(verts, normals, indices, es, ee, ene, ens, basis_rot * Vector3.UP)
+		var xs := basis_rot * Vector3(-hw, ground, 0.0)
+		var xe := basis_rot * Vector3(hw, ground, 0.0)
+		var xns := basis_rot * Vector3(-hw, ground, hl)
+		var xne := basis_rot * Vector3(hw, ground, hl)
+		RampSpawner._add_quad(verts, normals, indices, xs, xe, xne, xns, basis_rot * Vector3.UP)
+
+		# Circle
 		for seg in range(segs):
 			var t0: float = float(seg) / float(segs)
 			var t1: float = float(seg + 1) / float(segs)
