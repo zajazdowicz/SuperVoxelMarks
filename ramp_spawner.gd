@@ -61,22 +61,23 @@ static func spawn_ramp(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 	var bl_n := basis_rot * Vector3(-hw, low_y - 0.5, hl)
 	var br_n := basis_rot * Vector3(hw, low_y - 0.5, hl)
 
-	# Use ConvexPolygonShape3D but with entry edge at surface level (no lip)
+	# ConvexPolygonShape3D with angled entry (no vertical face that blocks car)
+	# Low end: extend bottom 1 unit behind segment boundary → gentle slope approach
 	var points := PackedVector3Array()
 	if is_up:
-		# Entry (south): bottom matches surface — no lip
-		points.append(Vector3(-hw, low_y - 0.05, -hl))
-		points.append(Vector3(hw, low_y - 0.05, -hl))
-		# Exit (north): deep bottom for support
+		# Entry (south, LOW end): extend behind boundary for smooth approach
+		points.append(Vector3(-hw, -0.2, -hl - 1.0))
+		points.append(Vector3(hw, -0.2, -hl - 1.0))
+		# Exit (north, HIGH end): deep bottom for support
 		points.append(Vector3(hw, -0.5, hl))
 		points.append(Vector3(-hw, -0.5, hl))
 	else:
-		# Entry (south): deep bottom for support
+		# Entry (south, HIGH end): deep bottom for support
 		points.append(Vector3(-hw, -0.5, -hl))
 		points.append(Vector3(hw, -0.5, -hl))
-		# Exit (north): bottom matches surface — no lip
-		points.append(Vector3(hw, low_y - 0.05, hl))
-		points.append(Vector3(-hw, low_y - 0.05, hl))
+		# Exit (north, LOW end): extend beyond boundary for smooth exit
+		points.append(Vector3(hw, -0.2, hl + 1.0))
+		points.append(Vector3(-hw, -0.2, hl + 1.0))
 	# Top surface points
 	points.append(tl_s)
 	points.append(tr_s)
