@@ -263,8 +263,8 @@ static func spawn_wall_ride(parent: Node3D, grid_pos: Vector2i, piece_id: int, r
 		var angle0 := bank_rad * bf0
 		var angle1 := bank_rad * bf1
 
-		var z0: float = lerp(-hl, hl, t0)
-		var z1: float = lerp(-hl, hl, t1)
+		var z0: float = lerpf(-hl, hl, t0)
+		var z1: float = lerpf(-hl, hl, t1)
 
 		# Left edge = pivot (stays at ground level)
 		# Right edge rotates around left edge by bank angle
@@ -370,8 +370,8 @@ static func spawn_loop_quarter(parent: Node3D, grid_pos: Vector2i, piece_id: int
 		var y1: float = center_y + float(LOOP_R) * sin(a1)
 
 		# Z position within segment: map seg progress to -hl..+hl
-		var z0: float = lerp(-hl, hl, t0)
-		var z1: float = lerp(-hl, hl, t1)
+		var z0: float = lerpf(-hl, hl, t0)
+		var z1: float = lerpf(-hl, hl, t1)
 
 		# Surface normal at each angle (points inward toward center = toward car)
 		var nx0: float = 0.0

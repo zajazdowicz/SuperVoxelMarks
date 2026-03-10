@@ -147,8 +147,6 @@ func _on_trigger_entered(body: Node3D, trigger_name: String) -> void:
 	if body != car:
 		return
 
-	print("TRIGGER: %s hit by %s" % [trigger_name, body.name])
-
 	if trigger_name == "start":
 		# Set respawn to start position
 		RaceManager.respawn_pos = _spawn_pos
@@ -185,4 +183,3 @@ func _on_trigger_entered(body: Node3D, trigger_name: String) -> void:
 		# Set respawn to this checkpoint position
 		RaceManager.respawn_pos = body.global_position
 		RaceManager.respawn_rot = body.rotation.y
-		print("  -> checkpoint %d hit (total: %d/%d)" % [idx, RaceManager.checkpoints_hit, RaceManager.total_checkpoints])

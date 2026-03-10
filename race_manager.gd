@@ -66,9 +66,6 @@ func hit_checkpoint(index: int) -> void:
 
 func cross_start_finish() -> void:
 	## Called when car crosses start/finish line.
-	print("cross_start_finish: state=%s lap_count=%d lap_time=%.2f checkpoints=%d/%d" % [
-		State.keys()[state], lap_count, lap_time, checkpoints_hit, total_checkpoints])
-
 	if state == State.IDLE:
 		start_race()
 		return
@@ -88,17 +85,13 @@ func cross_start_finish() -> void:
 
 	# Must hit all checkpoints
 	if total_checkpoints > 0 and checkpoints_hit < total_checkpoints:
-		print("  -> missing checkpoints, need %d more" % (total_checkpoints - checkpoints_hit))
 		return
 
-	# Lap complete!
-	print("  -> LAP COMPLETE! time=%.3f" % lap_time)
 	_finish_lap()
 
 
 func cross_start() -> void:
 	## Sprint mode: crossing start line begins the run.
-	print("cross_start: state=%s" % State.keys()[state])
 	if state == State.IDLE:
 		start_race()
 	elif state == State.FINISHED:
@@ -108,14 +101,10 @@ func cross_start() -> void:
 
 func cross_finish() -> void:
 	## Sprint mode: crossing finish line ends the run.
-	print("cross_finish: state=%s lap_time=%.2f checkpoints=%d/%d" % [
-		State.keys()[state], lap_time, checkpoints_hit, total_checkpoints])
 	if state != State.RACING:
 		return
 	if total_checkpoints > 0 and checkpoints_hit < total_checkpoints:
-		print("  -> missing checkpoints")
 		return
-	print("  -> SPRINT FINISH! time=%.3f" % lap_time)
 	_finish_lap()
 	state = State.FINISHED
 

@@ -14,8 +14,6 @@ var _voxel_tool: VoxelTool
 var _offtrack_timer := 0.0
 var _is_dead := false
 var _respawn_timer := 0.0
-var _last_safe_pos := Vector3(0, 3, 0)
-var _last_safe_rot := 0.0
 var _spawn_pos := Vector3(0, 3, 0)
 var _spawn_rot := 0.0
 
@@ -31,6 +29,7 @@ var _grace_timer := SPAWN_GRACE
 
 var _front_wheels: Array[Node3D] = []
 var _rear_wheels: Array[Node3D] = []
+var _all_wheels: Array[Node3D] = []
 var _wheel_spin := 0.0
 
 # Drift
@@ -76,8 +75,6 @@ func _ready() -> void:
 
 	_spawn_pos = global_position
 	_spawn_rot = rotation.y
-	_last_safe_pos = _spawn_pos
-	_last_safe_rot = _spawn_rot
 
 	# Load F1 car model
 	_load_car_model()
@@ -115,7 +112,7 @@ func _find_wheels(root: Node3D) -> void:
 		"pCylinder20", "pCylinder21"]
 	_collect_named_nodes(root, front_names, _front_wheels)
 	_collect_named_nodes(root, rear_names, _rear_wheels)
-	print("Wheels found: front=%d rear=%d" % [_front_wheels.size(), _rear_wheels.size()])
+	_all_wheels = _front_wheels + _rear_wheels
 
 
 func _collect_named_nodes(node: Node, names: Array, result: Array[Node3D]) -> void:
@@ -356,11 +353,6 @@ func _physics_process(delta: float) -> void:
 				global_position += normal * 0.15
 				_spawn_wall_sparks(global_position, normal)
 
-	# --- Track safe position ---
-	if is_on_floor() and surface.grip >= 0.8:
-		_last_safe_pos = global_position
-		_last_safe_rot = rotation.y
-
 	# --- Visual ---
 	if mesh:
 		# Build target basis for mesh alignment
@@ -412,7 +404,7 @@ func _physics_process(delta: float) -> void:
 
 		# Wheel spin (all wheels)
 		_wheel_spin += speed * delta * 3.0
-		for w in _front_wheels + _rear_wheels:
+		for w in _all_wheels:
 			w.rotation.x = _wheel_spin
 
 	# --- Skidmarks ---
@@ -526,8 +518,6 @@ func _add_tire_quad(from: Vector3, to: Vector3) -> void:
 	_skid_verts.append(to + perp)
 
 	_skid_indices.append_array([i, i+1, i+2, i+2, i+1, i+3])
-	if _skid_verts.size() % 40 == 0:
-		print("SKID: %d verts, from=%s to=%s" % [_skid_verts.size(), from, to])
 
 
 func _rebuild_skid_mesh() -> void:
@@ -555,7 +545,6 @@ func _init_skid_mesh() -> void:
 	_skid_mesh.material_override = _skid_mat
 	_skid_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	get_parent().add_child(_skid_mesh)
-	print("SKID: mesh initialized")
 
 
 func _check_offtrack(surface: Dictionary, airborne: bool, delta: float) -> void:
