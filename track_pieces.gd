@@ -199,10 +199,11 @@ static func _ramp_up() -> Array[Dictionary]:
 		var progress := float(z - LO) / float(SEGMENT_SIZE)
 		var height := int(progress * float(RAMP_HEIGHT))
 		for x in range(LO, HI + 1):
-			# Road area: clear to AIR (collision from RampSpawner only)
-			# Skip shared edges (z=LO, z=HI) — adjacent pieces own those voxels
+			# Road: clear to AIR so ConvexPolygon is sole collision.
+			# Skip HIGH end (z=HI) to preserve elevated piece voxels.
+			# Clear LOW end (z=LO) so car transitions smoothly onto ramp.
 			if absi(x) <= ROAD_W:
-				if z > LO and z < HI:
+				if z < HI:
 					for h in range(0, height + 1):
 						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 			elif absi(x) == ROAD_W + 1:
@@ -218,10 +219,11 @@ static func _ramp_down() -> Array[Dictionary]:
 		var progress := float(z - LO) / float(SEGMENT_SIZE)
 		var height := int((1.0 - progress) * float(RAMP_HEIGHT))
 		for x in range(LO, HI + 1):
-			# Road area: clear to AIR (collision from RampSpawner only)
-			# Skip shared edges (z=LO, z=HI) — adjacent pieces own those voxels
+			# Road: clear to AIR so ConvexPolygon is sole collision.
+			# Skip HIGH end (z=LO) to preserve elevated piece voxels.
+			# Clear LOW end (z=HI) so car transitions smoothly off ramp.
 			if absi(x) <= ROAD_W:
-				if z > LO and z < HI:
+				if z > LO:
 					for h in range(0, height + 1):
 						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 			elif absi(x) == ROAD_W + 1:
@@ -434,8 +436,9 @@ static func _transition_up() -> Array[Dictionary]:
 		var progress := float(z - LO) / float(SEGMENT_SIZE)
 		var height := int(progress * float(TRANSITION_HEIGHT))
 		for x in range(LO, HI + 1):
+			# Skip HIGH end (z=HI), clear LOW end (z=LO)
 			if absi(x) <= ROAD_W:
-				if z > LO and z < HI:
+				if z < HI:
 					for h in range(0, height + 1):
 						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 			elif absi(x) == ROAD_W + 1:
@@ -451,8 +454,9 @@ static func _transition_down() -> Array[Dictionary]:
 		var progress := float(z - LO) / float(SEGMENT_SIZE)
 		var height := int((1.0 - progress) * float(TRANSITION_HEIGHT))
 		for x in range(LO, HI + 1):
+			# Skip HIGH end (z=LO), clear LOW end (z=HI)
 			if absi(x) <= ROAD_W:
-				if z > LO and z < HI:
+				if z > LO:
 					for h in range(0, height + 1):
 						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 			elif absi(x) == ROAD_W + 1:
