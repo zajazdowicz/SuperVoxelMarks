@@ -51,6 +51,12 @@ func _build_track() -> void:
 		if p.piece == 3 or p.piece == 4:
 			RampSpawner.spawn_ramp(self, p.grid, p.piece, p.rotation, bh)
 
+		if p.piece >= 12 and p.piece <= 14:
+			RampSpawner.spawn_wall_ride(self, p.grid, p.piece, p.rotation, bh)
+
+		if p.piece >= 15 and p.piece <= 18:
+			RampSpawner.spawn_loop_quarter(self, p.grid, p.piece, p.rotation, bh)
+
 		if p.piece == 5:
 			_spawn_pos = Vector3(p.grid.x * GRID, bh + 3, p.grid.y * GRID)
 			_spawn_rot = rot_y

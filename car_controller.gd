@@ -281,6 +281,8 @@ func _physics_process(delta: float) -> void:
 	var forward := -transform.basis.z
 
 	if airborne:
+		up_direction = Vector3.UP
+		_gravity_dir = Vector3.DOWN
 		var target_vel := forward * speed
 		velocity.x = lerp(velocity.x, target_vel.x, stats.air_control * delta * 5.0)
 		velocity.z = lerp(velocity.z, target_vel.z, stats.air_control * delta * 5.0)
@@ -297,11 +299,24 @@ func _physics_process(delta: float) -> void:
 			blend = grip * stats.drift_factor
 		velocity = velocity.lerp(target_vel, clampf(blend, 0.1, 1.0))
 
-		# Slope gravity
+		# Adaptive gravity & up_direction for wall ride / loop
 		var slope_dot := fn.dot(Vector3.UP)
-		if slope_dot < 0.99:
+		if slope_dot < 0.7:
+			# Steep surface (wall ride / loop) — align car to surface
+			up_direction = fn
+			_gravity_dir = -fn
+			# Push car into surface proportional to steepness
+			var steepness := 1.0 - slope_dot
+			velocity += -fn * stats.gravity * steepness * delta
+		elif slope_dot < 0.99:
+			# Mild slope (ramps etc) — gravity along slope
+			up_direction = Vector3.UP
 			var gravity_along_slope := Vector3.DOWN - fn * Vector3.DOWN.dot(fn)
 			velocity += gravity_along_slope * stats.gravity * 0.5 * delta
+			_gravity_dir = Vector3.DOWN
+		else:
+			up_direction = Vector3.UP
+			_gravity_dir = Vector3.DOWN
 
 	# --- Boost timer ---
 	if _boost_timer > 0:
@@ -333,27 +348,40 @@ func _physics_process(delta: float) -> void:
 
 	# --- Visual ---
 	if mesh:
-		# Body roll — more when drifting
-		var roll_target: float = steer * 0.15
-		if _drifting:
-			roll_target = _drift_dir * 0.25 + steer * 0.1
-		mesh.rotation.z = lerp(mesh.rotation.z, roll_target, 5.0 * delta)
-
-		# Pitch: align to floor slope or velocity
-		var pitch_target: float = 0.0
-		var pitch_speed: float = 12.0
 		if is_on_floor():
 			var fn := get_floor_normal()
-			var right := transform.basis.x
-			var forward_on_slope := fn.cross(right).normalized()
-			pitch_target = -asin(clampf(-forward_on_slope.y, -0.8, 0.8))
-			pitch_speed = 15.0
-		elif velocity.length() > 3.0:
-			# Airborne or on ramp without floor detect — follow velocity
-			var vel_dir := velocity.normalized()
-			pitch_target = -asin(clampf(-vel_dir.y, -0.6, 0.6))
-			pitch_speed = 8.0
-		mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, pitch_speed * delta)
+			var slope_dot2 := fn.dot(Vector3.UP)
+
+			if slope_dot2 < 0.95:
+				# Surface alignment — align mesh to floor normal (wall ride, ramps)
+				var car_forward := -transform.basis.z
+				var right := car_forward.cross(fn).normalized()
+				var aligned_forward := fn.cross(right).normalized()
+				var target_basis := Basis(right, fn, -aligned_forward)
+				mesh.basis = mesh.basis.slerp(target_basis, 8.0 * delta)
+			else:
+				# Flat ground — slerp back to identity + cosmetic roll/pitch
+				mesh.basis = mesh.basis.slerp(Basis(), 8.0 * delta)
+				var roll_target: float = steer * 0.15
+				if _drifting:
+					roll_target = _drift_dir * 0.25 + steer * 0.1
+				mesh.rotation.z = lerp(mesh.rotation.z, roll_target, 5.0 * delta)
+
+				var right := transform.basis.x
+				var forward_on_slope := fn.cross(right).normalized()
+				var pitch_target := -asin(clampf(-forward_on_slope.y, -0.8, 0.8))
+				mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 15.0 * delta)
+		else:
+			# Airborne — follow velocity for pitch, reset roll
+			var roll_target: float = steer * 0.15
+			if _drifting:
+				roll_target = _drift_dir * 0.25 + steer * 0.1
+			mesh.rotation.z = lerp(mesh.rotation.z, roll_target, 5.0 * delta)
+
+			if velocity.length() > 3.0:
+				var vel_dir := velocity.normalized()
+				var pitch_target := -asin(clampf(-vel_dir.y, -0.6, 0.6))
+				mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 8.0 * delta)
 
 		# Front wheel steering
 		var steer_angle: float = steer * 0.4
@@ -642,6 +670,8 @@ func _respawn() -> void:
 	_offtrack_timer = 0.0
 	speed = 0.0
 	velocity = Vector3.ZERO
+	up_direction = Vector3.UP
+	_gravity_dir = Vector3.DOWN
 
 	global_position = _last_safe_pos + Vector3(0, 1, 0)
 	rotation.y = _last_safe_rot
@@ -650,7 +680,7 @@ func _respawn() -> void:
 
 	if mesh:
 		mesh.visible = true
-		mesh.rotation = Vector3.ZERO
+		mesh.basis = Basis()  # Reset to identity (model child handles PI flip)
 	if collision:
 		collision.disabled = false
 

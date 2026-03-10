@@ -20,38 +20,42 @@ const RAMP_SURFACE := 10  # Looks like asphalt but NO voxel collision (for smoot
 const BOOST := 11
 const ICE := 12
 const DIRT := 13
+const WALL_RIDE := 14  # visual marker for wall ride surface
 
 const ROAD_W := 4  # road -4..+4, walls at +-5
+const WALL_RIDE_HEIGHT := 9  # height clearance for wall ride voxel clearing
+const WALL_RIDE_BANK_DEG := 60.0  # bank angle in degrees
+const LOOP_RADIUS := 8  # radius of loop circle
 
 const PIECE_NAMES := [
-	"Prosta",
-	"Zakret prawo",
-	"Zakret lewo",
-	"Rampa gora",
-	"Rampa dol",
-	"Start/Meta",
-	"Szykana",
-	"Boost",
-	"Checkpoint",
-	"Lod",
-	"Ziemia",
-	"Meta (Sprint)",
+	"Prosta",        # 0
+	"Zakret prawo",  # 1
+	"Zakret lewo",   # 2
+	"Rampa gora",    # 3
+	"Rampa dol",     # 4
+	"Start/Meta",    # 5
+	"Szykana",       # 6
+	"Boost",         # 7
+	"Checkpoint",    # 8
+	"Lod",           # 9
+	"Ziemia",        # 10
+	"Meta (Sprint)", # 11
+	"Wall Ride wejscie",  # 12
+	"Wall Ride prosta",   # 13
+	"Wall Ride wyjscie",  # 14
+	"Loop Q1 (gora)",     # 15
+	"Loop Q2 (szczyt)",   # 16
+	"Loop Q3 (dol)",      # 17
+	"Loop Q4 (ladowanie)",# 18
 ]
 
 static func get_ports(index: int) -> Array[Dictionary]:
+	# All standard pieces: S→N
+	if index >= 0 and index <= 18 and index != 1 and index != 2:
+		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	match index:
-		0: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 		1: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
 		2: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
-		3: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
-		4: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
-		5: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
-		6: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
-		7: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
-		8: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
-		9: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
-		10: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
-		11: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
 static func rotate_ports(ports: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -78,6 +82,13 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		9: return _ice_section()
 		10: return _dirt_section()
 		11: return _finish_line()
+		12: return _wall_ride_entry()
+		13: return _wall_ride_straight()
+		14: return _wall_ride_exit()
+		15: return _loop_q1()
+		16: return _loop_q2()
+		17: return _loop_q3()
+		18: return _loop_q4()
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -327,3 +338,48 @@ static func _finish_line() -> Array[Dictionary]:
 					blocks.append({"pos": Vector3i(x, 2, z), "type": WALL})
 					blocks.append({"pos": Vector3i(x, 3, z), "type": WALL})
 	return blocks
+
+
+# === WALL RIDE ENTRY (flat → banked 60°) ===
+# Collision handled by ramp_spawner. Voxels cleared to AIR.
+# At 60° bank, right edge rises ~8 units, so clear up to WALL_RIDE_HEIGHT + 2.
+static func _wall_ride_entry() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W + 1:
+				for h in range(0, WALL_RIDE_HEIGHT + 3):
+					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+	return blocks
+
+
+# === WALL RIDE STRAIGHT (tilted surface, car drives on wall) ===
+static func _wall_ride_straight() -> Array[Dictionary]:
+	return _wall_ride_entry()
+
+
+# === WALL RIDE EXIT (tilted → flat) ===
+static func _wall_ride_exit() -> Array[Dictionary]:
+	return _wall_ride_entry()
+
+
+# === LOOP QUARTERS: all clear AIR, collision from spawner ===
+static func _loop_q1() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	var total_h := LOOP_RADIUS * 2 + 2
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W + 1:
+				for h in range(0, total_h):
+					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+	return blocks
+
+
+static func _loop_q2() -> Array[Dictionary]:
+	return _loop_q1()
+
+static func _loop_q3() -> Array[Dictionary]:
+	return _loop_q1()
+
+static func _loop_q4() -> Array[Dictionary]:
+	return _loop_q1()
