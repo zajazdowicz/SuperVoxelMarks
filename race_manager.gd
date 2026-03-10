@@ -19,6 +19,10 @@ var best_ghost: Array[Dictionary] = []
 var best_time := INF
 var is_sprint := false  # true = separate start/finish (no laps)
 
+# Respawn position: last checkpoint or start
+var respawn_pos := Vector3.ZERO
+var respawn_rot := 0.0
+
 var _record_timer := 0.0
 const GHOST_INTERVAL := 0.05
 
@@ -35,6 +39,8 @@ func reset() -> void:
 	ghost_frames.clear()
 	_lap_ghost.clear()
 	_record_timer = 0.0
+	respawn_pos = Vector3.ZERO
+	respawn_rot = 0.0
 
 
 func start_race() -> void:

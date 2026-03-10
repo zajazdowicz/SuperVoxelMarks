@@ -302,21 +302,35 @@ func _physics_process(delta: float) -> void:
 		# Adaptive gravity & up_direction for wall ride / loop
 		var slope_dot := fn.dot(Vector3.UP)
 		if slope_dot < 0.7:
-			# Steep surface (wall ride / loop) — align car to surface
-			up_direction = fn
-			_gravity_dir = -fn
-			# Push car into surface proportional to steepness
-			var steepness := 1.0 - slope_dot
-			velocity += -fn * stats.gravity * steepness * delta
-		elif slope_dot < 0.99:
-			# Mild slope (ramps etc) — gravity along slope
-			up_direction = Vector3.UP
-			var gravity_along_slope := Vector3.DOWN - fn * Vector3.DOWN.dot(fn)
-			velocity += gravity_along_slope * stats.gravity * 0.5 * delta
-			_gravity_dir = Vector3.DOWN
+			# Steep surface (wall ride / loop)
+			# Speed-based adhesion: need minimum speed to stick to wall
+			var min_speed := 15.0  # below this, car slides off
+			var hold_speed := 25.0  # above this, full grip
+			var speed_factor := clampf((absf(speed) - min_speed) / (hold_speed - min_speed), 0.0, 1.0)
+
+			if speed_factor > 0.0:
+				# Enough speed — stick to wall
+				up_direction = fn
+				_gravity_dir = -fn
+				floor_snap_length = stats.floor_snap
+				floor_max_angle = deg_to_rad(85.0)  # allow steep surfaces as floor
+				velocity += -fn * stats.gravity * speed_factor * delta
+			else:
+				# Too slow — make wall NOT count as floor so car falls off
+				up_direction = Vector3.UP
+				_gravity_dir = Vector3.DOWN
+				floor_snap_length = 0.0
+				floor_max_angle = deg_to_rad(30.0)  # 60° wall is no longer "floor"
+				velocity += Vector3.DOWN * stats.gravity * delta
 		else:
+			# Normal / mild slope — standard physics
 			up_direction = Vector3.UP
+			floor_snap_length = stats.floor_snap
+			floor_max_angle = deg_to_rad(stats.floor_angle)  # restore default (75°)
 			_gravity_dir = Vector3.DOWN
+			if slope_dot < 0.99:
+				var gravity_along_slope := Vector3.DOWN - fn * Vector3.DOWN.dot(fn)
+				velocity += gravity_along_slope * stats.gravity * 0.5 * delta
 
 	# --- Boost timer ---
 	if _boost_timer > 0:
@@ -673,8 +687,13 @@ func _respawn() -> void:
 	up_direction = Vector3.UP
 	_gravity_dir = Vector3.DOWN
 
-	global_position = _last_safe_pos + Vector3(0, 1, 0)
-	rotation.y = _last_safe_rot
+	# Respawn at last checkpoint, or start if none hit
+	if RaceManager.respawn_pos != Vector3.ZERO:
+		global_position = RaceManager.respawn_pos + Vector3(0, 1, 0)
+		rotation.y = RaceManager.respawn_rot
+	else:
+		global_position = _spawn_pos + Vector3(0, 1, 0)
+		rotation.y = _spawn_rot
 
 	_grace_timer = SPAWN_GRACE
 
