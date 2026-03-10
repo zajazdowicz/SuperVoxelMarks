@@ -27,6 +27,8 @@ var _grace_timer := SPAWN_GRACE
 @onready var mesh: Node3D = $Mesh
 @onready var collision: CollisionShape3D = $CollisionShape3D
 
+var _smooth_floor_normal := Vector3.UP  # smoothed floor normal for visual alignment
+
 var _front_wheels: Array[Node3D] = []
 var _rear_wheels: Array[Node3D] = []
 var _all_wheels: Array[Node3D] = []
@@ -75,6 +77,10 @@ func _ready() -> void:
 
 	_spawn_pos = global_position
 	_spawn_rot = rotation.y
+
+	# Lower mesh so wheels sit on ground (capsule radius = 0.6, mesh offset compensates)
+	if mesh:
+		mesh.position.y = -0.35
 
 	# Load F1 car model
 	_load_car_model()
@@ -322,9 +328,9 @@ func _physics_process(delta: float) -> void:
 			floor_snap_length = stats.floor_snap
 			floor_max_angle = deg_to_rad(stats.floor_angle)  # restore default (75°)
 			_gravity_dir = Vector3.DOWN
-			if slope_dot < 0.99:
+			if slope_dot < 0.97:
 				var gravity_along_slope := Vector3.DOWN - fn * Vector3.DOWN.dot(fn)
-				velocity += gravity_along_slope * stats.gravity * 0.5 * delta
+				velocity += gravity_along_slope * stats.gravity * 0.3 * delta
 
 	# --- Boost timer ---
 	if _boost_timer > 0:
@@ -351,31 +357,36 @@ func _physics_process(delta: float) -> void:
 
 	# --- Visual ---
 	if mesh:
-		# Build target basis for mesh alignment
+		# Smooth floor normal to prevent jitter on collision segment edges
+		if is_on_floor():
+			_smooth_floor_normal = _smooth_floor_normal.lerp(get_floor_normal(), 6.0 * delta).normalized()
+		else:
+			_smooth_floor_normal = _smooth_floor_normal.lerp(Vector3.UP, 4.0 * delta).normalized()
+
 		var pitch_target := 0.0
 		var roll_target := 0.0
 		var surface_basis := Basis()
 
 		if is_on_floor():
-			var fn := get_floor_normal()
+			var fn := _smooth_floor_normal
 			var slope_dot2 := fn.dot(Vector3.UP)
 
-			if slope_dot2 < 0.95:
-				# Surface alignment — align mesh to floor normal (wall ride, ramps)
+			if slope_dot2 < 0.85:
+				# Surface alignment — steep slopes, wall ride, ramps
 				var car_forward := -transform.basis.z
 				var right := car_forward.cross(fn).normalized()
 				var aligned_forward := fn.cross(right).normalized()
 				surface_basis = Basis(right, fn, -aligned_forward)
 			else:
-				# Flat ground — pitch from slope
+				# Flat/gentle slope — pitch from slope
 				var right := transform.basis.x
 				var forward_on_slope := fn.cross(right).normalized()
-				pitch_target = -asin(clampf(-forward_on_slope.y, -0.8, 0.8))
+				pitch_target = -asin(clampf(-forward_on_slope.y, -0.5, 0.5))
 		else:
 			# Airborne — pitch from velocity
 			if velocity.length() > 3.0:
 				var vel_dir := velocity.normalized()
-				pitch_target = -asin(clampf(-vel_dir.y, -0.6, 0.6))
+				pitch_target = -asin(clampf(-vel_dir.y, -0.4, 0.4))
 
 		# Cosmetic roll from steering
 		roll_target = steer * 0.15
@@ -384,11 +395,11 @@ func _physics_process(delta: float) -> void:
 
 		# Apply: surface alignment OR euler pitch/roll
 		if surface_basis != Basis():
-			mesh.basis = mesh.basis.slerp(surface_basis, 8.0 * delta)
+			mesh.basis = mesh.basis.slerp(surface_basis, 5.0 * delta)
 		else:
 			# Smoothly return to identity then apply pitch/roll as euler
-			mesh.basis = mesh.basis.slerp(Basis(), 8.0 * delta)
-			mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 12.0 * delta)
+			mesh.basis = mesh.basis.slerp(Basis(), 6.0 * delta)
+			mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 8.0 * delta)
 			mesh.rotation.z = lerp(mesh.rotation.z, roll_target, 5.0 * delta)
 
 		# Front wheel steering
@@ -677,6 +688,9 @@ func _respawn() -> void:
 	velocity = Vector3.ZERO
 	up_direction = Vector3.UP
 	_gravity_dir = Vector3.DOWN
+	_smooth_floor_normal = Vector3.UP
+	floor_snap_length = stats.floor_snap
+	floor_max_angle = deg_to_rad(stats.floor_angle)
 
 	# Respawn at last checkpoint, or start if none hit
 	if RaceManager.respawn_pos != Vector3.ZERO:

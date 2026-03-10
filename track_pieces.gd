@@ -200,9 +200,11 @@ static func _ramp_up() -> Array[Dictionary]:
 		var height := int(progress * float(RAMP_HEIGHT))
 		for x in range(LO, HI + 1):
 			# Road area: clear to AIR (collision from RampSpawner only)
+			# Skip entry edge (height=0) to preserve adjacent piece's road voxels
 			if absi(x) <= ROAD_W:
-				for h in range(0, height + 1):
-					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+				if height > 0:
+					for h in range(0, height + 1):
+						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 			elif absi(x) == ROAD_W + 1:
 				for h in range(0, height + 3):
 					blocks.append({"pos": Vector3i(x, h, z), "type": WALL})
@@ -217,9 +219,11 @@ static func _ramp_down() -> Array[Dictionary]:
 		var height := int((1.0 - progress) * float(RAMP_HEIGHT))
 		for x in range(LO, HI + 1):
 			# Road area: clear to AIR (collision from RampSpawner only)
+			# Skip exit edge (height=0) to preserve adjacent piece's road voxels
 			if absi(x) <= ROAD_W:
-				for h in range(0, height + 1):
-					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+				if height > 0:
+					for h in range(0, height + 1):
+						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 			elif absi(x) == ROAD_W + 1:
 				for h in range(0, height + 3):
 					blocks.append({"pos": Vector3i(x, h, z), "type": WALL})
@@ -431,8 +435,9 @@ static func _transition_up() -> Array[Dictionary]:
 		var height := int(progress * float(TRANSITION_HEIGHT))
 		for x in range(LO, HI + 1):
 			if absi(x) <= ROAD_W:
-				for h in range(0, height + 1):
-					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+				if height > 0:
+					for h in range(0, height + 1):
+						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 			elif absi(x) == ROAD_W + 1:
 				for h in range(0, height + 3):
 					blocks.append({"pos": Vector3i(x, h, z), "type": WALL})
@@ -447,8 +452,9 @@ static func _transition_down() -> Array[Dictionary]:
 		var height := int((1.0 - progress) * float(TRANSITION_HEIGHT))
 		for x in range(LO, HI + 1):
 			if absi(x) <= ROAD_W:
-				for h in range(0, height + 1):
-					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+				if height > 0:
+					for h in range(0, height + 1):
+						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 			elif absi(x) == ROAD_W + 1:
 				for h in range(0, height + 3):
 					blocks.append({"pos": Vector3i(x, h, z), "type": WALL})

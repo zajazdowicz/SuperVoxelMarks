@@ -15,7 +15,7 @@ class_name VehicleStats extends Resource
 
 @export_group("Physics")
 @export var gravity := 40.0
-@export var floor_snap := 3.0
+@export var floor_snap := 1.5
 @export var floor_angle := 75.0        # degrees
 
 @export_group("Special")
