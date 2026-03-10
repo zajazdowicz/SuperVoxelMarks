@@ -182,7 +182,7 @@ const PIECE_CATEGORIES := {
 	"Specjalne": [6, 7, 9, 10],
 	"Rampy": [3, 4],
 	"Wall Ride": [12, 13, 14],
-	"Loop": [15],
+	"Loop": [15, 16, 17, 18],
 }
 
 func _create_piece_toolbar() -> void:
@@ -433,41 +433,26 @@ func _update_shape_preview() -> void:
 			var n := (p1l - p0l).cross(p0r - p0l).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
-	elif current_piece == 15:
-		# Loop 360° preview — circle R=5 with entry/exit straights
-		var R := RampSpawner.LOOP_R
-		var center_y := ground + R
-		var segs := 16
-
-		# Entry/exit straights
-		var es := basis_rot * Vector3(-hw, ground, -hl)
-		var ee := basis_rot * Vector3(hw, ground, -hl)
-		var ens := basis_rot * Vector3(-hw, ground, 0.0)
-		var ene := basis_rot * Vector3(hw, ground, 0.0)
-		RampSpawner._add_quad(verts, normals, indices, es, ee, ene, ens, basis_rot * Vector3.UP)
-		var xs := basis_rot * Vector3(-hw, ground, 0.0)
-		var xe := basis_rot * Vector3(hw, ground, 0.0)
-		var xns := basis_rot * Vector3(-hw, ground, hl)
-		var xne := basis_rot * Vector3(hw, ground, hl)
-		RampSpawner._add_quad(verts, normals, indices, xs, xe, xne, xns, basis_rot * Vector3.UP)
-
-		# Circle
+	elif current_piece >= 15 and current_piece <= 18:
+		# Loop quarter preview — barrel roll geometry matching ramp_spawner
+		var quarter := current_piece - 15
+		var angle_start: float = float(quarter) * PI / 2.0
+		var angle_end: float = float(quarter + 1) * PI / 2.0
+		var segs := 8
 		for seg in range(segs):
 			var t0: float = float(seg) / float(segs)
 			var t1: float = float(seg + 1) / float(segs)
-			var a0 := t0 * TAU
-			var a1 := t1 * TAU
-			var y0 := center_y - R * cos(a0)
-			var y1 := center_y - R * cos(a1)
-			var z0 := R * sin(a0)
-			var z1 := R * sin(a1)
-
-			var p0l := basis_rot * Vector3(-hw, y0, z0)
-			var p0r := basis_rot * Vector3(hw, y0, z0)
-			var p1l := basis_rot * Vector3(-hw, y1, z1)
-			var p1r := basis_rot * Vector3(hw, y1, z1)
-			var mid_a := (a0 + a1) * 0.5
-			var n := basis_rot * Vector3(0, cos(mid_a), -sin(mid_a)).normalized()
+			var z0 := lerpf(-hl, hl, t0)
+			var z1 := lerpf(-hl, hl, t1)
+			var a0 := lerpf(angle_start, angle_end, t0)
+			var a1 := lerpf(angle_start, angle_end, t1)
+			var cy0 := ground + hw * (1.0 - cos(a0))
+			var cy1 := ground + hw * (1.0 - cos(a1))
+			var p0l := basis_rot * Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0)
+			var p0r := basis_rot * Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0)
+			var p1l := basis_rot * Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1)
+			var p1r := basis_rot * Vector3(hw * cos(a1), cy1 + hw * sin(a1), z1)
+			var n := (p1l - p0l).cross(p0r - p0l).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
 	if verts.is_empty():
@@ -529,7 +514,7 @@ func _place_piece() -> void:
 	elif current_piece >= 12 and current_piece <= 14:
 		RampSpawner.spawn_wall_ride(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece >= 15 and current_piece <= 18:
-		RampSpawner.spawn_loop_quarter(self, cursor_grid, current_piece, current_rotation, place_height)
+		RampSpawner.spawn_loop(self, cursor_grid, current_piece, current_rotation, place_height)
 
 	# Remove existing piece at this grid position
 	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
@@ -555,10 +540,11 @@ func _remove_piece() -> void:
 			break
 
 	var offset := Vector3i(cursor_grid.x * GRID, 0, cursor_grid.y * GRID)
-	var half := GRID / 2
+	var half := TrackPieces.HALF
 
-	for x in range(-half - 2, half + 3):
-		for z in range(-half - 2, half + 3):
+	# Clear only this segment's range (LO..HI = -HALF..+HALF), no overflow
+	for x in range(-half, half + 1):
+		for z in range(-half, half + 1):
 			for y in range(0, bh + 20):
 				if y == 0:
 					tool.set_voxel(offset + Vector3i(x, y, z), TrackPieces.GRASS)
@@ -574,7 +560,27 @@ func _remove_piece() -> void:
 
 	current_height = bh
 	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
+
+	# Re-draw neighbors that share the overlap edge
+	_redraw_neighbors(cursor_grid, tool)
 	_auto_save()
+
+
+func _redraw_neighbors(removed_grid: Vector2i, tool: VoxelTool) -> void:
+	# After erasing, re-place voxels of adjacent segments so their shared
+	# overlap edge (1 voxel) is restored.
+	var dirs := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
+	for d in dirs:
+		var neighbor_grid: Vector2i = removed_grid + d
+		for p in placed_pieces:
+			if p.grid == neighbor_grid:
+				var piece := TrackPieces.get_piece(p.piece)
+				var rotated := TrackPieces.rotate_piece(piece, p.rotation)
+				var nbh: int = p.get("base_height", 0)
+				var n_offset := Vector3i(neighbor_grid.x * GRID, nbh, neighbor_grid.y * GRID)
+				for block in rotated:
+					tool.set_voxel(n_offset + block.pos, block.type)
+				break
 
 
 func _auto_save() -> void:
@@ -607,9 +613,13 @@ func _load_track(track_name: String) -> void:
 		var offset := Vector3i(p.grid.x * GRID, bh, p.grid.y * GRID)
 		for block in rotated:
 			tool.set_voxel(offset + block.pos, block.type)
-		# Spawn ramp collision
+		# Spawn collision for special pieces
 		if p.piece == 3 or p.piece == 4:
 			RampSpawner.spawn_ramp(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece >= 12 and p.piece <= 14:
+			RampSpawner.spawn_wall_ride(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece >= 15 and p.piece <= 18:
+			RampSpawner.spawn_loop(self, p.grid, p.piece, p.rotation, bh)
 
 
 func _refresh_track_list() -> void:

@@ -205,6 +205,23 @@ static func _add_tri(verts: PackedVector3Array, normals: PackedVector3Array,
 	indices.append(idx); indices.append(idx + 1); indices.append(idx + 2)
 
 
+static func _add_col_box(body: StaticBody3D, p0l: Vector3, p0r: Vector3,
+		p1l: Vector3, p1r: Vector3, bottom_y: float, basis_rot: Basis) -> void:
+	## Shorthand: 4 surface points + 4 bottom support points → ConvexPolygon.
+	var col_points := PackedVector3Array()
+	col_points.append(p0l); col_points.append(p0r)
+	col_points.append(p1l); col_points.append(p1r)
+	col_points.append(Vector3(p0l.x, bottom_y, p0l.z))
+	col_points.append(Vector3(p0r.x, bottom_y, p0r.z))
+	col_points.append(Vector3(p1l.x, bottom_y, p1l.z))
+	col_points.append(Vector3(p1r.x, bottom_y, p1r.z))
+	var col_shape := CollisionShape3D.new()
+	var shape := ConvexPolygonShape3D.new()
+	shape.points = col_points
+	col_shape.shape = shape
+	body.add_child(col_shape)
+
+
 static func _add_collision_quad(body: StaticBody3D, a: Vector3, b: Vector3,
 		c: Vector3, d: Vector3, bottom_y: float, basis_rot: Basis) -> void:
 	## Add a flat collision quad with bottom support.
@@ -334,90 +351,62 @@ static func spawn_wall_ride(parent: Node3D, grid_pos: Vector2i, piece_id: int, r
 
 
 # =======================================================================
-# LOOP (full 360° in one segment)
+# LOOP / BARREL ROLL (corkscrew — road twists 360° around forward axis)
 # =======================================================================
-# Circle in YZ plane with straight entry/exit ramps.
-# Circle R=5, center at (0, ground+R, 0). Bottom of circle at (z=0, y=ground).
-# Entry straight: z=-HALF to z=0 at ground (connects road to circle bottom).
-# Exit straight: z=0 to z=+HALF at ground.
-# Car enters south, drives to circle bottom, loops 360°, exits north.
+# The road rotates around the Z-axis (driving direction) while rising and falling.
+# Entry and exit are flat at ground level — NO blocking geometry.
+# At t=0.5 the road is inverted at max height. Wall-ride physics handles adhesion.
 
-const LOOP_SEGMENTS := 24  # segments for full circle
-const LOOP_R := 5.0  # loop radius
+const LOOP_SEG_PER_QUARTER := 8  # segments per quarter (8 = smooth enough)
 
-static func spawn_loop(parent: Node3D, grid_pos: Vector2i, rotation: int, base_height: int = 0) -> void:
+static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
 	var body := StaticBody3D.new()
 	body.name = "Loop_%d_%d" % [grid_pos.x, grid_pos.y]
 
-	var hw: float = float(ROAD_W) + 0.5
-	var hl: float = float(HALF)
+	var quarter := piece_id - 15  # 0..3
+	var angle_start: float = float(quarter) * PI / 2.0
+	var angle_end: float = float(quarter + 1) * PI / 2.0
+
+	var hw: float = float(ROAD_W) + 0.5  # 4.5 — twist radius
+	var hl: float = float(HALF)  # 6
 	var ground: float = 1.0
-	var R: float = LOOP_R
-	var center_y: float = ground + R
 	var rot_angle: float = -float(rotation) * PI / 2.0
 	var basis_rot := Basis(Vector3.UP, rot_angle)
 
 	var verts := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var indices := PackedInt32Array()
+	var tri_faces := PackedVector3Array()
 
-	# --- Entry straight: z=-hl to z=0 at ground level ---
-	var entry_s := basis_rot * Vector3(-hw, ground, -hl)
-	var entry_e := basis_rot * Vector3(hw, ground, -hl)
-	var entry_n_s := basis_rot * Vector3(-hw, ground, 0.0)
-	var entry_n_e := basis_rot * Vector3(hw, ground, 0.0)
-	_add_quad(verts, normals, indices, entry_s, entry_e, entry_n_e, entry_n_s, basis_rot * Vector3.UP)
-	_add_collision_quad(body, entry_s, entry_e, entry_n_e, entry_n_s, ground - 0.5, basis_rot)
+	for seg in range(LOOP_SEG_PER_QUARTER):
+		var t0: float = float(seg) / float(LOOP_SEG_PER_QUARTER)
+		var t1: float = float(seg + 1) / float(LOOP_SEG_PER_QUARTER)
 
-	# --- Full 360° circle ---
-	for seg in range(LOOP_SEGMENTS):
-		var t0: float = float(seg) / float(LOOP_SEGMENTS)
-		var t1: float = float(seg + 1) / float(LOOP_SEGMENTS)
-		var a0: float = t0 * TAU
-		var a1: float = t1 * TAU
+		var z0: float = lerpf(-hl, hl, t0)
+		var z1: float = lerpf(-hl, hl, t1)
 
-		# Circle: bottom at (z=0, y=ground), top at (z=0, y=ground+2R)
-		var y0: float = center_y - R * cos(a0)
-		var y1: float = center_y - R * cos(a1)
-		var z0: float = R * sin(a0)
-		var z1: float = R * sin(a1)
+		var a0: float = lerpf(angle_start, angle_end, t0)
+		var a1: float = lerpf(angle_start, angle_end, t1)
 
-		var p0l := basis_rot * Vector3(-hw, y0, z0)
-		var p0r := basis_rot * Vector3(hw, y0, z0)
-		var p1l := basis_rot * Vector3(-hw, y1, z1)
-		var p1r := basis_rot * Vector3(hw, y1, z1)
+		var cy0: float = ground + hw * (1.0 - cos(a0))
+		var cy1: float = ground + hw * (1.0 - cos(a1))
 
-		var mid_a := (a0 + a1) * 0.5
-		var n := basis_rot * Vector3(0, cos(mid_a), -sin(mid_a)).normalized()
+		var p0l := basis_rot * Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0)
+		var p0r := basis_rot * Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0)
+		var p1l := basis_rot * Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1)
+		var p1r := basis_rot * Vector3(hw * cos(a1), cy1 + hw * sin(a1), z1)
+
+		var n := (p1l - p0l).cross(p0r - p0l).normalized()
 		_add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
-		# Collision with inner support
-		var col_points := PackedVector3Array()
-		col_points.append(p0l); col_points.append(p0r)
-		col_points.append(p1l); col_points.append(p1r)
-		var d := 0.5  # inner offset
-		var iy0 := center_y - (R - d) * cos(a0)
-		var iz0 := (R - d) * sin(a0)
-		var iy1 := center_y - (R - d) * cos(a1)
-		var iz1 := (R - d) * sin(a1)
-		col_points.append(basis_rot * Vector3(-hw, iy0, iz0))
-		col_points.append(basis_rot * Vector3(hw, iy0, iz0))
-		col_points.append(basis_rot * Vector3(-hw, iy1, iz1))
-		col_points.append(basis_rot * Vector3(hw, iy1, iz1))
+		tri_faces.append(p0l); tri_faces.append(p0r); tri_faces.append(p1r)
+		tri_faces.append(p0l); tri_faces.append(p1r); tri_faces.append(p1l)
 
-		var col_shape := CollisionShape3D.new()
-		var shape := ConvexPolygonShape3D.new()
-		shape.points = col_points
-		col_shape.shape = shape
-		body.add_child(col_shape)
-
-	# --- Exit straight: z=0 to z=+hl at ground level ---
-	var exit_s := basis_rot * Vector3(-hw, ground, 0.0)
-	var exit_e := basis_rot * Vector3(hw, ground, 0.0)
-	var exit_n_s := basis_rot * Vector3(-hw, ground, hl)
-	var exit_n_e := basis_rot * Vector3(hw, ground, hl)
-	_add_quad(verts, normals, indices, exit_s, exit_e, exit_n_e, exit_n_s, basis_rot * Vector3.UP)
-	_add_collision_quad(body, exit_s, exit_e, exit_n_e, exit_n_s, ground - 0.5, basis_rot)
+	var concave := ConcavePolygonShape3D.new()
+	concave.set_faces(tri_faces)
+	var col_shape := CollisionShape3D.new()
+	col_shape.shape = concave
+	body.add_child(col_shape)
 
 	# Visual mesh
 	var arrays := []

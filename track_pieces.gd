@@ -25,8 +25,6 @@ const WALL_RIDE := 14  # visual marker for wall ride surface
 const ROAD_W := 4  # road -4..+4, walls at +-5
 const WALL_RIDE_HEIGHT := 9  # height clearance for wall ride voxel clearing
 const WALL_RIDE_BANK_DEG := 60.0  # bank angle in degrees
-const LOOP_RADIUS := 8  # radius of loop circle
-
 const PIECE_NAMES := [
 	"Prosta",        # 0
 	"Zakret prawo",  # 1
@@ -43,12 +41,15 @@ const PIECE_NAMES := [
 	"Wall Ride wejscie",  # 12
 	"Wall Ride prosta",   # 13
 	"Wall Ride wyjscie",  # 14
-	"Loop 360",           # 15
+	"Loop wjazd",    # 15 — 0° → 90°
+	"Loop gora",     # 16 — 90° → 180°
+	"Loop zjazd",    # 17 — 180° → 270°
+	"Loop wyjazd",   # 18 — 270° → 360°
 ]
 
 static func get_ports(index: int) -> Array[Dictionary]:
 	# All standard pieces: S→N
-	if index >= 0 and index <= 15 and index != 1 and index != 2:
+	if index >= 0 and index <= 18 and index != 1 and index != 2:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	match index:
 		1: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
@@ -82,7 +83,7 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		12: return _wall_ride_entry()
 		13: return _wall_ride_straight()
 		14: return _wall_ride_exit()
-		15: return _loop_full()
+		15, 16, 17, 18: return _loop_quarter(index)
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -357,11 +358,14 @@ static func _wall_ride_exit() -> Array[Dictionary]:
 	return _wall_ride_entry()
 
 
-# === LOOP 360°: full loop in one segment, collision from spawner ===
-# Circle R=5, diameter=10, height clearance=12.
-static func _loop_full() -> Array[Dictionary]:
+# === LOOP QUARTER: barrel roll split into 4 pieces (90° each) ===
+# hw = ROAD_W + 0.5 = 4.5. Max height at 180° = ground + 2*hw = 10.
+# Quarters 1,2 (90°-270°) need more clearance than 0,3.
+static func _loop_quarter(piece_id: int) -> Array[Dictionary]:
 	var blocks: Array[Dictionary] = []
-	var total_h := 12  # 2*R + clearance
+	var quarter := piece_id - 15  # 0..3
+	# Quarters 0,3 (entry/exit): max ~10. Quarters 1,2 (top): max ~12.
+	var total_h := 12 if (quarter == 1 or quarter == 2) else 11
 	for z in range(LO, HI + 1):
 		for x in range(LO, HI + 1):
 			if absi(x) <= ROAD_W + 1:
