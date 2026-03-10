@@ -45,11 +45,13 @@ const PIECE_NAMES := [
 	"Loop gora",     # 16 — 90° → 180°
 	"Loop zjazd",    # 17 — 180° → 270°
 	"Loop wyjazd",   # 18 — 270° → 360°
+	"Petla gora",    # 19 — 0° → 180° (vertical loop up)
+	"Petla dol",     # 20 — 180° → 360° (vertical loop down)
 ]
 
 static func get_ports(index: int) -> Array[Dictionary]:
 	# All standard pieces: S→N
-	if index >= 0 and index <= 18 and index != 1 and index != 2:
+	if index >= 0 and index <= 20 and index != 1 and index != 2:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	match index:
 		1: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
@@ -84,6 +86,7 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		13: return _wall_ride_straight()
 		14: return _wall_ride_exit()
 		15, 16, 17, 18: return _loop_quarter(index)
+		19, 20: return _vloop_half(index)
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -366,6 +369,18 @@ static func _loop_quarter(piece_id: int) -> Array[Dictionary]:
 	var quarter := piece_id - 15  # 0..3
 	# Quarters 0,3 (entry/exit): max ~10. Quarters 1,2 (top): max ~12.
 	var total_h := 12 if (quarter == 1 or quarter == 2) else 11
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W + 1:
+				for h in range(0, total_h):
+					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+	return blocks
+
+
+# === VERTICAL LOOP HALF: 2 pieces (180° each), R=7, max height=15 ===
+static func _vloop_half(_piece_id: int) -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	var total_h := 16  # ground(1) + 2*R(14) + margin = 16
 	for z in range(LO, HI + 1):
 		for x in range(LO, HI + 1):
 			if absi(x) <= ROAD_W + 1:

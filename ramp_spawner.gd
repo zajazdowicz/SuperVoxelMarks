@@ -429,3 +429,84 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 	var world_z: float = float(grid_pos.y * GRID)
 	body.position = Vector3(world_x, float(base_height), world_z)
 	parent.add_child(body)
+
+
+# =======================================================================
+# VERTICAL LOOP (2 segments: up + down)
+# =======================================================================
+# Larger radius than barrel roll for a more dramatic loop.
+# Piece 19: "Petla gora" — 0° → 180° (ground → inverted at top)
+# Piece 20: "Petla dol"  — 180° → 360° (inverted → ground)
+
+const VLOOP_R := 7.0  # loop radius (max height = ground + 2*R = 15)
+const VLOOP_SEGS := 12  # segments per half
+
+static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
+	var body := StaticBody3D.new()
+	body.name = "VLoop_%d_%d" % [grid_pos.x, grid_pos.y]
+
+	var half_idx := piece_id - 19  # 0 = up, 1 = down
+	var angle_start: float = float(half_idx) * PI
+	var angle_end: float = float(half_idx + 1) * PI
+
+	var hw: float = float(ROAD_W) + 0.5
+	var R: float = VLOOP_R
+	var hl: float = float(HALF)
+	var ground: float = 1.0
+	var rot_angle: float = -float(rotation) * PI / 2.0
+	var basis_rot := Basis(Vector3.UP, rot_angle)
+
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var indices := PackedInt32Array()
+	var tri_faces := PackedVector3Array()
+
+	for seg in range(VLOOP_SEGS):
+		var t0: float = float(seg) / float(VLOOP_SEGS)
+		var t1: float = float(seg + 1) / float(VLOOP_SEGS)
+
+		var z0: float = lerpf(-hl, hl, t0)
+		var z1: float = lerpf(-hl, hl, t1)
+
+		var a0: float = lerpf(angle_start, angle_end, t0)
+		var a1: float = lerpf(angle_start, angle_end, t1)
+
+		var cy0: float = ground + R * (1.0 - cos(a0))
+		var cy1: float = ground + R * (1.0 - cos(a1))
+
+		# Road cross-section: hw for width, R for loop height
+		var p0l := basis_rot * Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0)
+		var p0r := basis_rot * Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0)
+		var p1l := basis_rot * Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1)
+		var p1r := basis_rot * Vector3(hw * cos(a1), cy1 + hw * sin(a1), z1)
+
+		var n := (p1l - p0l).cross(p0r - p0l).normalized()
+		_add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
+
+		tri_faces.append(p0l); tri_faces.append(p0r); tri_faces.append(p1r)
+		tri_faces.append(p0l); tri_faces.append(p1r); tri_faces.append(p1l)
+
+	var concave := ConcavePolygonShape3D.new()
+	concave.set_faces(tri_faces)
+	var col_shape := CollisionShape3D.new()
+	col_shape.shape = concave
+	body.add_child(col_shape)
+
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.35, 0.3, 0.35)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	body.add_child(mi)
+
+	body.position = Vector3(float(grid_pos.x * GRID), float(base_height), float(grid_pos.y * GRID))
+	parent.add_child(body)

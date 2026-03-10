@@ -183,6 +183,7 @@ const PIECE_CATEGORIES := {
 	"Rampy": [3, 4],
 	"Wall Ride": [12, 13, 14],
 	"Loop": [15, 16, 17, 18],
+	"Petla": [19, 20],
 }
 
 func _create_piece_toolbar() -> void:
@@ -455,6 +456,29 @@ func _update_shape_preview() -> void:
 			var n := (p1l - p0l).cross(p0r - p0l).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
+	elif current_piece == 19 or current_piece == 20:
+		# Vertical loop preview — same math, larger radius
+		var half_idx := current_piece - 19
+		var angle_start: float = float(half_idx) * PI
+		var angle_end: float = float(half_idx + 1) * PI
+		var R: float = RampSpawner.VLOOP_R
+		var segs := 12
+		for seg in range(segs):
+			var t0: float = float(seg) / float(segs)
+			var t1: float = float(seg + 1) / float(segs)
+			var z0 := lerpf(-hl, hl, t0)
+			var z1 := lerpf(-hl, hl, t1)
+			var a0 := lerpf(angle_start, angle_end, t0)
+			var a1 := lerpf(angle_start, angle_end, t1)
+			var cy0 := ground + R * (1.0 - cos(a0))
+			var cy1 := ground + R * (1.0 - cos(a1))
+			var p0l := basis_rot * Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0)
+			var p0r := basis_rot * Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0)
+			var p1l := basis_rot * Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1)
+			var p1r := basis_rot * Vector3(hw * cos(a1), cy1 + hw * sin(a1), z1)
+			var n := (p1l - p0l).cross(p0r - p0l).normalized()
+			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
+
 	if verts.is_empty():
 		container.queue_free()
 		return
@@ -515,6 +539,8 @@ func _place_piece() -> void:
 		RampSpawner.spawn_wall_ride(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece >= 15 and current_piece <= 18:
 		RampSpawner.spawn_loop(self, cursor_grid, current_piece, current_rotation, place_height)
+	elif current_piece == 19 or current_piece == 20:
+		RampSpawner.spawn_vloop(self, cursor_grid, current_piece, current_rotation, place_height)
 
 	# Remove existing piece at this grid position
 	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
@@ -552,7 +578,7 @@ func _remove_piece() -> void:
 					tool.set_voxel(offset + Vector3i(x, y, z), TrackPieces.AIR)
 
 	# Remove collision shapes if exist (ramp, wall ride, loop)
-	for prefix in ["RampCollision", "WallRide", "Loop"]:
+	for prefix in ["RampCollision", "WallRide", "Loop", "VLoop"]:
 		var node_name := "%s_%d_%d" % [prefix, cursor_grid.x, cursor_grid.y]
 		var existing := get_node_or_null(node_name)
 		if existing:
@@ -620,6 +646,8 @@ func _load_track(track_name: String) -> void:
 			RampSpawner.spawn_wall_ride(self, p.grid, p.piece, p.rotation, bh)
 		elif p.piece >= 15 and p.piece <= 18:
 			RampSpawner.spawn_loop(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece == 19 or p.piece == 20:
+			RampSpawner.spawn_vloop(self, p.grid, p.piece, p.rotation, bh)
 
 
 func _refresh_track_list() -> void:
