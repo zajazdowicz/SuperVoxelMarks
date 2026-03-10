@@ -378,6 +378,8 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 	var indices := PackedInt32Array()
 	var tri_faces := PackedVector3Array()
 
+	var wall_h: float = 2.0  # barrier height
+
 	for seg in range(LOOP_SEG_PER_QUARTER):
 		var t0: float = float(seg) / float(LOOP_SEG_PER_QUARTER)
 		var t1: float = float(seg + 1) / float(LOOP_SEG_PER_QUARTER)
@@ -401,6 +403,24 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 
 		tri_faces.append(p0l); tri_faces.append(p0r); tri_faces.append(p1r)
 		tri_faces.append(p0l); tri_faces.append(p1r); tri_faces.append(p1l)
+
+		# Barriers (same logic as vloop)
+		var up0_local := Vector3(-sin(a0), cos(a0), 0.0) * wall_h
+		var up1_local := Vector3(-sin(a1), cos(a1), 0.0) * wall_h
+
+		var w0lt := basis_rot * (Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0) + up0_local)
+		var w1lt := basis_rot * (Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1) + up1_local)
+		var wn_l := (p0l - w0lt).cross(p1l - w0lt).normalized()
+		_add_quad(verts, normals, indices, p0l, p1l, w1lt, w0lt, wn_l)
+		tri_faces.append(p0l); tri_faces.append(p1l); tri_faces.append(w1lt)
+		tri_faces.append(p0l); tri_faces.append(w1lt); tri_faces.append(w0lt)
+
+		var w0rt := basis_rot * (Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0) + up0_local)
+		var w1rt := basis_rot * (Vector3(hw * cos(a1), cy1 + hw * sin(a1), z1) + up1_local)
+		var wn_r := (w0rt - p0r).cross(p1r - p0r).normalized()
+		_add_quad(verts, normals, indices, p0r, w0rt, w1rt, p1r, wn_r)
+		tri_faces.append(p0r); tri_faces.append(w0rt); tri_faces.append(w1rt)
+		tri_faces.append(p0r); tri_faces.append(w1rt); tri_faces.append(p1r)
 
 	var concave := ConcavePolygonShape3D.new()
 	concave.set_faces(tri_faces)
@@ -461,6 +481,8 @@ static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotat
 	var indices := PackedInt32Array()
 	var tri_faces := PackedVector3Array()
 
+	var wall_h: float = 2.0  # barrier height above road surface
+
 	for seg in range(VLOOP_SEGS):
 		var t0: float = float(seg) / float(VLOOP_SEGS)
 		var t1: float = float(seg + 1) / float(VLOOP_SEGS)
@@ -474,7 +496,7 @@ static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotat
 		var cy0: float = ground + R * (1.0 - cos(a0))
 		var cy1: float = ground + R * (1.0 - cos(a1))
 
-		# Road cross-section: hw for width, R for loop height
+		# Road surface
 		var p0l := basis_rot * Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0)
 		var p0r := basis_rot * Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0)
 		var p1l := basis_rot * Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1)
@@ -485,6 +507,29 @@ static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotat
 
 		tri_faces.append(p0l); tri_faces.append(p0r); tri_faces.append(p1r)
 		tri_faces.append(p0l); tri_faces.append(p1r); tri_faces.append(p1l)
+
+		# Barriers: walls rising from road edges perpendicular to road surface.
+		# Surface "up" direction at angle a (perpendicular to road, in local space):
+		#   up = (-sin(a), cos(a), 0) — rotates with the road
+		# Wall top = road edge + up * wall_h (computed in local space, then rotated)
+		var up0_local := Vector3(-sin(a0), cos(a0), 0.0) * wall_h
+		var up1_local := Vector3(-sin(a1), cos(a1), 0.0) * wall_h
+
+		# Left wall top points (local, then rotated)
+		var w0lt := basis_rot * (Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0) + up0_local)
+		var w1lt := basis_rot * (Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1) + up1_local)
+		var wn_l := (p0l - w0lt).cross(p1l - w0lt).normalized()
+		_add_quad(verts, normals, indices, p0l, p1l, w1lt, w0lt, wn_l)
+		tri_faces.append(p0l); tri_faces.append(p1l); tri_faces.append(w1lt)
+		tri_faces.append(p0l); tri_faces.append(w1lt); tri_faces.append(w0lt)
+
+		# Right wall top points
+		var w0rt := basis_rot * (Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0) + up0_local)
+		var w1rt := basis_rot * (Vector3(hw * cos(a1), cy1 + hw * sin(a1), z1) + up1_local)
+		var wn_r := (w0rt - p0r).cross(p1r - p0r).normalized()
+		_add_quad(verts, normals, indices, p0r, w0rt, w1rt, p1r, wn_r)
+		tri_faces.append(p0r); tri_faces.append(w0rt); tri_faces.append(w1rt)
+		tri_faces.append(p0r); tri_faces.append(w1rt); tri_faces.append(p1r)
 
 	var concave := ConcavePolygonShape3D.new()
 	concave.set_faces(tri_faces)
