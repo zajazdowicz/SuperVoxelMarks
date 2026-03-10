@@ -60,6 +60,9 @@ func _build_track() -> void:
 		if p.piece == 19 or p.piece == 20:
 			RampSpawner.spawn_vloop(self, p.grid, p.piece, p.rotation, bh)
 
+		if p.piece == 22 or p.piece == 23:
+			RampSpawner.spawn_transition(self, p.grid, p.piece, p.rotation, bh)
+
 		if p.piece == 5:
 			_spawn_pos = Vector3(p.grid.x * GRID, bh + 3, p.grid.y * GRID)
 			# Car faces the exit direction of the start piece

@@ -180,10 +180,10 @@ func _on_new_pressed() -> void:
 const PIECE_CATEGORIES := {
 	"Podstawowe": [0, 1, 2, 5, 8, 11],
 	"Specjalne": [6, 7, 9, 10],
-	"Rampy": [3, 4],
+	"Rampy": [3, 4, 21, 22, 23],
 	"Wall Ride": [12, 13, 14],
-	"Loop": [15, 16, 17, 18],
-	"Petla": [19, 20],
+	#"Loop": [15, 16, 17, 18],      # DISABLED — barrel roll broken
+	#"Petla": [19, 20],              # DISABLED — vloop broken
 }
 
 func _create_piece_toolbar() -> void:
@@ -343,8 +343,9 @@ func _update_preview() -> void:
 	if _eraser_mode:
 		return
 
-	# Special pieces (wall ride, loop) — show shape preview
-	if current_piece >= 12:
+	# Special pieces (wall ride, loop, transition) — show shape preview
+	# Platforma (21) uses normal voxel preview
+	if current_piece >= 12 and current_piece != 21:
 		_update_shape_preview()
 		return
 
@@ -479,6 +480,30 @@ func _update_shape_preview() -> void:
 			var n := (p1l - p0l).cross(p0r - p0l).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
+	elif current_piece == 22 or current_piece == 23:
+		# Transition preview — sine curve
+		var is_up := current_piece == 22
+		var segs := 4
+		for seg in range(segs):
+			var t0: float = float(seg) / float(segs)
+			var t1: float = float(seg + 1) / float(segs)
+			var z0 := lerpf(-hl, hl, t0)
+			var z1 := lerpf(-hl, hl, t1)
+			var h0: float
+			var h1: float
+			if is_up:
+				h0 = sin(t0 * PI / 2.0) * RampSpawner.TRANSITION_H
+				h1 = sin(t1 * PI / 2.0) * RampSpawner.TRANSITION_H
+			else:
+				h0 = sin((1.0 - t0) * PI / 2.0) * RampSpawner.TRANSITION_H
+				h1 = sin((1.0 - t1) * PI / 2.0) * RampSpawner.TRANSITION_H
+			var p0l := basis_rot * Vector3(-hw, ground + h0, z0)
+			var p0r := basis_rot * Vector3(hw, ground + h0, z0)
+			var p1l := basis_rot * Vector3(-hw, ground + h1, z1)
+			var p1r := basis_rot * Vector3(hw, ground + h1, z1)
+			var n := (p1l - p0l).cross(p0r - p0l).normalized()
+			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
+
 	if verts.is_empty():
 		container.queue_free()
 		return
@@ -523,10 +548,12 @@ func _place_piece() -> void:
 	var tool := terrain.get_voxel_tool()
 	tool.channel = VoxelBuffer.CHANNEL_TYPE
 
-	# Ramp down: place at lower height so top matches current road level
+	# Ramp/transition down: place at lower height so top matches current road level
 	var place_height := current_height
 	if current_piece == 4:  # ramp down
 		place_height = maxi(0, current_height - TrackPieces.RAMP_HEIGHT)
+	elif current_piece == 23:  # transition down
+		place_height = maxi(0, current_height - TrackPieces.TRANSITION_HEIGHT)
 
 	var offset := Vector3i(cursor_grid.x * GRID, place_height, cursor_grid.y * GRID)
 	for block in rotated:
@@ -541,6 +568,8 @@ func _place_piece() -> void:
 		RampSpawner.spawn_loop(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece == 19 or current_piece == 20:
 		RampSpawner.spawn_vloop(self, cursor_grid, current_piece, current_rotation, place_height)
+	elif current_piece == 22 or current_piece == 23:
+		RampSpawner.spawn_transition(self, cursor_grid, current_piece, current_rotation, place_height)
 
 	# Remove existing piece at this grid position
 	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
@@ -648,6 +677,8 @@ func _load_track(track_name: String) -> void:
 			RampSpawner.spawn_loop(self, p.grid, p.piece, p.rotation, bh)
 		elif p.piece == 19 or p.piece == 20:
 			RampSpawner.spawn_vloop(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece == 22 or p.piece == 23:
+			RampSpawner.spawn_transition(self, p.grid, p.piece, p.rotation, bh)
 
 
 func _refresh_track_list() -> void:
@@ -672,6 +703,12 @@ func _snap_to_next_port() -> void:
 	# Ramp down: place_height already adjusted in _place_piece, no change needed here
 	if current_piece == 3:  # ramp up
 		current_height += TrackPieces.RAMP_HEIGHT
+	elif current_piece == 4:  # ramp down
+		current_height = maxi(0, current_height - TrackPieces.RAMP_HEIGHT)
+	elif current_piece == 22:  # transition up
+		current_height += TrackPieces.TRANSITION_HEIGHT
+	elif current_piece == 23:  # transition down
+		current_height = maxi(0, current_height - TrackPieces.TRANSITION_HEIGHT)
 
 	var ports := TrackPieces.get_ports(current_piece)
 	var rotated_ports := TrackPieces.rotate_ports(ports, current_rotation)

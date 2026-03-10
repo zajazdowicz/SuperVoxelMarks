@@ -555,3 +555,77 @@ static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotat
 
 	body.position = Vector3(float(grid_pos.x * GRID), float(base_height), float(grid_pos.y * GRID))
 	parent.add_child(body)
+
+
+# =======================================================================
+# TRANSITION (smooth flat↔ramp, anti-lip)
+# =======================================================================
+# A gentle curved ramp surface (height=2) that eliminates the sharp edge
+# between flat road and steep ramp. Uses a sine curve for smooth entry.
+
+const TRANSITION_H := 2.0
+
+static func spawn_transition(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
+	var is_up := piece_id == 22
+	var body := StaticBody3D.new()
+	body.name = "RampCollision_%d_%d" % [grid_pos.x, grid_pos.y]
+
+	var hw: float = float(ROAD_W) + 0.5
+	var hl: float = float(HALF)
+	var ground: float = 1.0
+	var rot_angle: float = -float(rotation) * PI / 2.0
+	var basis_rot := Basis(Vector3.UP, rot_angle)
+
+	# Build curved surface with 4 segments
+	var segs := 4
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var indices := PackedInt32Array()
+
+	for seg in range(segs):
+		var t0: float = float(seg) / float(segs)
+		var t1: float = float(seg + 1) / float(segs)
+		var z0 := lerpf(-hl, hl, t0)
+		var z1 := lerpf(-hl, hl, t1)
+
+		# Sine curve for smooth transition (0 at entry, TRANSITION_H at exit)
+		var h0: float
+		var h1: float
+		if is_up:
+			h0 = sin(t0 * PI / 2.0) * TRANSITION_H
+			h1 = sin(t1 * PI / 2.0) * TRANSITION_H
+		else:
+			h0 = sin((1.0 - t0) * PI / 2.0) * TRANSITION_H
+			h1 = sin((1.0 - t1) * PI / 2.0) * TRANSITION_H
+
+		var p0l := basis_rot * Vector3(-hw, ground + h0, z0)
+		var p0r := basis_rot * Vector3(hw, ground + h0, z0)
+		var p1l := basis_rot * Vector3(-hw, ground + h1, z1)
+		var p1r := basis_rot * Vector3(hw, ground + h1, z1)
+
+		var n := (p1l - p0l).cross(p0r - p0l).normalized()
+		_add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
+
+		# Collision
+		var bottom_y := ground - 0.5
+		_add_collision_quad(body, p0l, p0r, p1r, p1l, bottom_y, basis_rot)
+
+	# Visual mesh
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.3, 0.3, 0.35)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	body.add_child(mi)
+
+	body.position = Vector3(float(grid_pos.x * GRID), float(base_height), float(grid_pos.y * GRID))
+	parent.add_child(body)

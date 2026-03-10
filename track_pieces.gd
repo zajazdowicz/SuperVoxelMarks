@@ -47,11 +47,14 @@ const PIECE_NAMES := [
 	"Loop wyjazd",   # 18 — 270° → 360°
 	"Petla gora",    # 19 — 0° → 180° (vertical loop up)
 	"Petla dol",     # 20 — 180° → 360° (vertical loop down)
+	"Platforma",     # 21 — flat road at height with pillars underneath
+	"Lacznik gora",  # 22 — smooth transition before ramp up (anti-lip)
+	"Lacznik dol",   # 23 — smooth transition after ramp down (anti-lip)
 ]
 
 static func get_ports(index: int) -> Array[Dictionary]:
 	# All standard pieces: S→N
-	if index >= 0 and index <= 20 and index != 1 and index != 2:
+	if index >= 0 and index <= 23 and index != 1 and index != 2:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	match index:
 		1: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
@@ -87,6 +90,9 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		14: return _wall_ride_exit()
 		15, 16, 17, 18: return _loop_quarter(index)
 		19, 20: return _vloop_half(index)
+		21: return _platform()
+		22: return _transition_up()
+		23: return _transition_down()
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -386,4 +392,64 @@ static func _vloop_half(_piece_id: int) -> Array[Dictionary]:
 			if absi(x) <= ROAD_W + 1:
 				for h in range(0, total_h):
 					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+	return blocks
+
+
+# === PLATFORM: flat road with support pillars underneath ===
+# When placed at base_height > 0, pillars extend downward via negative y offsets.
+# In world space: voxel at (x, base_height + y_offset, z). Negative y_offset
+# reaches below base_height toward ground level.
+static func _platform() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				# Road surface
+				if absi(x) == ROAD_W and z % 3 == 0:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			elif absi(x) == ROAD_W + 1:
+				# Barriers at road level
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+				# Support pillars downward (at segment edges + every 4 voxels)
+				if z == LO or z == HI or z % 4 == 0:
+					for h in range(1, RAMP_HEIGHT * 2 + 1):
+						blocks.append({"pos": Vector3i(x, -h, z), "type": WALL})
+	return blocks
+
+
+# === TRANSITION UP: smooth entry to ramp (anti-lip) ===
+# Collision handled by ramp_spawner. Voxels cleared to AIR.
+# A short curved surface that gently lifts the car into the ramp slope.
+const TRANSITION_HEIGHT := 2  # slight rise over the segment
+static func _transition_up() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		var progress := float(z - LO) / float(SEGMENT_SIZE)
+		var height := int(progress * float(TRANSITION_HEIGHT))
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				for h in range(0, height + 1):
+					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+			elif absi(x) == ROAD_W + 1:
+				for h in range(0, height + 3):
+					blocks.append({"pos": Vector3i(x, h, z), "type": WALL})
+	return blocks
+
+
+# === TRANSITION DOWN: smooth exit from ramp (anti-lip) ===
+static func _transition_down() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		var progress := float(z - LO) / float(SEGMENT_SIZE)
+		var height := int((1.0 - progress) * float(TRANSITION_HEIGHT))
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				for h in range(0, height + 1):
+					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+			elif absi(x) == ROAD_W + 1:
+				for h in range(0, height + 3):
+					blocks.append({"pos": Vector3i(x, h, z), "type": WALL})
 	return blocks
