@@ -263,15 +263,13 @@ func _physics_process(delta: float) -> void:
 	else:
 		speed = move_toward(speed, 0, friction * delta)
 
-	# --- Steering ---
-	var turn_mult: float
-	if airborne:
-		turn_mult = stats.air_control
-	elif _drifting:
-		turn_mult = grip * DRIFT_TURN_MULT
-	else:
-		turn_mult = grip
-	if abs(speed) > 1.0:
+	# --- Steering (only on ground) ---
+	if not airborne and abs(speed) > 1.0:
+		var turn_mult: float
+		if _drifting:
+			turn_mult = grip * DRIFT_TURN_MULT
+		else:
+			turn_mult = grip
 		var turn: float = steer * stats.turn_speed * delta * signf(speed) * turn_mult
 		rotation.y += turn
 
@@ -281,10 +279,8 @@ func _physics_process(delta: float) -> void:
 	if airborne:
 		up_direction = Vector3.UP
 		_gravity_dir = Vector3.DOWN
-		var target_vel := forward * speed
-		velocity.x = lerp(velocity.x, target_vel.x, stats.air_control * delta * 5.0)
-		velocity.z = lerp(velocity.z, target_vel.z, stats.air_control * delta * 5.0)
-		velocity += _gravity_dir * stats.gravity * delta
+		# No air control — maintain horizontal velocity, only gravity affects
+		velocity += Vector3.DOWN * stats.gravity * delta
 	else:
 		var fn := get_floor_normal()
 		var slope_forward := (forward - fn * forward.dot(fn)).normalized()

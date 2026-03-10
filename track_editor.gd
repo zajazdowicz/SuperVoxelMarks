@@ -182,7 +182,7 @@ const PIECE_CATEGORIES := {
 	"Specjalne": [6, 7, 9, 10],
 	"Rampy": [3, 4],
 	"Wall Ride": [12, 13, 14],
-	"Loop": [15, 16, 17, 18],
+	"Loop": [15],
 }
 
 func _create_piece_toolbar() -> void:
@@ -433,29 +433,28 @@ func _update_shape_preview() -> void:
 			var n := (p1l - p0l).cross(p0r - p0l).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
-	elif current_piece >= 15 and current_piece <= 18:
-		# Loop quarter preview
-		var loop_r := float(TrackPieces.LOOP_RADIUS)
-		var center_y := ground + loop_r
-		var quarter := current_piece - 15
-		var start_angle := float(quarter) * PI / 2.0 - PI / 2.0
-		var end_angle := start_angle + PI / 2.0
+	elif current_piece == 15:
+		# Loop 360° preview — circle in YZ plane
+		var R := float(TrackPieces.HALF)
+		var center_y := ground + R
+		var segs := 16
 
-		for seg in range(6):
-			var t0: float = float(seg) / 6.0
-			var t1: float = float(seg + 1) / 6.0
-			var a0 := lerpf(start_angle, end_angle, t0)
-			var a1 := lerpf(start_angle, end_angle, t1)
-			var y0 := center_y + loop_r * sin(a0)
-			var y1 := center_y + loop_r * sin(a1)
-			var z0 := lerpf(-hl, hl, t0)
-			var z1 := lerpf(-hl, hl, t1)
+		for seg in range(segs):
+			var t0: float = float(seg) / float(segs)
+			var t1: float = float(seg + 1) / float(segs)
+			var a0 := t0 * TAU
+			var a1 := t1 * TAU
+			var y0 := center_y - R * cos(a0)
+			var y1 := center_y - R * cos(a1)
+			var z0 := R * sin(a0)
+			var z1 := R * sin(a1)
 
 			var p0l := basis_rot * Vector3(-hw, y0, z0)
 			var p0r := basis_rot * Vector3(hw, y0, z0)
 			var p1l := basis_rot * Vector3(-hw, y1, z1)
 			var p1r := basis_rot * Vector3(hw, y1, z1)
-			var n := basis_rot * Vector3(0, -sin((a0 + a1) * 0.5), -cos((a0 + a1) * 0.5)).normalized()
+			var mid_a := (a0 + a1) * 0.5
+			var n := basis_rot * Vector3(0, cos(mid_a), -sin(mid_a)).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
 	if verts.is_empty():

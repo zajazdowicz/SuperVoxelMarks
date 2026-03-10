@@ -121,7 +121,7 @@ func _process(_delta: float) -> void:
 		RaceManager.State.TIME_UP:
 			timer_label.text = RaceManager.get_time_string()
 			remaining_label.text = "0:00"
-			info_label.text = "CZAS MINOL!\nOkrazenia: %d" % RaceManager.lap_count
+			info_label.text = "CZAS MINĄŁ!\nOkrążenia: %d" % RaceManager.lap_count
 			if RaceManager.best_time < INF:
 				info_label.text += "\nBest Lap: %s" % RaceManager.get_time_string(RaceManager.best_time)
 		RaceManager.State.FINISHED:

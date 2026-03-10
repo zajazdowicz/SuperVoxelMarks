@@ -10,7 +10,6 @@ const RAMP_H := TrackPieces.RAMP_HEIGHT
 const HALF := TrackPieces.HALF
 const WR_H := TrackPieces.WALL_RIDE_HEIGHT
 const WR_BANK := TrackPieces.WALL_RIDE_BANK_DEG
-const LOOP_R := TrackPieces.LOOP_RADIUS
 
 
 static func spawn_ramp(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
@@ -317,94 +316,71 @@ static func spawn_wall_ride(parent: Node3D, grid_pos: Vector2i, piece_id: int, r
 
 
 # =======================================================================
-# LOOP (quarter sections)
+# LOOP (full 360° in one segment)
 # =======================================================================
-# A full loop = 4 quarter pieces stacked vertically.
-# Each quarter is a curved surface approximated by flat segments.
-# Q1: 0°→90° (ground to wall going up)
-# Q2: 90°→180° (wall to ceiling)
-# Q3: 180°→270° (ceiling to wall going down)
-# Q4: 270°→360° (wall back to ground)
+# Circle in YZ plane: car enters from south at ground, loops up and over,
+# exits to north at ground. R = HALF (6) fits in SEGMENT_SIZE (12).
 #
-# The loop circle center is at y = ground + LOOP_R
-# Angle 0° = bottom (ground level), 90° = right wall, 180° = top, 270° = left wall
+# Parametrization (angle a from 0 to 2*PI):
+#   Y(a) = center_y - R * cos(a)  → bottom: ground, top: ground + 2R
+#   Z(a) = R * sin(a)             → ranges -R..+R = -6..+6 = fits segment
+# Road width in X (perpendicular to loop plane).
 
-const LOOP_SEGMENTS := 6  # segments per quarter (smoother = more)
+const LOOP_SEGMENTS := 24  # segments for full circle (smooth)
 
-static func spawn_loop_quarter(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
+static func spawn_loop(parent: Node3D, grid_pos: Vector2i, rotation: int, base_height: int = 0) -> void:
 	var body := StaticBody3D.new()
 	body.name = "Loop_%d_%d" % [grid_pos.x, grid_pos.y]
 
 	var hw: float = float(ROAD_W) + 0.5
-	var hl: float = float(HALF)
 	var ground: float = 1.0
-	var center_y: float = ground + float(LOOP_R)
+	var R: float = float(HALF)  # 6.0 — fits in segment
+	var center_y: float = ground + R
 	var rot_angle: float = -float(rotation) * PI / 2.0
 	var basis_rot := Basis(Vector3.UP, rot_angle)
-
-	# Quarter index: Q1=15, Q2=16, Q3=17, Q4=18
-	var quarter := piece_id - 15  # 0-3
-	var start_angle: float = float(quarter) * PI / 2.0 - PI / 2.0  # Q1 starts at -90° (bottom)
-	var end_angle: float = start_angle + PI / 2.0
 
 	var verts := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var indices := PackedInt32Array()
 
-	# Build curved surface from segments
 	for seg in range(LOOP_SEGMENTS):
 		var t0: float = float(seg) / float(LOOP_SEGMENTS)
 		var t1: float = float(seg + 1) / float(LOOP_SEGMENTS)
-		var a0: float = lerp(start_angle, end_angle, t0)
-		var a1: float = lerp(start_angle, end_angle, t1)
+		var a0: float = t0 * TAU  # 0 to 2*PI
+		var a1: float = t1 * TAU
 
-		# Y and local-X offset from circle center
-		# Circle in the XZ plane of the loop cross-section:
-		# At angle a, the surface point is at:
-		#   y = center_y + R * sin(a)
-		#   local_offset_x = R * cos(a)  (shift left/right from center)
-		# But we want the loop in the YZ plane (car goes forward in Z, loop curves in Y)
-		# So the road surface curves in Y, and the road width is in X
+		# Circle positions in YZ plane
+		var y0: float = center_y - R * cos(a0)
+		var y1: float = center_y - R * cos(a1)
+		var z0: float = R * sin(a0)
+		var z1: float = R * sin(a1)
 
-		var y0: float = center_y + float(LOOP_R) * sin(a0)
-		var y1: float = center_y + float(LOOP_R) * sin(a1)
-
-		# Z position within segment: map seg progress to -hl..+hl
-		var z0: float = lerpf(-hl, hl, t0)
-		var z1: float = lerpf(-hl, hl, t1)
-
-		# Surface normal at each angle (points inward toward center = toward car)
-		var nx0: float = 0.0
-		var ny0: float = -sin(a0)  # inward
-		var nz0: float = -cos(a0)
-		var nx1: float = 0.0
-		var ny1: float = -sin(a1)
-		var nz1: float = -cos(a1)
-
-		# The road tilts: at a0, the "up" for the car is toward center
-		# Road left/right edges need to follow the curve
-		# At angle a, the local "up" is (-sin(a), cos(a)) in the YZ cross section
-		# ... but road width is always in X, so left=-hw, right=+hw
-
+		# Road surface: left/right in X, perpendicular to loop plane
 		var p0l := basis_rot * Vector3(-hw, y0, z0)
 		var p0r := basis_rot * Vector3(hw, y0, z0)
 		var p1l := basis_rot * Vector3(-hw, y1, z1)
 		var p1r := basis_rot * Vector3(hw, y1, z1)
 
-		var n := basis_rot * Vector3(0, -sin((a0 + a1) * 0.5), -cos((a0 + a1) * 0.5)).normalized()
+		# Normal: points inward (toward center) = (0, cos(a), -sin(a))
+		var mid_a := (a0 + a1) * 0.5
+		var n := basis_rot * Vector3(0, cos(mid_a), -sin(mid_a)).normalized()
 
 		_add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
-		# Collision: one ConvexPolygon per segment (convex = flat quad + bottom)
+		# Collision: ConvexPolygon per segment (quad + inner support)
 		var col_points := PackedVector3Array()
 		col_points.append(p0l); col_points.append(p0r)
 		col_points.append(p1l); col_points.append(p1r)
-		# Bottom support (slightly below)
-		var support_y := minf(y0, y1) - 1.0
-		col_points.append(basis_rot * Vector3(-hw, support_y, z0))
-		col_points.append(basis_rot * Vector3(hw, support_y, z0))
-		col_points.append(basis_rot * Vector3(-hw, support_y, z1))
-		col_points.append(basis_rot * Vector3(hw, support_y, z1))
+		# Inner support (slightly toward center)
+		var inner_offset := 0.5
+		var iy0: float = center_y - (R - inner_offset) * cos(a0)
+		var iz0: float = (R - inner_offset) * sin(a0)
+		var iy1: float = center_y - (R - inner_offset) * cos(a1)
+		var iz1: float = (R - inner_offset) * sin(a1)
+		col_points.append(basis_rot * Vector3(-hw, iy0, iz0))
+		col_points.append(basis_rot * Vector3(hw, iy0, iz0))
+		col_points.append(basis_rot * Vector3(-hw, iy1, iz1))
+		col_points.append(basis_rot * Vector3(hw, iy1, iz1))
 
 		var col_shape := CollisionShape3D.new()
 		var shape := ConvexPolygonShape3D.new()

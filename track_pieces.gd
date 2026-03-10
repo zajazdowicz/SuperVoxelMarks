@@ -43,15 +43,12 @@ const PIECE_NAMES := [
 	"Wall Ride wejscie",  # 12
 	"Wall Ride prosta",   # 13
 	"Wall Ride wyjscie",  # 14
-	"Loop Q1 (gora)",     # 15
-	"Loop Q2 (szczyt)",   # 16
-	"Loop Q3 (dol)",      # 17
-	"Loop Q4 (ladowanie)",# 18
+	"Loop 360",           # 15
 ]
 
 static func get_ports(index: int) -> Array[Dictionary]:
 	# All standard pieces: S→N
-	if index >= 0 and index <= 18 and index != 1 and index != 2:
+	if index >= 0 and index <= 15 and index != 1 and index != 2:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	match index:
 		1: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
@@ -85,10 +82,7 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		12: return _wall_ride_entry()
 		13: return _wall_ride_straight()
 		14: return _wall_ride_exit()
-		15: return _loop_q1()
-		16: return _loop_q2()
-		17: return _loop_q3()
-		18: return _loop_q4()
+		15: return _loop_full()
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -363,23 +357,14 @@ static func _wall_ride_exit() -> Array[Dictionary]:
 	return _wall_ride_entry()
 
 
-# === LOOP QUARTERS: all clear AIR, collision from spawner ===
-static func _loop_q1() -> Array[Dictionary]:
+# === LOOP 360°: full loop in one segment, collision from spawner ===
+# Circle R = HALF (6), diameter = 12 = SEGMENT_SIZE. Height = 2R + 2 = 14.
+static func _loop_full() -> Array[Dictionary]:
 	var blocks: Array[Dictionary] = []
-	var total_h := LOOP_RADIUS * 2 + 2
+	var total_h := HALF * 2 + 2  # diameter + clearance
 	for z in range(LO, HI + 1):
 		for x in range(LO, HI + 1):
 			if absi(x) <= ROAD_W + 1:
 				for h in range(0, total_h):
 					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 	return blocks
-
-
-static func _loop_q2() -> Array[Dictionary]:
-	return _loop_q1()
-
-static func _loop_q3() -> Array[Dictionary]:
-	return _loop_q1()
-
-static func _loop_q4() -> Array[Dictionary]:
-	return _loop_q1()
