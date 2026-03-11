@@ -37,6 +37,10 @@ var _preview_colors := {
 	TrackPieces.ICE: Color(0.7, 0.85, 0.95, 0.6),
 	TrackPieces.DIRT: Color(0.45, 0.3, 0.15, 0.6),
 	TrackPieces.WALL_RIDE: Color(0.4, 0.3, 0.5, 0.6),
+	TrackPieces.WATER: Color(0.2, 0.4, 0.8, 0.6),
+	TrackPieces.COBBLESTONE: Color(0.5, 0.45, 0.4, 0.6),
+	TrackPieces.TURBO: Color(1.0, 0.6, 0.0, 0.6),
+	TrackPieces.SLOWDOWN: Color(0.6, 0.1, 0.1, 0.6),
 }
 
 
@@ -179,7 +183,8 @@ func _on_new_pressed() -> void:
 
 const PIECE_CATEGORIES := {
 	"Podstawowe": [0, 1, 2, 24, 25, 26, 27, 5, 8, 11],
-	"Specjalne": [6, 7, 9, 10],
+	"Specjalne": [6, 7, 9, 10, 39, 40, 41],
+	"Nawierzchnie": [36, 37, 38],
 	"Rampy": [3, 4, 30, 31, 34, 35, 21, 32, 33, 22, 23],
 	"Banked": [28, 29],
 	"Wall Ride": [12, 13, 14],
@@ -346,7 +351,7 @@ func _update_preview() -> void:
 
 	# Special pieces (wall ride, loop, transition) — show shape preview
 	# Voxel-only pieces (platforma, gentle turns) use normal voxel preview
-	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 28, 29, 34, 35]
+	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 28, 29, 34, 35, 39]
 	if current_piece in shape_pieces:
 		_update_shape_preview()
 		return
@@ -568,6 +573,24 @@ func _update_shape_preview() -> void:
 			var n3 := (pi13 - pi03).cross(po03 - pi03).normalized()
 			RampSpawner._add_quad(verts, normals, indices, pi03, po03, po13, pi13, n3)
 
+	elif current_piece == 39:
+		# Jump pad preview — half-segment ramp
+		var jump_h := float(TrackPieces.JUMP_HEIGHT)
+		var segs4 := 3
+		for seg4 in range(segs4):
+			var t04: float = float(seg4) / float(segs4)
+			var t14: float = float(seg4 + 1) / float(segs4)
+			var z04 := lerpf(0.0, hl, t04)
+			var z14 := lerpf(0.0, hl, t14)
+			var y04: float = lerpf(ground, ground + jump_h, t04)
+			var y14: float = lerpf(ground, ground + jump_h, t14)
+			var p04l := basis_rot * Vector3(-hw, y04, z04)
+			var p04r := basis_rot * Vector3(hw, y04, z04)
+			var p14l := basis_rot * Vector3(-hw, y14, z14)
+			var p14r := basis_rot * Vector3(hw, y14, z14)
+			var n4 := (p14l - p04l).cross(p04r - p04l).normalized()
+			RampSpawner._add_quad(verts, normals, indices, p04l, p04r, p14r, p14l, n4)
+
 	if verts.is_empty():
 		container.queue_free()
 		return
@@ -653,6 +676,8 @@ func _place_piece() -> void:
 		RampSpawner.spawn_banked_turn(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece == 34 or current_piece == 35:
 		RampSpawner.spawn_ramp_turn(self, cursor_grid, current_piece, current_rotation, place_height)
+	elif current_piece == 39:
+		RampSpawner.spawn_jump_pad(self, cursor_grid, current_piece, current_rotation, place_height)
 
 	# Remove existing piece at this grid position
 	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
@@ -766,6 +791,8 @@ func _load_track(track_name: String) -> void:
 			RampSpawner.spawn_banked_turn(self, p.grid, p.piece, p.rotation, bh)
 		elif p.piece == 34 or p.piece == 35:
 			RampSpawner.spawn_ramp_turn(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece == 39:
+			RampSpawner.spawn_jump_pad(self, p.grid, p.piece, p.rotation, bh)
 	# Second pass: clear boundary voxels at ramp HIGH end
 	for p in placed_pieces:
 		if p.piece not in [3, 4, 30, 31]:

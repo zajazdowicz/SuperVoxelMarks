@@ -2,9 +2,11 @@ extends Node
 ## Autoload singleton managing race state, lap timer, and ghost recording.
 ## TrackMania-style: TIME_LIMIT to drive laps, best lap time saved.
 
-enum State { IDLE, RACING, TIME_UP, FINISHED }
+enum State { IDLE, COUNTDOWN, RACING, TIME_UP, FINISHED }
 
 var state := State.IDLE
+var countdown_timer := 0.0
+const COUNTDOWN_TIME := 3.0
 var race_time := 0.0         # total elapsed time
 var lap_time := 0.0          # current lap timer
 var lap_count := 0
@@ -43,10 +45,11 @@ func reset() -> void:
 	respawn_rot = 0.0
 
 
-func start_race() -> void:
+func start_countdown() -> void:
 	if state != State.IDLE:
 		return
-	state = State.RACING
+	state = State.COUNTDOWN
+	countdown_timer = COUNTDOWN_TIME
 	race_time = 0.0
 	lap_time = 0.0
 	lap_count = 0
@@ -55,6 +58,12 @@ func start_race() -> void:
 	ghost_frames.clear()
 	_lap_ghost.clear()
 	_record_timer = 0.0
+
+
+func start_race() -> void:
+	state = State.RACING
+	race_time = 0.0
+	lap_time = 0.0
 
 
 func hit_checkpoint(index: int) -> void:
@@ -67,13 +76,15 @@ func hit_checkpoint(index: int) -> void:
 func cross_start_finish() -> void:
 	## Called when car crosses start/finish line.
 	if state == State.IDLE:
-		start_race()
+		start_countdown()
 		return
 
 	if state == State.TIME_UP:
-		# Allow restart after time up
 		reset()
-		start_race()
+		start_countdown()
+		return
+
+	if state == State.COUNTDOWN:
 		return
 
 	if state != State.RACING:
@@ -93,10 +104,10 @@ func cross_start_finish() -> void:
 func cross_start() -> void:
 	## Sprint mode: crossing start line begins the run.
 	if state == State.IDLE:
-		start_race()
+		start_countdown()
 	elif state == State.FINISHED:
 		reset()
-		start_race()
+		start_countdown()
 
 
 func cross_finish() -> void:
@@ -142,7 +153,11 @@ func record_frame(pos: Vector3, rot_y: float) -> void:
 
 
 func _process(delta: float) -> void:
-	if state == State.RACING:
+	if state == State.COUNTDOWN:
+		countdown_timer -= delta
+		if countdown_timer <= 0.0:
+			start_race()
+	elif state == State.RACING:
 		race_time += delta
 		lap_time += delta
 		if race_time >= TIME_LIMIT:

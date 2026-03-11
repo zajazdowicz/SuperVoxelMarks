@@ -69,6 +69,9 @@ func _build_track() -> void:
 		if p.piece == 34 or p.piece == 35:
 			RampSpawner.spawn_ramp_turn(self, p.grid, p.piece, p.rotation, bh)
 
+		if p.piece == 39:
+			RampSpawner.spawn_jump_pad(self, p.grid, p.piece, p.rotation, bh)
+
 		if p.piece == 5:
 			_spawn_pos = Vector3(p.grid.x * GRID, bh + 3, p.grid.y * GRID)
 			# Car faces the exit direction of the start piece
@@ -123,6 +126,9 @@ func _build_track() -> void:
 
 	# Spawn ghost for personal best
 	_spawn_ghost()
+
+	# Start countdown
+	RaceManager.start_countdown()
 
 
 func _spawn_ghost() -> void:
@@ -192,7 +198,7 @@ func _on_trigger_entered(body: Node3D, trigger_name: String) -> void:
 		if RaceManager.is_sprint:
 			if RaceManager.state == RaceManager.State.FINISHED:
 				RaceManager.reset()
-				RaceManager.start_race()
+				RaceManager.start_countdown()
 				_start_ghost()
 			elif RaceManager.state == RaceManager.State.IDLE:
 				RaceManager.cross_start()
@@ -200,7 +206,7 @@ func _on_trigger_entered(body: Node3D, trigger_name: String) -> void:
 		else:
 			if RaceManager.state == RaceManager.State.TIME_UP or RaceManager.state == RaceManager.State.FINISHED:
 				RaceManager.reset()
-				RaceManager.start_race()
+				RaceManager.start_countdown()
 				_start_ghost()
 			else:
 				var prev_lap := RaceManager.lap_count

@@ -983,3 +983,84 @@ static func spawn_transition(parent: Node3D, grid_pos: Vector2i, piece_id: int, 
 
 	body.position = Vector3(float(grid_pos.x * GRID), float(base_height), float(grid_pos.y * GRID))
 	parent.add_child(body)
+
+
+static func spawn_jump_pad(parent: Node3D, grid_pos: Vector2i, _piece_id: int, rotation: int, base_height: int = 0) -> void:
+	var body := StaticBody3D.new()
+	body.name = "RampCollision_%d_%d" % [grid_pos.x, grid_pos.y]
+
+	var hw: float = float(ROAD_W) + 0.5
+	var hl: float = float(HALF)
+	var jump_h := float(TrackPieces.JUMP_HEIGHT)
+	var ground: float = 1.0
+
+	var rot_angle: float = -float(rotation) * PI / 2.0
+	var basis_rot := Basis(Vector3.UP, rot_angle)
+
+	# Ramp from z=0 to z=HI, height from ground to ground+jump_h
+	var segs := 3
+	for seg in range(segs):
+		var t0: float = float(seg) / float(segs)
+		var t1: float = float(seg + 1) / float(segs)
+		var z0: float = lerpf(0.0, hl, t0)
+		var z1: float = lerpf(0.0, hl, t1)
+		var y0: float = lerpf(ground, ground + jump_h, t0)
+		var y1: float = lerpf(ground, ground + jump_h, t1)
+
+		_add_col_box(body,
+			basis_rot * Vector3(-hw, y0, z0),
+			basis_rot * Vector3(hw, y0, z0),
+			basis_rot * Vector3(-hw, y1, z1),
+			basis_rot * Vector3(hw, y1, z1),
+			ground - 0.5, basis_rot)
+
+	# Visual mesh
+	var visual := _create_jump_visual(hw, hl, jump_h, ground, basis_rot)
+	body.add_child(visual)
+
+	body.position = Vector3(float(grid_pos.x * GRID), float(base_height), float(grid_pos.y * GRID))
+	parent.add_child(body)
+
+
+static func _create_jump_visual(hw: float, hl: float, jump_h: float, ground: float, basis_rot: Basis) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var asphalt_color := Color(0.25, 0.25, 0.28)
+	var curb_color := Color(0.9, 0.9, 0.9)
+
+	# Grid cells on the ramp surface (z=0 to z=HI)
+	var steps := int(hl)
+	for iz in range(steps):
+		var t0: float = float(iz) / float(steps)
+		var t1: float = float(iz + 1) / float(steps)
+		var z0: float = lerpf(0.0, hl, t0)
+		var z1: float = lerpf(0.0, hl, t1)
+		var y0: float = lerpf(ground, ground + jump_h, t0)
+		var y1: float = lerpf(ground, ground + jump_h, t1)
+
+		for ix in range(-ROAD_W, ROAD_W + 1):
+			var x0: float = float(ix) - 0.5
+			var x1: float = float(ix) + 0.5
+
+			var is_curb := absi(ix) == ROAD_W and iz % 3 == 0
+			var col: Color = curb_color if is_curb else asphalt_color
+
+			var a := basis_rot * Vector3(x0, y0, z0)
+			var b := basis_rot * Vector3(x1, y0, z0)
+			var c := basis_rot * Vector3(x1, y1, z1)
+			var d := basis_rot * Vector3(x0, y1, z1)
+
+			var normal := (c - a).cross(b - a).normalized()
+			st.set_color(col)
+			st.set_normal(normal)
+			st.add_vertex(a); st.add_vertex(b); st.add_vertex(c)
+			st.add_vertex(a); st.add_vertex(c); st.add_vertex(d)
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var mat2 := StandardMaterial3D.new()
+	mat2.vertex_color_use_as_albedo = true
+	mat2.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat2
+	return mi

@@ -21,6 +21,10 @@ const BOOST := 11
 const ICE := 12
 const DIRT := 13
 const WALL_RIDE := 14  # visual marker for wall ride surface
+const WATER := 15
+const COBBLESTONE := 16
+const TURBO := 17      # stronger boost (x2.0)
+const SLOWDOWN := 18   # speed trap
 
 const ROAD_W := 4  # road -4..+4, walls at +-5
 const WALL_RIDE_HEIGHT := 9  # height clearance for wall ride voxel clearing
@@ -62,6 +66,12 @@ const PIECE_NAMES := [
 	"Tunel",               # 33 — road with walls and roof
 	"Rampa zakret prawo",  # 34 — ramp turn S→E, +6 height
 	"Rampa zakret lewo",   # 35 — ramp turn S→W, +6 height
+	"Piasek",              # 36 — sand section
+	"Woda",                # 37 — shallow water section
+	"Bruk",                # 38 — cobblestone section
+	"Skok",                # 39 — jump pad (mini ramp)
+	"Turbo",               # 40 — turbo boost (x2.0)
+	"Spowolnienie",        # 41 — slowdown trap
 ]
 
 const HALF_RAMP_HEIGHT := 3
@@ -72,7 +82,7 @@ static func get_ports(index: int) -> Array[Dictionary]:
 		1, 24, 28, 34: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
 		2, 25, 29, 35: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
 	# All other standard pieces: S→N
-	if index >= 0 and index <= 35:
+	if index >= 0 and index <= 41:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
@@ -120,6 +130,12 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		33: return _tunnel()
 		34: return _ramp_turn_clear(float(HI), float(LO), PI / 2.0, PI)
 		35: return _ramp_turn_clear(float(LO), float(LO), 0.0, PI / 2.0)
+		36: return _sand_section()
+		37: return _water_section()
+		38: return _cobblestone_section()
+		39: return _jump_pad()
+		40: return _turbo_pad()
+		41: return _slowdown_section()
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -725,4 +741,97 @@ static func _ramp_turn_clear(cx: float, cz: float, angle_min: float, angle_max: 
 				var local_h := int(ceil(progress * float(RAMP_HEIGHT))) + 2
 				for h in range(0, local_h):
 					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+	return blocks
+
+
+# === SAND SECTION ===
+static func _sand_section() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": SAND})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+# === WATER SECTION ===
+static func _water_section() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WATER})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+# === COBBLESTONE SECTION ===
+static func _cobblestone_section() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": COBBLESTONE})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+# === JUMP PAD: flat road with mini ramp at the end ===
+# Collision for the ramp part handled by ramp_spawner.
+const JUMP_HEIGHT := 3
+static func _jump_pad() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				if z >= 0:
+					# Ramp zone: clear to AIR for ConvexPolygon
+					if z > 0 and z < HI:
+						for h in range(0, JUMP_HEIGHT + 1):
+							blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+				else:
+					# Flat road before the ramp
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+				if z >= 0:
+					for h in range(2, JUMP_HEIGHT + 2):
+						blocks.append({"pos": Vector3i(x, h, z), "type": WALL})
+	return blocks
+
+
+# === TURBO PAD (stronger boost) ===
+static func _turbo_pad() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				if absi(x) <= 2:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": TURBO})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+# === SLOWDOWN SECTION ===
+static func _slowdown_section() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": SLOWDOWN})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
 	return blocks

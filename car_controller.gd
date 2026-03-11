@@ -218,6 +218,12 @@ func _physics_process(delta: float) -> void:
 			_respawn()
 		return
 
+	# --- Countdown freeze ---
+	if RaceManager.state == RaceManager.State.COUNTDOWN:
+		speed = 0.0
+		velocity = Vector3.ZERO
+		return
+
 	var surface := _detect_surface()
 	var airborne := not is_on_floor()
 
@@ -235,7 +241,9 @@ func _physics_process(delta: float) -> void:
 
 	# --- Boost pad ---
 	if surface.get("is_boost", false) and is_on_floor():
-		_apply_boost()
+		var bmult: float = surface.get("boost_mult", stats.boost_multiplier)
+		var bdur: float = surface.get("boost_dur", stats.boost_duration)
+		_apply_boost(bmult, bdur)
 
 	# --- Drift / handbrake state ---
 	var was_drifting := _drifting
@@ -248,8 +256,8 @@ func _physics_process(delta: float) -> void:
 		_drift_timer += delta
 		if abs(steer) > 0.1:
 			_drift_dir = signf(steer)
-		# Handbrake slows down
-		speed = move_toward(speed, speed * 0.7, stats.brake_force * 0.8 * delta)
+		# Handbrake slows down (surface grip affects braking)
+		speed = move_toward(speed, speed * 0.7, stats.brake_force * 0.8 * grip * delta)
 	elif _drifting:
 		_drifting = false
 		# Drift boost if drifted long enough while steering
@@ -294,7 +302,7 @@ func _physics_process(delta: float) -> void:
 
 		var blend: float
 		if _drifting:
-			blend = DRIFT_GRIP
+			blend = DRIFT_GRIP * grip  # surface grip modulates drift slide
 		else:
 			blend = grip * stats.drift_factor
 		velocity = velocity.lerp(target_vel, clampf(blend, 0.1, 1.0))
@@ -565,8 +573,8 @@ func _check_offtrack(surface: Dictionary, airborne: bool, delta: float) -> void:
 		_respawn()
 		return
 
-	# On grass = off track → instant respawn
-	if not airborne and surface.grip <= 0.5:
+	# Off track (grass/sand terrain) → respawn after OFFTRACK_TIME
+	if not airborne and not surface.get("is_road", false):
 		_offtrack_timer += delta
 		if _offtrack_timer >= OFFTRACK_TIME:
 			_respawn()
@@ -724,11 +732,11 @@ func _detect_surface() -> Dictionary:
 	return SurfaceData.get_surface(block_type)
 
 
-func _apply_boost() -> void:
+func _apply_boost(mult: float = 0.0, dur: float = 0.0) -> void:
 	if _boost_timer > 0:
 		return
-	_boost_mult = stats.boost_multiplier
-	_boost_timer = stats.boost_duration
+	_boost_mult = mult if mult > 0.0 else stats.boost_multiplier
+	_boost_timer = dur if dur > 0.0 else stats.boost_duration
 	speed = maxf(speed, stats.max_speed * 0.9)
 
 

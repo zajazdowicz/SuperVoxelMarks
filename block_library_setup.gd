@@ -83,6 +83,36 @@ func _ready() -> void:
 	dirt_cube.color = Color(0.45, 0.3, 0.15)
 	library.add_model(dirt_cube)
 
+	# Add WALL_RIDE (ID 14) - purple-ish
+	var wr_cube := VoxelBlockyModelCube.new()
+	wr_cube.set_material_override(0, mat)
+	wr_cube.color = Color(0.4, 0.3, 0.5)
+	library.add_model(wr_cube)
+
+	# Add WATER (ID 15) - blue
+	var water_cube := VoxelBlockyModelCube.new()
+	water_cube.set_material_override(0, mat)
+	water_cube.color = Color(0.2, 0.4, 0.8)
+	library.add_model(water_cube)
+
+	# Add COBBLESTONE (ID 16) - gray-brown
+	var cobble_cube := VoxelBlockyModelCube.new()
+	cobble_cube.set_material_override(0, mat)
+	cobble_cube.color = Color(0.5, 0.45, 0.4)
+	library.add_model(cobble_cube)
+
+	# Add TURBO (ID 17) - orange-yellow
+	var turbo_cube := VoxelBlockyModelCube.new()
+	turbo_cube.set_material_override(0, mat)
+	turbo_cube.color = Color(1.0, 0.6, 0.0)
+	library.add_model(turbo_cube)
+
+	# Add SLOWDOWN (ID 18) - dark red
+	var slow_cube := VoxelBlockyModelCube.new()
+	slow_cube.set_material_override(0, mat)
+	slow_cube.color = Color(0.6, 0.1, 0.1)
+	library.add_model(slow_cube)
+
 	library.bake()
 	terrain.mesher.library = library
 
