@@ -60,6 +60,8 @@ const PIECE_NAMES := [
 	"Rampa lagodna dol",   # 31 — half-height ramp down (h=3)
 	"Most",                # 32 — bridge with pillars at ends only
 	"Tunel",               # 33 — road with walls and roof
+	"Rampa zakret prawo",  # 34 — ramp turn S→E, +6 height
+	"Rampa zakret lewo",   # 35 — ramp turn S→W, +6 height
 ]
 
 const HALF_RAMP_HEIGHT := 3
@@ -67,10 +69,10 @@ const HALF_RAMP_HEIGHT := 3
 static func get_ports(index: int) -> Array[Dictionary]:
 	# Turns: S→E or S→W
 	match index:
-		1, 24, 28: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
-		2, 25, 29: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
+		1, 24, 28, 34: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
+		2, 25, 29, 35: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
 	# All other standard pieces: S→N
-	if index >= 0 and index <= 33:
+	if index >= 0 and index <= 35:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
@@ -116,6 +118,8 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		31: return _ramp_generic(HALF_RAMP_HEIGHT, false)
 		32: return _bridge()
 		33: return _tunnel()
+		34: return _ramp_turn_clear(float(HI), float(LO), PI / 2.0, PI)
+		35: return _ramp_turn_clear(float(LO), float(LO), 0.0, PI / 2.0)
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -698,5 +702,27 @@ static func _banked_turn_clear(cx: float, cz: float, angle_min: float, angle_max
 		for x in range(LO, HI + 1):
 			if _is_on_gentle_arc(float(x), float(z), cx, cz, inner_r, outer_r, angle_min, angle_max):
 				for h in range(0, bank_h):
+					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+	return blocks
+
+
+static func _ramp_turn_clear(cx: float, cz: float, angle_min: float, angle_max: float) -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	var r := float(HALF)
+	var inner_r := r - float(ROAD_W)
+	var outer_r := r + float(ROAD_W)
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if _is_on_gentle_arc(float(x), float(z), cx, cz, inner_r, outer_r, angle_min, angle_max):
+				# Height depends on arc progress — compute angle of this voxel
+				var dx := float(x) + 0.5 - cx
+				var dz := float(z) + 0.5 - cz
+				var angle := atan2(dz, dx)
+				if angle < 0.0:
+					angle += 2.0 * PI
+				var progress := (angle - angle_min) / (angle_max - angle_min)
+				progress = clampf(progress, 0.0, 1.0)
+				var local_h := int(ceil(progress * float(RAMP_HEIGHT))) + 2
+				for h in range(0, local_h):
 					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 	return blocks

@@ -180,7 +180,7 @@ func _on_new_pressed() -> void:
 const PIECE_CATEGORIES := {
 	"Podstawowe": [0, 1, 2, 24, 25, 26, 27, 5, 8, 11],
 	"Specjalne": [6, 7, 9, 10],
-	"Rampy": [3, 4, 30, 31, 21, 32, 33, 22, 23],
+	"Rampy": [3, 4, 30, 31, 34, 35, 21, 32, 33, 22, 23],
 	"Banked": [28, 29],
 	"Wall Ride": [12, 13, 14],
 	#"Loop": [15, 16, 17, 18],      # DISABLED — barrel roll broken
@@ -346,7 +346,7 @@ func _update_preview() -> void:
 
 	# Special pieces (wall ride, loop, transition) — show shape preview
 	# Voxel-only pieces (platforma, gentle turns) use normal voxel preview
-	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 28, 29]
+	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 28, 29, 34, 35]
 	if current_piece in shape_pieces:
 		_update_shape_preview()
 		return
@@ -540,6 +540,34 @@ func _update_shape_preview() -> void:
 			var nb := (pi1b - pi0b).cross(po0b - pi0b).normalized()
 			RampSpawner._add_quad(verts, normals, indices, pi0b, po0b, po1b, pi1b, nb)
 
+	elif current_piece == 34 or current_piece == 35:
+		# Ramp turn preview — arc with rising height
+		var is_right3 := current_piece == 34
+		var r3 := float(TrackPieces.HALF)
+		var inner_r3 := r3 - float(TrackPieces.ROAD_W)
+		var outer_r3 := r3 + float(TrackPieces.ROAD_W)
+		var rh3 := float(TrackPieces.RAMP_HEIGHT)
+		var cx3: float; var cz3: float; var as3: float; var ae3: float
+		if is_right3:
+			cx3 = float(TrackPieces.HALF); cz3 = float(-TrackPieces.HALF)
+			as3 = PI; ae3 = PI / 2.0
+		else:
+			cx3 = float(-TrackPieces.HALF); cz3 = float(-TrackPieces.HALF)
+			as3 = 0.0; ae3 = PI / 2.0
+		for seg3 in range(8):
+			var t03: float = float(seg3) / 8.0
+			var t13: float = float(seg3 + 1) / 8.0
+			var th03 := lerpf(as3, ae3, t03)
+			var th13 := lerpf(as3, ae3, t13)
+			var y03: float = ground + rh3 * t03
+			var y13: float = ground + rh3 * t13
+			var pi03 := basis_rot * Vector3(cx3 + inner_r3 * cos(th03), y03, cz3 + inner_r3 * sin(th03))
+			var po03 := basis_rot * Vector3(cx3 + outer_r3 * cos(th03), y03, cz3 + outer_r3 * sin(th03))
+			var pi13 := basis_rot * Vector3(cx3 + inner_r3 * cos(th13), y13, cz3 + inner_r3 * sin(th13))
+			var po13 := basis_rot * Vector3(cx3 + outer_r3 * cos(th13), y13, cz3 + outer_r3 * sin(th13))
+			var n3 := (pi13 - pi03).cross(po03 - pi03).normalized()
+			RampSpawner._add_quad(verts, normals, indices, pi03, po03, po13, pi13, n3)
+
 	if verts.is_empty():
 		container.queue_free()
 		return
@@ -623,6 +651,8 @@ func _place_piece() -> void:
 		RampSpawner.spawn_transition(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece == 28 or current_piece == 29:
 		RampSpawner.spawn_banked_turn(self, cursor_grid, current_piece, current_rotation, place_height)
+	elif current_piece == 34 or current_piece == 35:
+		RampSpawner.spawn_ramp_turn(self, cursor_grid, current_piece, current_rotation, place_height)
 
 	# Remove existing piece at this grid position
 	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
@@ -734,6 +764,8 @@ func _load_track(track_name: String) -> void:
 			RampSpawner.spawn_transition(self, p.grid, p.piece, p.rotation, bh)
 		elif p.piece == 28 or p.piece == 29:
 			RampSpawner.spawn_banked_turn(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece == 34 or p.piece == 35:
+			RampSpawner.spawn_ramp_turn(self, p.grid, p.piece, p.rotation, bh)
 	# Second pass: clear boundary voxels at ramp HIGH end
 	for p in placed_pieces:
 		if p.piece not in [3, 4, 30, 31]:
@@ -778,6 +810,8 @@ func _snap_to_next_port() -> void:
 		current_height += TrackPieces.RAMP_HEIGHT
 	elif current_piece == 30:  # half ramp up
 		current_height += TrackPieces.HALF_RAMP_HEIGHT
+	elif current_piece == 34 or current_piece == 35:  # ramp turn up
+		current_height += TrackPieces.RAMP_HEIGHT
 	elif current_piece == 4:  # ramp down
 		current_height = maxi(0, current_height - TrackPieces.RAMP_HEIGHT)
 	elif current_piece == 31:  # half ramp down

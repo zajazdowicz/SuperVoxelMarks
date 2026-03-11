@@ -66,6 +66,9 @@ func _build_track() -> void:
 		if p.piece == 28 or p.piece == 29:
 			RampSpawner.spawn_banked_turn(self, p.grid, p.piece, p.rotation, bh)
 
+		if p.piece == 34 or p.piece == 35:
+			RampSpawner.spawn_ramp_turn(self, p.grid, p.piece, p.rotation, bh)
+
 		if p.piece == 5:
 			_spawn_pos = Vector3(p.grid.x * GRID, bh + 3, p.grid.y * GRID)
 			# Car faces the exit direction of the start piece
