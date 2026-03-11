@@ -178,7 +178,7 @@ func _on_new_pressed() -> void:
 
 
 const PIECE_CATEGORIES := {
-	"Podstawowe": [0, 1, 2, 5, 8, 11],
+	"Podstawowe": [0, 1, 2, 24, 25, 5, 8, 11],
 	"Specjalne": [6, 7, 9, 10],
 	"Rampy": [3, 4, 21, 22, 23],
 	"Wall Ride": [12, 13, 14],
@@ -344,8 +344,9 @@ func _update_preview() -> void:
 		return
 
 	# Special pieces (wall ride, loop, transition) — show shape preview
-	# Platforma (21) uses normal voxel preview
-	if current_piece >= 12 and current_piece != 21:
+	# Voxel-only pieces (platforma, gentle turns) use normal voxel preview
+	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23]
+	if current_piece in shape_pieces:
 		_update_shape_preview()
 		return
 

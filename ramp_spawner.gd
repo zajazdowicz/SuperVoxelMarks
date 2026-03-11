@@ -90,100 +90,96 @@ static func spawn_ramp(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 static func _create_ramp_visual(hw: float, hl: float, h: float, ground: float, is_up: bool, basis_rot: Basis) -> MeshInstance3D:
 	var mesh := ArrayMesh.new()
 	var verts := PackedVector3Array()
-	var normals := PackedVector3Array()
-	var indices := PackedInt32Array()
+	var norms := PackedVector3Array()
+	var cols := PackedColorArray()
+	var idxs := PackedInt32Array()
 
-	var low_y: float = ground
-	var high_y: float = ground + h
+	var low_y := ground
+	var high_y := ground + h
+	var col_asphalt := Color(0.25, 0.25, 0.28)
+	var col_curb := Color(0.9, 0.9, 0.9)
 
-	var bl_s := Vector3(-hw, low_y, -hl)
-	var br_s := Vector3(hw, low_y, -hl)
-	var bl_n := Vector3(-hw, low_y, hl)
-	var br_n := Vector3(hw, low_y, hl)
+	# Grid of quads matching voxel-style road: curb dashes at edges
+	var num_cols := int(2.0 * hw)   # 9 columns across road width
+	var num_rows := int(2.0 * hl)   # 12 rows along ramp length
+	var col_w := 2.0 * hw / float(num_cols)
+	var row_l := 2.0 * hl / float(num_rows)
 
-	var tl_s: Vector3
-	var tr_s: Vector3
-	var tl_n: Vector3
-	var tr_n: Vector3
+	# Slope surface
+	for row in range(num_rows):
+		var t0 := float(row) / float(num_rows)
+		var t1 := float(row + 1) / float(num_rows)
+		var z0 := lerpf(-hl, hl, t0)
+		var z1 := lerpf(-hl, hl, t1)
+		var y0: float
+		var y1: float
+		if is_up:
+			y0 = lerpf(low_y, high_y, t0)
+			y1 = lerpf(low_y, high_y, t1)
+		else:
+			y0 = lerpf(high_y, low_y, t0)
+			y1 = lerpf(high_y, low_y, t1)
 
+		for col in range(num_cols):
+			var x0 := -hw + float(col) * col_w
+			var x1 := x0 + col_w
+			var is_edge := (col == 0 or col == num_cols - 1)
+			var qcol := col_curb if (is_edge and row % 3 == 0) else col_asphalt
+
+			var p0 := basis_rot * Vector3(x0, y0, z0)
+			var p1 := basis_rot * Vector3(x1, y0, z0)
+			var p2 := basis_rot * Vector3(x1, y1, z1)
+			var p3 := basis_rot * Vector3(x0, y1, z1)
+			var n := (p3 - p0).cross(p1 - p0).normalized()
+
+			var vi := verts.size()
+			verts.append(p0); verts.append(p1); verts.append(p2); verts.append(p3)
+			for _i in 4:
+				norms.append(n)
+				cols.append(qcol)
+			idxs.append(vi); idxs.append(vi + 1); idxs.append(vi + 2)
+			idxs.append(vi); idxs.append(vi + 2); idxs.append(vi + 3)
+
+	# Flat landing at HIGH end (covers cleared boundary zone)
+	var lz0: float
+	var lz1: float
 	if is_up:
-		tl_s = Vector3(-hw, low_y, -hl)
-		tr_s = Vector3(hw, low_y, -hl)
-		tl_n = Vector3(-hw, high_y, hl)
-		tr_n = Vector3(hw, high_y, hl)
+		lz0 = hl; lz1 = hl + 1.0
 	else:
-		tl_s = Vector3(-hw, high_y, -hl)
-		tr_s = Vector3(hw, high_y, -hl)
-		tl_n = Vector3(-hw, low_y, hl)
-		tr_n = Vector3(hw, low_y, hl)
+		lz0 = -hl; lz1 = -hl - 1.0
+	for col in range(num_cols):
+		var x0 := -hw + float(col) * col_w
+		var x1 := x0 + col_w
+		var is_edge := (col == 0 or col == num_cols - 1)
+		var qcol := col_curb if is_edge else col_asphalt
 
-	# Apply rotation
-	bl_s = basis_rot * bl_s
-	br_s = basis_rot * br_s
-	bl_n = basis_rot * bl_n
-	br_n = basis_rot * br_n
-	tl_s = basis_rot * tl_s
-	tr_s = basis_rot * tr_s
-	tl_n = basis_rot * tl_n
-	tr_n = basis_rot * tr_n
+		var p0 := basis_rot * Vector3(x0, high_y, lz0)
+		var p1 := basis_rot * Vector3(x1, high_y, lz0)
+		var p2 := basis_rot * Vector3(x1, high_y, lz1)
+		var p3 := basis_rot * Vector3(x0, high_y, lz1)
 
-	# Top face (slope - driving surface)
-	var slope_normal := (tl_n - tl_s).cross(tr_s - tl_s).normalized()
-	_add_quad(verts, normals, indices, tl_s, tr_s, tr_n, tl_n, slope_normal)
-
-	# Flat landing at HIGH end (covers cleared boundary voxel zone)
-	var land_a: Vector3
-	var land_b: Vector3
-	var land_c: Vector3
-	var land_d: Vector3
-	if is_up:
-		land_a = basis_rot * Vector3(-hw, high_y, hl)
-		land_b = basis_rot * Vector3(hw, high_y, hl)
-		land_c = basis_rot * Vector3(hw, high_y, hl + 1.0)
-		land_d = basis_rot * Vector3(-hw, high_y, hl + 1.0)
-	else:
-		land_a = basis_rot * Vector3(-hw, high_y, -hl)
-		land_b = basis_rot * Vector3(hw, high_y, -hl)
-		land_c = basis_rot * Vector3(hw, high_y, -hl - 1.0)
-		land_d = basis_rot * Vector3(-hw, high_y, -hl - 1.0)
-	_add_quad(verts, normals, indices, land_a, land_b, land_c, land_d, Vector3.UP)
-
-	# Bottom face
-	_add_quad(verts, normals, indices, bl_n, br_n, br_s, bl_s, -slope_normal)
-
-	# Back face (tall end) — moved to landing edge
-	if is_up:
-		var bf_bl := basis_rot * Vector3(-hw, low_y, hl + 1.0)
-		var bf_br := basis_rot * Vector3(hw, low_y, hl + 1.0)
-		_add_quad(verts, normals, indices, bf_bl, land_d, land_c, bf_br, basis_rot * Vector3.FORWARD)
-	else:
-		var bf_bl := basis_rot * Vector3(-hw, low_y, -hl - 1.0)
-		var bf_br := basis_rot * Vector3(hw, low_y, -hl - 1.0)
-		_add_quad(verts, normals, indices, bf_bl, land_d, land_c, bf_br, basis_rot * Vector3.BACK)
-
-	# Side triangles
-	if is_up:
-		_add_tri(verts, normals, indices, bl_n, tl_n, tl_s, basis_rot * Vector3.LEFT)
-		_add_tri(verts, normals, indices, br_n, tr_s, tr_n, basis_rot * Vector3.RIGHT)
-	else:
-		_add_tri(verts, normals, indices, bl_s, tl_s, tl_n, basis_rot * Vector3.LEFT)
-		_add_tri(verts, normals, indices, br_s, tr_n, tr_s, basis_rot * Vector3.RIGHT)
+		var vi := verts.size()
+		verts.append(p0); verts.append(p1); verts.append(p2); verts.append(p3)
+		for _i in 4:
+			norms.append(Vector3.UP)
+			cols.append(qcol)
+		idxs.append(vi); idxs.append(vi + 1); idxs.append(vi + 2)
+		idxs.append(vi); idxs.append(vi + 2); idxs.append(vi + 3)
 
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = indices
+	arrays[Mesh.ARRAY_NORMAL] = norms
+	arrays[Mesh.ARRAY_COLOR] = cols
+	arrays[Mesh.ARRAY_INDEX] = idxs
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
-
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.3, 0.3, 0.3)
+	mat.vertex_color_use_as_albedo = true
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mi.material_override = mat
-
 	return mi
 
 

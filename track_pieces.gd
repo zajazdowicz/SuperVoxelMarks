@@ -50,15 +50,18 @@ const PIECE_NAMES := [
 	"Platforma",     # 21 — flat road at height with pillars underneath
 	"Lacznik gora",  # 22 — smooth transition before ramp up (anti-lip)
 	"Lacznik dol",   # 23 — smooth transition after ramp down (anti-lip)
+	"Lagodny prawo", # 24 — gentle 90° turn right (large radius arc)
+	"Lagodny lewo",  # 25 — gentle 90° turn left (large radius arc)
 ]
 
 static func get_ports(index: int) -> Array[Dictionary]:
-	# All standard pieces: S→N
-	if index >= 0 and index <= 23 and index != 1 and index != 2:
-		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
+	# Turns: S→E or S→W
 	match index:
-		1: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
-		2: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
+		1, 24: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
+		2, 25: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
+	# All other standard pieces: S→N
+	if index >= 0 and index <= 25:
+		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
 static func rotate_ports(ports: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -93,6 +96,8 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		21: return _platform()
 		22: return _transition_up()
 		23: return _transition_down()
+		24: return _gentle_turn_right()
+		25: return _gentle_turn_left()
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -239,14 +244,28 @@ static func _ramp_down() -> Array[Dictionary]:
 
 
 # === START / FINISH ===
+# Checkerboard line at z=-1..0, arrow pointing north (driving direction).
 static func _start_finish() -> Array[Dictionary]:
 	var blocks: Array[Dictionary] = []
+	# Arrow pattern: chevron pointing north at z=2..5
+	# Shape:  z=5: x=0         (tip)
+	#         z=4: x=-1..1
+	#         z=3: x=-2..2
+	#         z=2: x=-3..3     (base)
+	var arrow := {}
+	for az in range(2, 6):
+		var width := 5 - az  # z=2→3, z=3→2, z=4→1, z=5→0
+		for ax in range(-width, width + 1):
+			arrow[Vector2i(ax, az)] = true
+
 	for z in range(LO, HI + 1):
 		for x in range(LO, HI + 1):
 			if absi(x) <= ROAD_W:
 				if z >= -1 and z <= 0:
 					var checker := (x + z) % 2 == 0
 					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB if checker else ASPHALT})
+				elif arrow.has(Vector2i(x, z)):
+					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB})
 				else:
 					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
 			elif absi(x) == ROAD_W + 1:
@@ -469,3 +488,72 @@ static func _transition_down() -> Array[Dictionary]:
 				for h in range(0, height + 3):
 					blocks.append({"pos": Vector3i(x, h, z), "type": WALL})
 	return blocks
+
+
+# === GENTLE TURN RIGHT (S -> E): large radius arc ===
+# Arc center at (HI, LO) = (6, -6), radius = HALF = 6.
+# Road band: inner_r = 2, outer_r = 10. Angular range: PI/2 to PI.
+static func _gentle_turn_right() -> Array[Dictionary]:
+	return _gentle_turn(float(HI), float(LO), PI / 2.0, PI)
+
+
+# === GENTLE TURN LEFT (S -> W): large radius arc, mirrored ===
+# Arc center at (LO, LO) = (-6, -6), radius = HALF = 6.
+# Road band: inner_r = 2, outer_r = 10. Angular range: 0 to PI/2.
+static func _gentle_turn_left() -> Array[Dictionary]:
+	return _gentle_turn(float(LO), float(LO), 0.0, PI / 2.0)
+
+
+static func _gentle_turn(cx: float, cz: float, angle_min: float, angle_max: float) -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	var r := float(HALF)
+	var inner_r := r - float(ROAD_W)   # 2.0
+	var outer_r := r + float(ROAD_W)   # 10.0
+
+	# Pre-compute road mask for wall adjacency check
+	var road_mask := {}
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if _is_on_gentle_arc(float(x), float(z), cx, cz, inner_r, outer_r, angle_min, angle_max):
+				road_mask[Vector2i(x, z)] = true
+
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if road_mask.has(Vector2i(x, z)):
+				# Curb at edges: check if near inner/outer radius
+				var dx := float(x) + 0.5 - cx
+				var dz := float(z) + 0.5 - cz
+				var dist := sqrt(dx * dx + dz * dz)
+				var near_edge := dist < inner_r + 1.0 or dist > outer_r - 1.0
+				if near_edge and (x + z) % 3 == 0:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			else:
+				# Skip walls at grid boundaries — neighbor piece handles its own walls.
+				# This prevents walls from one piece blocking the road of an adjacent piece.
+				if x == LO or x == HI or z == LO or z == HI:
+					continue
+				# Wall if adjacent to road
+				var is_wall := false
+				for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					if road_mask.has(Vector2i(x + d.x, z + d.y)):
+						is_wall = true
+						break
+				if is_wall:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+					blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+static func _is_on_gentle_arc(x: float, z: float, cx: float, cz: float,
+		inner_r: float, outer_r: float, angle_min: float, angle_max: float) -> bool:
+	var dx := x + 0.5 - cx
+	var dz := z + 0.5 - cz
+	var dist := sqrt(dx * dx + dz * dz)
+	if dist < inner_r or dist > outer_r:
+		return false
+	var angle := atan2(dz, dx)
+	if angle < 0.0:
+		angle += 2.0 * PI
+	return angle >= angle_min - 0.1 and angle <= angle_max + 0.1
