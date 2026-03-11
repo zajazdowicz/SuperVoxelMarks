@@ -240,6 +240,204 @@ static func _add_collision_quad(body: StaticBody3D, a: Vector3, b: Vector3,
 
 
 # =======================================================================
+# BANKED TURN (30° tilt, 90° arc)
+# =======================================================================
+# Banked turns use the same arc geometry as gentle turns but with a tilted
+# collision/visual mesh. Inner edge at ground level, outer edge raised.
+
+const BANKED_SEGS := 8
+const BANKED_ANGLE := 30.0  # degrees
+const BANKED_RADIAL := 4    # subdivisions across road width (for visual)
+
+static func spawn_banked_turn(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
+	var body := StaticBody3D.new()
+	body.name = "BankedTurn_%d_%d" % [grid_pos.x, grid_pos.y]
+
+	var ground: float = 1.0
+	var bank_rad: float = deg_to_rad(BANKED_ANGLE)
+	var r: float = float(HALF)          # 6.0 — road center radius
+	var inner_r: float = r - float(ROAD_W)  # 2.0
+	var outer_r: float = r + float(ROAD_W)  # 10.0
+	var road_w: float = outer_r - inner_r   # 8.0
+	var bank_h: float = road_w * sin(bank_rad)  # ~4.0
+
+	var is_right: bool = piece_id == 28
+	var cx: float
+	var cz: float
+	var a_start: float
+	var a_end: float
+	if is_right:
+		cx = float(HALF); cz = float(-HALF)
+		a_start = PI; a_end = PI / 2.0
+	else:
+		cx = float(-HALF); cz = float(-HALF)
+		a_start = 0.0; a_end = PI / 2.0
+
+	var rot_angle: float = -float(rotation) * PI / 2.0
+	var basis_rot := Basis(Vector3.UP, rot_angle)
+
+	# Visual mesh arrays
+	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var cols := PackedColorArray()
+	var idxs := PackedInt32Array()
+	var col_asphalt := Color(0.25, 0.25, 0.28)
+	var col_curb := Color(0.9, 0.9, 0.9)
+
+	for seg in range(BANKED_SEGS):
+		var t0: float = float(seg) / float(BANKED_SEGS)
+		var t1: float = float(seg + 1) / float(BANKED_SEGS)
+		var theta0: float = lerpf(a_start, a_end, t0)
+		var theta1: float = lerpf(a_start, a_end, t1)
+
+		# Bank factor: 0 at entry/exit, 1.0 in the middle (smooth transition)
+		var bf0: float = sin(t0 * PI)
+		var bf1: float = sin(t1 * PI)
+		var bh0: float = bank_h * bf0
+		var bh1: float = bank_h * bf1
+
+		# Surface corner points (inner=ground, outer=ground+banked height)
+		var pi0 := basis_rot * Vector3(cx + inner_r * cos(theta0), ground, cz + inner_r * sin(theta0))
+		var po0 := basis_rot * Vector3(cx + outer_r * cos(theta0), ground + bh0, cz + outer_r * sin(theta0))
+		var pi1 := basis_rot * Vector3(cx + inner_r * cos(theta1), ground, cz + inner_r * sin(theta1))
+		var po1 := basis_rot * Vector3(cx + outer_r * cos(theta1), ground + bh1, cz + outer_r * sin(theta1))
+
+		# Collision: ConvexPolygon (surface + bottom support)
+		var col_points := PackedVector3Array()
+		col_points.append(pi0); col_points.append(po0)
+		col_points.append(pi1); col_points.append(po1)
+		# Bottom support
+		col_points.append(basis_rot * Vector3(cx + inner_r * cos(theta0), ground - 0.5, cz + inner_r * sin(theta0)))
+		col_points.append(basis_rot * Vector3(cx + outer_r * cos(theta0), ground - 0.5, cz + outer_r * sin(theta0)))
+		col_points.append(basis_rot * Vector3(cx + inner_r * cos(theta1), ground - 0.5, cz + inner_r * sin(theta1)))
+		col_points.append(basis_rot * Vector3(cx + outer_r * cos(theta1), ground - 0.5, cz + outer_r * sin(theta1)))
+		var col_shape := CollisionShape3D.new()
+		var shape := ConvexPolygonShape3D.new()
+		shape.points = col_points
+		col_shape.shape = shape
+		body.add_child(col_shape)
+
+		# Visual: subdivide radially for curb markings
+		for rseg in range(BANKED_RADIAL):
+			var r0: float = lerpf(inner_r, outer_r, float(rseg) / float(BANKED_RADIAL))
+			var r1: float = lerpf(inner_r, outer_r, float(rseg + 1) / float(BANKED_RADIAL))
+			var ry0: float = lerpf(0.0, bh0, float(rseg) / float(BANKED_RADIAL))
+			var ry1_0: float = lerpf(0.0, bh0, float(rseg + 1) / float(BANKED_RADIAL))
+			var ry0_1: float = lerpf(0.0, bh1, float(rseg) / float(BANKED_RADIAL))
+			var ry1_1: float = lerpf(0.0, bh1, float(rseg + 1) / float(BANKED_RADIAL))
+			var is_edge: bool = rseg == 0 or rseg == BANKED_RADIAL - 1
+			var qcol: Color = col_curb if (is_edge and seg % 2 == 0) else col_asphalt
+
+			var q00 := basis_rot * Vector3(cx + r0 * cos(theta0), ground + ry0, cz + r0 * sin(theta0))
+			var q10 := basis_rot * Vector3(cx + r1 * cos(theta0), ground + ry1_0, cz + r1 * sin(theta0))
+			var q01 := basis_rot * Vector3(cx + r0 * cos(theta1), ground + ry0_1, cz + r0 * sin(theta1))
+			var q11 := basis_rot * Vector3(cx + r1 * cos(theta1), ground + ry1_1, cz + r1 * sin(theta1))
+
+			var n := (q01 - q00).cross(q10 - q00).normalized()
+			var vi := verts.size()
+			verts.append(q00); verts.append(q10); verts.append(q11); verts.append(q01)
+			for _i in 4:
+				norms.append(n)
+				cols.append(qcol)
+			idxs.append(vi); idxs.append(vi + 1); idxs.append(vi + 2)
+			idxs.append(vi); idxs.append(vi + 2); idxs.append(vi + 3)
+
+	# Wall barriers along inner and outer edges
+	var col_wall := Color(0.75, 0.2, 0.15)
+	var wall_h := 2.0  # wall height above road surface
+	for seg in range(BANKED_SEGS):
+		var t0w: float = float(seg) / float(BANKED_SEGS)
+		var t1w: float = float(seg + 1) / float(BANKED_SEGS)
+		var theta0w: float = lerpf(a_start, a_end, t0w)
+		var theta1w: float = lerpf(a_start, a_end, t1w)
+		var bf0w: float = sin(t0w * PI)
+		var bf1w: float = sin(t1w * PI)
+		var bh0w: float = bank_h * bf0w
+		var bh1w: float = bank_h * bf1w
+
+		# Inner wall (at inner_r, from ground to ground+wall_h)
+		var wi0b := basis_rot * Vector3(cx + inner_r * cos(theta0w), ground, cz + inner_r * sin(theta0w))
+		var wi0t := basis_rot * Vector3(cx + inner_r * cos(theta0w), ground + wall_h, cz + inner_r * sin(theta0w))
+		var wi1b := basis_rot * Vector3(cx + inner_r * cos(theta1w), ground, cz + inner_r * sin(theta1w))
+		var wi1t := basis_rot * Vector3(cx + inner_r * cos(theta1w), ground + wall_h, cz + inner_r * sin(theta1w))
+		var nwi := (wi1b - wi0b).cross(wi0t - wi0b).normalized()
+		var vii := verts.size()
+		verts.append(wi0b); verts.append(wi0t); verts.append(wi1t); verts.append(wi1b)
+		for _i in 4:
+			norms.append(nwi); cols.append(col_wall)
+		idxs.append(vii); idxs.append(vii + 1); idxs.append(vii + 2)
+		idxs.append(vii); idxs.append(vii + 2); idxs.append(vii + 3)
+
+		# Outer wall (at outer_r, from banked surface to surface+wall_h)
+		var wo0b := basis_rot * Vector3(cx + outer_r * cos(theta0w), ground + bh0w, cz + outer_r * sin(theta0w))
+		var wo0t := basis_rot * Vector3(cx + outer_r * cos(theta0w), ground + bh0w + wall_h, cz + outer_r * sin(theta0w))
+		var wo1b := basis_rot * Vector3(cx + outer_r * cos(theta1w), ground + bh1w, cz + outer_r * sin(theta1w))
+		var wo1t := basis_rot * Vector3(cx + outer_r * cos(theta1w), ground + bh1w + wall_h, cz + outer_r * sin(theta1w))
+		var nwo := (wo1b - wo0b).cross(wo0t - wo0b).normalized()
+		var vio := verts.size()
+		verts.append(wo0b); verts.append(wo0t); verts.append(wo1t); verts.append(wo1b)
+		for _i in 4:
+			norms.append(nwo); cols.append(col_wall)
+		idxs.append(vio); idxs.append(vio + 1); idxs.append(vio + 2)
+		idxs.append(vio); idxs.append(vio + 2); idxs.append(vio + 3)
+
+		# Wall collision (inner)
+		var wci_points := PackedVector3Array()
+		wci_points.append(wi0b); wci_points.append(wi0t)
+		wci_points.append(wi1b); wci_points.append(wi1t)
+		var wi0b2 := basis_rot * Vector3(cx + (inner_r - 0.5) * cos(theta0w), ground, cz + (inner_r - 0.5) * sin(theta0w))
+		var wi0t2 := basis_rot * Vector3(cx + (inner_r - 0.5) * cos(theta0w), ground + wall_h, cz + (inner_r - 0.5) * sin(theta0w))
+		var wi1b2 := basis_rot * Vector3(cx + (inner_r - 0.5) * cos(theta1w), ground, cz + (inner_r - 0.5) * sin(theta1w))
+		var wi1t2 := basis_rot * Vector3(cx + (inner_r - 0.5) * cos(theta1w), ground + wall_h, cz + (inner_r - 0.5) * sin(theta1w))
+		wci_points.append(wi0b2); wci_points.append(wi0t2)
+		wci_points.append(wi1b2); wci_points.append(wi1t2)
+		var wci_shape := CollisionShape3D.new()
+		var wci := ConvexPolygonShape3D.new()
+		wci.points = wci_points
+		wci_shape.shape = wci
+		body.add_child(wci_shape)
+
+		# Wall collision (outer)
+		var wco_points := PackedVector3Array()
+		wco_points.append(wo0b); wco_points.append(wo0t)
+		wco_points.append(wo1b); wco_points.append(wo1t)
+		var wo0b2 := basis_rot * Vector3(cx + (outer_r + 0.5) * cos(theta0w), ground + bh0w, cz + (outer_r + 0.5) * sin(theta0w))
+		var wo0t2 := basis_rot * Vector3(cx + (outer_r + 0.5) * cos(theta0w), ground + bh0w + wall_h, cz + (outer_r + 0.5) * sin(theta0w))
+		var wo1b2 := basis_rot * Vector3(cx + (outer_r + 0.5) * cos(theta1w), ground + bh1w, cz + (outer_r + 0.5) * sin(theta1w))
+		var wo1t2 := basis_rot * Vector3(cx + (outer_r + 0.5) * cos(theta1w), ground + bh1w + wall_h, cz + (outer_r + 0.5) * sin(theta1w))
+		wco_points.append(wo0b2); wco_points.append(wo0t2)
+		wco_points.append(wo1b2); wco_points.append(wo1t2)
+		var wco_shape := CollisionShape3D.new()
+		var wco := ConvexPolygonShape3D.new()
+		wco.points = wco_points
+		wco_shape.shape = wco
+		body.add_child(wco_shape)
+
+	# Build mesh
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = norms
+	arrays[Mesh.ARRAY_COLOR] = cols
+	arrays[Mesh.ARRAY_INDEX] = idxs
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	body.add_child(mi)
+
+	var world_x: float = float(grid_pos.x * GRID)
+	var world_z: float = float(grid_pos.y * GRID)
+	body.position = Vector3(world_x, float(base_height), world_z)
+	parent.add_child(body)
+
+
+# =======================================================================
 # WALL RIDE
 # =======================================================================
 # Wall ride = tilted surface on the RIGHT side of the road.

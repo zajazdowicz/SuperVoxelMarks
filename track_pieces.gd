@@ -52,15 +52,19 @@ const PIECE_NAMES := [
 	"Lacznik dol",   # 23 — smooth transition after ramp down (anti-lip)
 	"Lagodny prawo", # 24 — gentle 90° turn right (large radius arc)
 	"Lagodny lewo",  # 25 — gentle 90° turn left (large radius arc)
+	"Esowka prawo",  # 26 — S-curve shifting road right
+	"Esowka lewo",   # 27 — S-curve shifting road left
+	"Banked prawo",  # 28 — banked turn 30° right
+	"Banked lewo",   # 29 — banked turn 30° left
 ]
 
 static func get_ports(index: int) -> Array[Dictionary]:
 	# Turns: S→E or S→W
 	match index:
-		1, 24: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
-		2, 25: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
+		1, 24, 28: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
+		2, 25, 29: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
 	# All other standard pieces: S→N
-	if index >= 0 and index <= 25:
+	if index >= 0 and index <= 29:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
@@ -98,6 +102,10 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		23: return _transition_down()
 		24: return _gentle_turn_right()
 		25: return _gentle_turn_left()
+		26: return _s_curve(2.0)
+		27: return _s_curve(-2.0)
+		28: return _banked_turn_right()
+		29: return _banked_turn_left()
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -557,3 +565,63 @@ static func _is_on_gentle_arc(x: float, z: float, cx: float, cz: float,
 	if angle < 0.0:
 		angle += 2.0 * PI
 	return angle >= angle_min - 0.1 and angle <= angle_max + 0.1
+
+
+static func _s_curve(shift: float) -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	# Pre-compute road mask
+	var road_mask := {}
+	for z in range(LO, HI + 1):
+		var progress := float(z - LO) / float(HI - LO)
+		var road_center := shift * (1.0 - cos(progress * PI)) / 2.0
+		for x in range(LO, HI + 1):
+			var dist := absf(float(x) + 0.5 - road_center)
+			if dist <= float(ROAD_W) + 0.5:
+				road_mask[Vector2i(x, z)] = true
+	for z in range(LO, HI + 1):
+		var progress := float(z - LO) / float(HI - LO)
+		var road_center := shift * (1.0 - cos(progress * PI)) / 2.0
+		for x in range(LO, HI + 1):
+			if road_mask.has(Vector2i(x, z)):
+				var dist := absf(float(x) + 0.5 - road_center)
+				if dist >= float(ROAD_W) - 0.5:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			else:
+				# Wall if adjacent to road (skip z boundaries only)
+				if z > LO and z < HI:
+					var is_wall := false
+					for dx in [-1, 0, 1]:
+						for dz in [-1, 0, 1]:
+							if road_mask.has(Vector2i(x + dx, z + dz)):
+								is_wall = true
+								break
+						if is_wall:
+							break
+					if is_wall:
+						blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+						blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+const BANKED_ANGLE_DEG := 30.0
+
+static func _banked_turn_right() -> Array[Dictionary]:
+	return _banked_turn_clear(float(HI), float(LO), PI / 2.0, PI)
+
+static func _banked_turn_left() -> Array[Dictionary]:
+	return _banked_turn_clear(float(LO), float(LO), 0.0, PI / 2.0)
+
+static func _banked_turn_clear(cx: float, cz: float, angle_min: float, angle_max: float) -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	var r := float(HALF)
+	var inner_r := r - float(ROAD_W)       # 2.0 — exact road inner edge
+	var outer_r := r + float(ROAD_W)       # 10.0 — exact road outer edge
+	var bank_h := int(ceil((outer_r - inner_r) * sin(deg_to_rad(BANKED_ANGLE_DEG)))) + 2
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if _is_on_gentle_arc(float(x), float(z), cx, cz, inner_r, outer_r, angle_min, angle_max):
+				for h in range(0, bank_h):
+					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+	return blocks
