@@ -562,6 +562,17 @@ func _place_piece() -> void:
 	# Spawn collision shapes for special pieces
 	if current_piece == 3 or current_piece == 4:
 		RampSpawner.spawn_ramp(self, cursor_grid, current_piece, current_rotation, place_height)
+		# Clear HIGH-end boundary voxels (neighbor may have placed ASPHALT there)
+		var high_z2: int = TrackPieces.HI if current_piece == 3 else TrackPieces.LO
+		for x2 in range(-TrackPieces.ROAD_W, TrackPieces.ROAD_W + 1):
+			var rx2 := x2
+			var rz2 := high_z2
+			for _r in range(current_rotation % 4):
+				var tmp2 := rx2
+				rx2 = -rz2
+				rz2 = tmp2
+			for h2 in range(0, TrackPieces.RAMP_HEIGHT + 1):
+				tool.set_voxel(offset + Vector3i(rx2, h2, rz2), TrackPieces.AIR)
 	elif current_piece >= 12 and current_piece <= 14:
 		RampSpawner.spawn_wall_ride(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece >= 15 and current_piece <= 18:
@@ -679,6 +690,22 @@ func _load_track(track_name: String) -> void:
 			RampSpawner.spawn_vloop(self, p.grid, p.piece, p.rotation, bh)
 		elif p.piece == 22 or p.piece == 23:
 			RampSpawner.spawn_transition(self, p.grid, p.piece, p.rotation, bh)
+	# Second pass: clear boundary voxels at ramp HIGH end
+	for p in placed_pieces:
+		if p.piece != 3 and p.piece != 4:
+			continue
+		var bh2: int = p.get("base_height", 0)
+		var offset2 := Vector3i(p.grid.x * GRID, bh2, p.grid.y * GRID)
+		var high_z: int = TrackPieces.HI if p.piece == 3 else TrackPieces.LO
+		for x2 in range(-TrackPieces.ROAD_W, TrackPieces.ROAD_W + 1):
+			var rx := x2
+			var rz := high_z
+			for _r in range(p.rotation % 4):
+				var tmp := rx
+				rx = -rz
+				rz = tmp
+			for h2 in range(0, TrackPieces.RAMP_HEIGHT + 1):
+				tool.set_voxel(offset2 + Vector3i(rx, h2, rz), TrackPieces.AIR)
 
 
 func _refresh_track_list() -> void:

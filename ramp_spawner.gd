@@ -29,72 +29,53 @@ static func spawn_ramp(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 	var low_y: float = ground
 	var high_y: float = ground + h
 
-	# 4 corner points of the ramp surface
-	var tl_s: Vector3  # top-left south
-	var tr_s: Vector3  # top-right south
-	var tl_n: Vector3  # top-left north
-	var tr_n: Vector3  # top-right north
-
-	if is_up:
-		tl_s = Vector3(-hw, low_y, -hl)
-		tr_s = Vector3(hw, low_y, -hl)
-		tl_n = Vector3(-hw, high_y, hl)
-		tr_n = Vector3(hw, high_y, hl)
-	else:
-		tl_s = Vector3(-hw, high_y, -hl)
-		tr_s = Vector3(hw, high_y, -hl)
-		tl_n = Vector3(-hw, low_y, hl)
-		tr_n = Vector3(hw, low_y, hl)
-
 	# Apply piece rotation around Y
 	var rot_angle: float = -float(rotation) * PI / 2.0
 	var basis_rot := Basis(Vector3.UP, rot_angle)
-	tl_s = basis_rot * tl_s
-	tr_s = basis_rot * tr_s
-	tl_n = basis_rot * tl_n
-	tr_n = basis_rot * tr_n
 
-	# Trimesh collision (ConcavePolygonShape3D) — just the driving surface
-	# Two triangles forming a quad, plus a thin bottom to give it volume
-	var bl_s := basis_rot * Vector3(-hw, low_y - 0.5, -hl)
-	var br_s := basis_rot * Vector3(hw, low_y - 0.5, -hl)
-	var bl_n := basis_rot * Vector3(-hw, low_y - 0.5, hl)
-	var br_n := basis_rot * Vector3(hw, low_y - 0.5, hl)
+	# Segmented collision: 4 ConvexPolygon slices along the ramp +
+	# 1 flat landing at HIGH end (boundary voxels are cleared to AIR in
+	# second pass, so this extension is safe — no overlapping collision).
+	var ramp_segs := 4
+	for seg in range(ramp_segs):
+		var t0: float = float(seg) / float(ramp_segs)
+		var t1: float = float(seg + 1) / float(ramp_segs)
+		var z0: float = lerpf(-hl, hl, t0)
+		var z1: float = lerpf(-hl, hl, t1)
 
-	# ConvexPolygonShape3D with angled entry (no vertical face that blocks car)
-	# Low end: extend bottom 1 unit behind segment boundary → gentle slope approach
-	var points := PackedVector3Array()
+		var y0: float
+		var y1: float
+		if is_up:
+			y0 = lerpf(low_y, high_y, t0)
+			y1 = lerpf(low_y, high_y, t1)
+		else:
+			y0 = lerpf(high_y, low_y, t0)
+			y1 = lerpf(high_y, low_y, t1)
+
+		_add_col_box(ramp,
+			basis_rot * Vector3(-hw, y0, z0),
+			basis_rot * Vector3(hw, y0, z0),
+			basis_rot * Vector3(-hw, y1, z1),
+			basis_rot * Vector3(hw, y1, z1),
+			min(y0, y1) - 0.5, basis_rot)
+
+	# Flat landing at HIGH end — covers the cleared boundary zone (1 unit)
 	if is_up:
-		# Entry (south, LOW end): extend behind boundary for smooth approach
-		points.append(Vector3(-hw, -0.2, -hl - 1.0))
-		points.append(Vector3(hw, -0.2, -hl - 1.0))
-		# Exit (north, HIGH end): deep bottom for support
-		points.append(Vector3(hw, -0.5, hl))
-		points.append(Vector3(-hw, -0.5, hl))
+		_add_col_box(ramp,
+			basis_rot * Vector3(-hw, high_y, hl),
+			basis_rot * Vector3(hw, high_y, hl),
+			basis_rot * Vector3(-hw, high_y, hl + 1.0),
+			basis_rot * Vector3(hw, high_y, hl + 1.0),
+			high_y - 0.5, basis_rot)
 	else:
-		# Entry (south, HIGH end): deep bottom for support
-		points.append(Vector3(-hw, -0.5, -hl))
-		points.append(Vector3(hw, -0.5, -hl))
-		# Exit (north, LOW end): extend beyond boundary for smooth exit
-		points.append(Vector3(hw, -0.2, hl + 1.0))
-		points.append(Vector3(-hw, -0.2, hl + 1.0))
-	# Top surface points
-	points.append(tl_s)
-	points.append(tr_s)
-	points.append(tr_n)
-	points.append(tl_n)
+		_add_col_box(ramp,
+			basis_rot * Vector3(-hw, high_y, -hl),
+			basis_rot * Vector3(hw, high_y, -hl),
+			basis_rot * Vector3(-hw, high_y, -hl - 1.0),
+			basis_rot * Vector3(hw, high_y, -hl - 1.0),
+			high_y - 0.5, basis_rot)
 
-	# Rotate bottom points
-	for i in range(4):
-		points[i] = basis_rot * points[i]
-
-	var col_shape := CollisionShape3D.new()
-	var shape := ConvexPolygonShape3D.new()
-	shape.points = points
-	col_shape.shape = shape
-	ramp.add_child(col_shape)
-
-	# Visual mesh
+	# Visual mesh (includes flat landing at HIGH end)
 	var visual := _create_ramp_visual(hw, hl, h, ground, is_up, basis_rot)
 	ramp.add_child(visual)
 
@@ -150,14 +131,35 @@ static func _create_ramp_visual(hw: float, hl: float, h: float, ground: float, i
 	var slope_normal := (tl_n - tl_s).cross(tr_s - tl_s).normalized()
 	_add_quad(verts, normals, indices, tl_s, tr_s, tr_n, tl_n, slope_normal)
 
+	# Flat landing at HIGH end (covers cleared boundary voxel zone)
+	var land_a: Vector3
+	var land_b: Vector3
+	var land_c: Vector3
+	var land_d: Vector3
+	if is_up:
+		land_a = basis_rot * Vector3(-hw, high_y, hl)
+		land_b = basis_rot * Vector3(hw, high_y, hl)
+		land_c = basis_rot * Vector3(hw, high_y, hl + 1.0)
+		land_d = basis_rot * Vector3(-hw, high_y, hl + 1.0)
+	else:
+		land_a = basis_rot * Vector3(-hw, high_y, -hl)
+		land_b = basis_rot * Vector3(hw, high_y, -hl)
+		land_c = basis_rot * Vector3(hw, high_y, -hl - 1.0)
+		land_d = basis_rot * Vector3(-hw, high_y, -hl - 1.0)
+	_add_quad(verts, normals, indices, land_a, land_b, land_c, land_d, Vector3.UP)
+
 	# Bottom face
 	_add_quad(verts, normals, indices, bl_n, br_n, br_s, bl_s, -slope_normal)
 
-	# Back face (tall end)
+	# Back face (tall end) — moved to landing edge
 	if is_up:
-		_add_quad(verts, normals, indices, bl_n, tl_n, tr_n, br_n, basis_rot * Vector3.FORWARD)
+		var bf_bl := basis_rot * Vector3(-hw, low_y, hl + 1.0)
+		var bf_br := basis_rot * Vector3(hw, low_y, hl + 1.0)
+		_add_quad(verts, normals, indices, bf_bl, land_d, land_c, bf_br, basis_rot * Vector3.FORWARD)
 	else:
-		_add_quad(verts, normals, indices, bl_s, tl_s, tr_s, br_s, basis_rot * Vector3.BACK)
+		var bf_bl := basis_rot * Vector3(-hw, low_y, -hl - 1.0)
+		var bf_br := basis_rot * Vector3(hw, low_y, -hl - 1.0)
+		_add_quad(verts, normals, indices, bf_bl, land_d, land_c, bf_br, basis_rot * Vector3.BACK)
 
 	# Side triangles
 	if is_up:
@@ -178,7 +180,7 @@ static func _create_ramp_visual(hw: float, hl: float, h: float, ground: float, i
 	mi.mesh = mesh
 
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.3, 0.3, 0.35)
+	mat.albedo_color = Color(0.3, 0.3, 0.3)
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mi.material_override = mat
 

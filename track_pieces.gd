@@ -200,14 +200,17 @@ static func _ramp_up() -> Array[Dictionary]:
 		var height := int(progress * float(RAMP_HEIGHT))
 		for x in range(LO, HI + 1):
 			# Road: clear to AIR so ConvexPolygon is sole collision.
-			# Skip HIGH end (z=HI) to preserve elevated piece voxels.
-			# Clear LOW end (z=LO) so car transitions smoothly onto ramp.
+			# Skip BOTH boundaries (z=LO and z=HI) to preserve neighbor voxels.
 			if absi(x) <= ROAD_W:
-				if z < HI:
+				if z > LO and z < HI:
 					for h in range(0, height + 1):
 						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 			elif absi(x) == ROAD_W + 1:
-				for h in range(0, height + 3):
+				# Walls: cap at surface height +1 on boundaries to avoid lip
+				var wall_top := height + 3
+				if z == LO or z == HI:
+					wall_top = height + 1
+				for h in range(0, wall_top):
 					blocks.append({"pos": Vector3i(x, h, z), "type": WALL})
 	return blocks
 
@@ -220,14 +223,17 @@ static func _ramp_down() -> Array[Dictionary]:
 		var height := int((1.0 - progress) * float(RAMP_HEIGHT))
 		for x in range(LO, HI + 1):
 			# Road: clear to AIR so ConvexPolygon is sole collision.
-			# Skip HIGH end (z=LO) to preserve elevated piece voxels.
-			# Clear LOW end (z=HI) so car transitions smoothly off ramp.
+			# Skip BOTH boundaries (z=LO and z=HI) to preserve neighbor voxels.
 			if absi(x) <= ROAD_W:
-				if z > LO:
+				if z > LO and z < HI:
 					for h in range(0, height + 1):
 						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 			elif absi(x) == ROAD_W + 1:
-				for h in range(0, height + 3):
+				# Walls: cap at surface height +1 on boundaries to avoid lip
+				var wall_top := height + 3
+				if z == LO or z == HI:
+					wall_top = height + 1
+				for h in range(0, wall_top):
 					blocks.append({"pos": Vector3i(x, h, z), "type": WALL})
 	return blocks
 
