@@ -180,7 +180,7 @@ func _on_new_pressed() -> void:
 const PIECE_CATEGORIES := {
 	"Podstawowe": [0, 1, 2, 24, 25, 26, 27, 5, 8, 11],
 	"Specjalne": [6, 7, 9, 10],
-	"Rampy": [3, 4, 30, 31, 21, 22, 23],
+	"Rampy": [3, 4, 30, 31, 21, 32, 33, 22, 23],
 	"Banked": [28, 29],
 	"Wall Ride": [12, 13, 14],
 	#"Loop": [15, 16, 17, 18],      # DISABLED — barrel roll broken

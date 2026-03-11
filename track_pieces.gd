@@ -58,6 +58,8 @@ const PIECE_NAMES := [
 	"Banked lewo",   # 29 — banked turn 30° left
 	"Rampa lagodna gora",  # 30 — half-height ramp up (h=3)
 	"Rampa lagodna dol",   # 31 — half-height ramp down (h=3)
+	"Most",                # 32 — bridge with pillars at ends only
+	"Tunel",               # 33 — road with walls and roof
 ]
 
 const HALF_RAMP_HEIGHT := 3
@@ -68,7 +70,7 @@ static func get_ports(index: int) -> Array[Dictionary]:
 		1, 24, 28: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
 		2, 25, 29: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
 	# All other standard pieces: S→N
-	if index >= 0 and index <= 31:
+	if index >= 0 and index <= 33:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
@@ -112,6 +114,8 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		29: return _banked_turn_left()
 		30: return _ramp_generic(HALF_RAMP_HEIGHT, true)
 		31: return _ramp_generic(HALF_RAMP_HEIGHT, false)
+		32: return _bridge()
+		33: return _tunnel()
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -485,6 +489,48 @@ static func _platform() -> Array[Dictionary]:
 				if z == LO or z == HI or z % 4 == 0:
 					for h in range(1, RAMP_HEIGHT * 2 + 1):
 						blocks.append({"pos": Vector3i(x, -h, z), "type": WALL})
+	return blocks
+
+
+static func _bridge() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				# Road surface
+				if absi(x) == ROAD_W and z % 3 == 0:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			elif absi(x) == ROAD_W + 1:
+				# Barriers at road level
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+				# Pillars only at segment start and end (z=LO, z=HI)
+				if z == LO or z == HI:
+					for h in range(1, RAMP_HEIGHT * 2 + 1):
+						blocks.append({"pos": Vector3i(x, -h, z), "type": WALL})
+	return blocks
+
+
+const TUNNEL_HEIGHT := 4  # inner clearance (road to ceiling)
+
+static func _tunnel() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				# Road surface
+				if absi(x) == ROAD_W and z % 3 == 0:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+				# Roof
+				blocks.append({"pos": Vector3i(x, TUNNEL_HEIGHT + 1, z), "type": WALL})
+			elif absi(x) == ROAD_W + 1:
+				# Side walls from floor to roof
+				for h in range(0, TUNNEL_HEIGHT + 2):
+					blocks.append({"pos": Vector3i(x, h, z), "type": WALL})
 	return blocks
 
 
