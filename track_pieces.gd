@@ -56,7 +56,11 @@ const PIECE_NAMES := [
 	"Esowka lewo",   # 27 — S-curve shifting road left
 	"Banked prawo",  # 28 — banked turn 30° right
 	"Banked lewo",   # 29 — banked turn 30° left
+	"Rampa lagodna gora",  # 30 — half-height ramp up (h=3)
+	"Rampa lagodna dol",   # 31 — half-height ramp down (h=3)
 ]
+
+const HALF_RAMP_HEIGHT := 3
 
 static func get_ports(index: int) -> Array[Dictionary]:
 	# Turns: S→E or S→W
@@ -64,7 +68,7 @@ static func get_ports(index: int) -> Array[Dictionary]:
 		1, 24, 28: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
 		2, 25, 29: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
 	# All other standard pieces: S→N
-	if index >= 0 and index <= 29:
+	if index >= 0 and index <= 31:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
@@ -106,6 +110,8 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		27: return _s_curve(-2.0)
 		28: return _banked_turn_right()
 		29: return _banked_turn_left()
+		30: return _ramp_generic(HALF_RAMP_HEIGHT, true)
+		31: return _ramp_generic(HALF_RAMP_HEIGHT, false)
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -243,6 +249,29 @@ static func _ramp_down() -> Array[Dictionary]:
 						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 			elif absi(x) == ROAD_W + 1:
 				# Walls: cap at surface height +1 on boundaries to avoid lip
+				var wall_top := height + 3
+				if z == LO or z == HI:
+					wall_top = height + 1
+				for h in range(0, wall_top):
+					blocks.append({"pos": Vector3i(x, h, z), "type": WALL})
+	return blocks
+
+
+static func _ramp_generic(ramp_h: int, is_up: bool) -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		var progress := float(z - LO) / float(SEGMENT_SIZE)
+		var height: int
+		if is_up:
+			height = int(progress * float(ramp_h))
+		else:
+			height = int((1.0 - progress) * float(ramp_h))
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				if z > LO and z < HI:
+					for h in range(0, height + 1):
+						blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+			elif absi(x) == ROAD_W + 1:
 				var wall_top := height + 3
 				if z == LO or z == HI:
 					wall_top = height + 1

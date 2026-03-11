@@ -48,7 +48,7 @@ func _build_track() -> void:
 		var world_pos := Vector3(p.grid.x * GRID, float(bh), p.grid.y * GRID)
 		var rot_y: float = -float(p.rotation) * PI / 2.0
 
-		if p.piece == 3 or p.piece == 4:
+		if p.piece in [3, 4, 30, 31]:
 			RampSpawner.spawn_ramp(self, p.grid, p.piece, p.rotation, bh)
 
 		if p.piece >= 12 and p.piece <= 14:
@@ -88,12 +88,13 @@ func _build_track() -> void:
 	# side face that blocks the car when ascending. Clearing to AIR lets
 	# the ramp's ConvexPolygon be the sole collision at the boundary.
 	for p in pieces:
-		if p.piece != 3 and p.piece != 4:
+		if p.piece not in [3, 4, 30, 31]:
 			continue
 		var bh2: int = p.get("base_height", 0)
 		var offset2 := Vector3i(p.grid.x * GRID, bh2, p.grid.y * GRID)
-		# HIGH end: z=HI for ramp_up, z=LO for ramp_down (in local space)
-		var high_z: int = TrackPieces.HI if p.piece == 3 else TrackPieces.LO
+		var is_up4: bool = p.piece == 3 or p.piece == 30
+		var high_z: int = TrackPieces.HI if is_up4 else TrackPieces.LO
+		var rh4: int = TrackPieces.RAMP_HEIGHT if (p.piece == 3 or p.piece == 4) else TrackPieces.HALF_RAMP_HEIGHT
 		for x2 in range(-TrackPieces.ROAD_W, TrackPieces.ROAD_W + 1):
 			var rx := x2
 			var rz := high_z
@@ -101,7 +102,7 @@ func _build_track() -> void:
 				var tmp := rx
 				rx = -rz
 				rz = tmp
-			for h2 in range(0, TrackPieces.RAMP_HEIGHT + 1):
+			for h2 in range(0, rh4 + 1):
 				tool.set_voxel(offset2 + Vector3i(rx, h2, rz), TrackPieces.AIR)
 
 	RaceManager.total_checkpoints = _checkpoint_count

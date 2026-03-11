@@ -180,7 +180,7 @@ func _on_new_pressed() -> void:
 const PIECE_CATEGORIES := {
 	"Podstawowe": [0, 1, 2, 24, 25, 26, 27, 5, 8, 11],
 	"Specjalne": [6, 7, 9, 10],
-	"Rampy": [3, 4, 21, 22, 23],
+	"Rampy": [3, 4, 30, 31, 21, 22, 23],
 	"Banked": [28, 29],
 	"Wall Ride": [12, 13, 14],
 	#"Loop": [15, 16, 17, 18],      # DISABLED — barrel roll broken
@@ -588,6 +588,8 @@ func _place_piece() -> void:
 	var place_height := current_height
 	if current_piece == 4:  # ramp down
 		place_height = maxi(0, current_height - TrackPieces.RAMP_HEIGHT)
+	elif current_piece == 31:  # half ramp down
+		place_height = maxi(0, current_height - TrackPieces.HALF_RAMP_HEIGHT)
 	elif current_piece == 23:  # transition down
 		place_height = maxi(0, current_height - TrackPieces.TRANSITION_HEIGHT)
 
@@ -596,10 +598,12 @@ func _place_piece() -> void:
 		tool.set_voxel(offset + block.pos, block.type)
 
 	# Spawn collision shapes for special pieces
-	if current_piece == 3 or current_piece == 4:
+	if current_piece in [3, 4, 30, 31]:
 		RampSpawner.spawn_ramp(self, cursor_grid, current_piece, current_rotation, place_height)
 		# Clear HIGH-end boundary voxels (neighbor may have placed ASPHALT there)
-		var high_z2: int = TrackPieces.HI if current_piece == 3 else TrackPieces.LO
+		var is_up2: bool = current_piece == 3 or current_piece == 30
+		var high_z2: int = TrackPieces.HI if is_up2 else TrackPieces.LO
+		var rh2: int = TrackPieces.RAMP_HEIGHT if (current_piece == 3 or current_piece == 4) else TrackPieces.HALF_RAMP_HEIGHT
 		for x2 in range(-TrackPieces.ROAD_W, TrackPieces.ROAD_W + 1):
 			var rx2 := x2
 			var rz2 := high_z2
@@ -607,7 +611,7 @@ func _place_piece() -> void:
 				var tmp2 := rx2
 				rx2 = -rz2
 				rz2 = tmp2
-			for h2 in range(0, TrackPieces.RAMP_HEIGHT + 1):
+			for h2 in range(0, rh2 + 1):
 				tool.set_voxel(offset + Vector3i(rx2, h2, rz2), TrackPieces.AIR)
 	elif current_piece >= 12 and current_piece <= 14:
 		RampSpawner.spawn_wall_ride(self, cursor_grid, current_piece, current_rotation, place_height)
@@ -718,7 +722,7 @@ func _load_track(track_name: String) -> void:
 		for block in rotated:
 			tool.set_voxel(offset + block.pos, block.type)
 		# Spawn collision for special pieces
-		if p.piece == 3 or p.piece == 4:
+		if p.piece in [3, 4, 30, 31]:
 			RampSpawner.spawn_ramp(self, p.grid, p.piece, p.rotation, bh)
 		elif p.piece >= 12 and p.piece <= 14:
 			RampSpawner.spawn_wall_ride(self, p.grid, p.piece, p.rotation, bh)
@@ -732,11 +736,13 @@ func _load_track(track_name: String) -> void:
 			RampSpawner.spawn_banked_turn(self, p.grid, p.piece, p.rotation, bh)
 	# Second pass: clear boundary voxels at ramp HIGH end
 	for p in placed_pieces:
-		if p.piece != 3 and p.piece != 4:
+		if p.piece not in [3, 4, 30, 31]:
 			continue
 		var bh2: int = p.get("base_height", 0)
 		var offset2 := Vector3i(p.grid.x * GRID, bh2, p.grid.y * GRID)
-		var high_z: int = TrackPieces.HI if p.piece == 3 else TrackPieces.LO
+		var is_up3: bool = p.piece == 3 or p.piece == 30
+		var high_z: int = TrackPieces.HI if is_up3 else TrackPieces.LO
+		var rh3: int = TrackPieces.RAMP_HEIGHT if (p.piece == 3 or p.piece == 4) else TrackPieces.HALF_RAMP_HEIGHT
 		for x2 in range(-TrackPieces.ROAD_W, TrackPieces.ROAD_W + 1):
 			var rx := x2
 			var rz := high_z
@@ -744,7 +750,7 @@ func _load_track(track_name: String) -> void:
 				var tmp := rx
 				rx = -rz
 				rz = tmp
-			for h2 in range(0, TrackPieces.RAMP_HEIGHT + 1):
+			for h2 in range(0, rh3 + 1):
 				tool.set_voxel(offset2 + Vector3i(rx, h2, rz), TrackPieces.AIR)
 
 
@@ -770,8 +776,12 @@ func _snap_to_next_port() -> void:
 	# Ramp down: place_height already adjusted in _place_piece, no change needed here
 	if current_piece == 3:  # ramp up
 		current_height += TrackPieces.RAMP_HEIGHT
+	elif current_piece == 30:  # half ramp up
+		current_height += TrackPieces.HALF_RAMP_HEIGHT
 	elif current_piece == 4:  # ramp down
 		current_height = maxi(0, current_height - TrackPieces.RAMP_HEIGHT)
+	elif current_piece == 31:  # half ramp down
+		current_height = maxi(0, current_height - TrackPieces.HALF_RAMP_HEIGHT)
 	elif current_piece == 22:  # transition up
 		current_height += TrackPieces.TRANSITION_HEIGHT
 	elif current_piece == 23:  # transition down

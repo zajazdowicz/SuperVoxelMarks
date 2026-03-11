@@ -13,8 +13,8 @@ const WR_BANK := TrackPieces.WALL_RIDE_BANK_DEG
 
 
 static func spawn_ramp(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
-	var is_up := piece_id == 3
-	var is_down := piece_id == 4
+	var is_up := piece_id == 3 or piece_id == 30
+	var is_down := piece_id == 4 or piece_id == 31
 	if not is_up and not is_down:
 		return
 
@@ -23,7 +23,7 @@ static func spawn_ramp(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 
 	var hw: float = float(ROAD_W) + 0.5  # half-width of road
 	var hl: float = float(HALF)            # exact grid fit
-	var h: float = float(RAMP_H)
+	var h: float = float(RAMP_H) if (piece_id == 3 or piece_id == 4) else float(TrackPieces.HALF_RAMP_HEIGHT)
 
 	var ground: float = 1.0
 	var low_y: float = ground
