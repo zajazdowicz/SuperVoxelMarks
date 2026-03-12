@@ -190,7 +190,6 @@ const PIECE_CATEGORIES := {
 	"Wall Ride": [12, 13, 14],
 	#"Loop": [15, 16, 17, 18],      # DISABLED — barrel roll broken
 	"Petla": [19],
-	"QP Twist": [42, 43, 44, 45, 46, 47, 48, 49],
 }
 
 func _create_piece_toolbar() -> void:
@@ -352,7 +351,7 @@ func _update_preview() -> void:
 
 	# Special pieces (wall ride, loop, transition) — show shape preview
 	# Voxel-only pieces (platforma, gentle turns) use normal voxel preview
-	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 28, 29, 34, 35, 39, 42, 43, 44, 45, 46, 47, 48, 49]
+	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 28, 29, 34, 35, 39]
 	if current_piece in shape_pieces:
 		_update_shape_preview()
 		return
@@ -620,29 +619,6 @@ func _update_shape_preview() -> void:
 			var n4 := (p14l - p04l).cross(p04r - p04l).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p04l, p04r, p14r, p14l, n4)
 
-	elif current_piece >= 42 and current_piece <= 49:
-		# QP Twist preview — 45° twist segment
-		var step5 := current_piece - 42
-		var a_start5: float = float(step5) * PI / 4.0
-		var a_end5: float = float(step5 + 1) * PI / 4.0
-		var R5: float = RampSpawner.QP_TWIST_R
-		var segs5 := 6
-		for seg5 in range(segs5):
-			var t05: float = float(seg5) / float(segs5)
-			var t15: float = float(seg5 + 1) / float(segs5)
-			var z05 := lerpf(-hl, hl, t05)
-			var z15 := lerpf(-hl, hl, t15)
-			var a05 := lerpf(a_start5, a_end5, t05)
-			var a15 := lerpf(a_start5, a_end5, t15)
-			var cy05 := ground + R5 * (1.0 - cos(a05))
-			var cy15 := ground + R5 * (1.0 - cos(a15))
-			var p05l := basis_rot * Vector3(-hw * cos(a05), cy05 - hw * sin(a05), z05)
-			var p05r := basis_rot * Vector3(hw * cos(a05), cy05 + hw * sin(a05), z05)
-			var p15l := basis_rot * Vector3(-hw * cos(a15), cy15 - hw * sin(a15), z15)
-			var p15r := basis_rot * Vector3(hw * cos(a15), cy15 + hw * sin(a15), z15)
-			var n5 := (p15l - p05l).cross(p05r - p05l).normalized()
-			RampSpawner._add_quad(verts, normals, indices, p05l, p05r, p15r, p15l, n5)
-
 	if verts.is_empty():
 		container.queue_free()
 		return
@@ -730,8 +706,6 @@ func _place_piece() -> void:
 		RampSpawner.spawn_ramp_turn(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece == 39:
 		RampSpawner.spawn_jump_pad(self, cursor_grid, current_piece, current_rotation, place_height)
-	elif current_piece >= 42 and current_piece <= 49:
-		RampSpawner.spawn_qp_twist(self, cursor_grid, current_piece, current_rotation, place_height)
 
 	# Remove existing piece at this grid position
 	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
@@ -783,7 +757,7 @@ func _remove_piece() -> void:
 					tool.set_voxel(offset + Vector3i(x, y, z), TrackPieces.AIR)
 
 	# Remove collision shapes if exist (ramp, wall ride, loop)
-	for prefix in ["RampCollision", "WallRide", "Loop", "VLoop", "QPTwist"]:
+	for prefix in ["RampCollision", "WallRide", "Loop", "VLoop"]:
 		var node_name := "%s_%d_%d" % [prefix, cursor_grid.x, cursor_grid.y]
 		var existing := get_node_or_null(node_name)
 		if existing:
@@ -861,8 +835,6 @@ func _load_track(track_name: String) -> void:
 			RampSpawner.spawn_ramp_turn(self, p.grid, p.piece, p.rotation, bh)
 		elif p.piece == 39:
 			RampSpawner.spawn_jump_pad(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece >= 42 and p.piece <= 49:
-			RampSpawner.spawn_qp_twist(self, p.grid, p.piece, p.rotation, bh)
 	# Second pass: clear boundary voxels at ramp HIGH end
 	for p in placed_pieces:
 		if p.piece not in [3, 4, 30, 31]:
