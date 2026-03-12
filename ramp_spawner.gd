@@ -1312,6 +1312,112 @@ static func _create_jump_visual(hw: float, hl: float, jump_h: float, ground: flo
 
 # === SLOPE: tilted road at fixed angle ===
 
+# =======================================================================
+# SLOPE TURN: 90° turn with elevation change (no barriers)
+# =======================================================================
+const SLOPE_TURN_DELTAS := {57: 2, 58: 2, 59: 4, 60: 4}
+
+static func spawn_slope_turn(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
+	var body := StaticBody3D.new()
+	body.name = "SlopeTurn_%d_%d" % [grid_pos.x, grid_pos.y]
+
+	var ground: float = 1.0
+	var h: float = float(SLOPE_TURN_DELTAS.get(piece_id, 2))
+	var r: float = float(HALF)
+	var inner_r: float = r - float(ROAD_W)
+	var outer_r: float = r + float(ROAD_W)
+
+	var is_right: bool = piece_id == 57 or piece_id == 59
+	var cx: float
+	var cz: float
+	var a_start: float
+	var a_end: float
+	if is_right:
+		cx = float(HALF); cz = float(-HALF)
+		a_start = PI; a_end = PI / 2.0
+	else:
+		cx = float(-HALF); cz = float(-HALF)
+		a_start = 0.0; a_end = PI / 2.0
+
+	var rot_angle: float = -float(rotation) * PI / 2.0
+	var basis_rot := Basis(Vector3.UP, rot_angle)
+
+	var segs := 8
+	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var cols := PackedColorArray()
+	var idxs := PackedInt32Array()
+	var col_asphalt := Color(0.25, 0.25, 0.28)
+	var col_curb := Color(0.9, 0.9, 0.9)
+
+	for seg in range(segs):
+		var t0: float = float(seg) / float(segs)
+		var t1: float = float(seg + 1) / float(segs)
+		var theta0: float = lerpf(a_start, a_end, t0)
+		var theta1: float = lerpf(a_start, a_end, t1)
+		var y0: float = ground + h * t0
+		var y1: float = ground + h * t1
+
+		# Collision — same as ramps: _add_col_box style
+		var pi0 := basis_rot * Vector3(cx + inner_r * cos(theta0), y0, cz + inner_r * sin(theta0))
+		var po0 := basis_rot * Vector3(cx + outer_r * cos(theta0), y0, cz + outer_r * sin(theta0))
+		var pi1 := basis_rot * Vector3(cx + inner_r * cos(theta1), y1, cz + inner_r * sin(theta1))
+		var po1 := basis_rot * Vector3(cx + outer_r * cos(theta1), y1, cz + outer_r * sin(theta1))
+
+		var col_points := PackedVector3Array()
+		col_points.append(pi0); col_points.append(po0)
+		col_points.append(pi1); col_points.append(po1)
+		col_points.append(basis_rot * Vector3(cx + inner_r * cos(theta0), min(y0, y1) - 0.5, cz + inner_r * sin(theta0)))
+		col_points.append(basis_rot * Vector3(cx + outer_r * cos(theta0), min(y0, y1) - 0.5, cz + outer_r * sin(theta0)))
+		col_points.append(basis_rot * Vector3(cx + inner_r * cos(theta1), min(y0, y1) - 0.5, cz + inner_r * sin(theta1)))
+		col_points.append(basis_rot * Vector3(cx + outer_r * cos(theta1), min(y0, y1) - 0.5, cz + outer_r * sin(theta1)))
+		var col_shape := CollisionShape3D.new()
+		var shape := ConvexPolygonShape3D.new()
+		shape.points = col_points
+		col_shape.shape = shape
+		body.add_child(col_shape)
+
+		# Visual: road surface with curb
+		for rseg in range(BANKED_RADIAL):
+			var r0: float = lerpf(inner_r, outer_r, float(rseg) / float(BANKED_RADIAL))
+			var r1: float = lerpf(inner_r, outer_r, float(rseg + 1) / float(BANKED_RADIAL))
+			var is_edge: bool = rseg == 0 or rseg == BANKED_RADIAL - 1
+			var qcol: Color = col_curb if (is_edge and seg % 2 == 0) else col_asphalt
+
+			var q00 := basis_rot * Vector3(cx + r0 * cos(theta0), y0, cz + r0 * sin(theta0))
+			var q10 := basis_rot * Vector3(cx + r1 * cos(theta0), y0, cz + r1 * sin(theta0))
+			var q01 := basis_rot * Vector3(cx + r0 * cos(theta1), y1, cz + r0 * sin(theta1))
+			var q11 := basis_rot * Vector3(cx + r1 * cos(theta1), y1, cz + r1 * sin(theta1))
+
+			var n := (q01 - q00).cross(q10 - q00).normalized()
+			var vi := verts.size()
+			verts.append(q00); verts.append(q10); verts.append(q11); verts.append(q01)
+			for _i in 4:
+				norms.append(n); cols.append(qcol)
+			idxs.append(vi); idxs.append(vi + 1); idxs.append(vi + 2)
+			idxs.append(vi); idxs.append(vi + 2); idxs.append(vi + 3)
+
+	# Build mesh
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = norms
+	arrays[Mesh.ARRAY_COLOR] = cols
+	arrays[Mesh.ARRAY_INDEX] = idxs
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	body.add_child(mi)
+
+	body.position = Vector3(float(grid_pos.x * GRID), float(base_height), float(grid_pos.y * GRID))
+	parent.add_child(body)
+
+
 static func spawn_slope(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
 	var angle_deg: float = TrackPieces.SLOPE_ANGLES.get(piece_id, 45.0)
 	var angle_rad := deg_to_rad(angle_deg)

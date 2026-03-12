@@ -79,6 +79,9 @@ func _build_track() -> void:
 			var qp_down: bool = p.get("down", false)
 			RampSpawner.spawn_quarter_pipe(self, p.grid, p.piece, p.rotation, bh, qp_down)
 
+		if p.piece >= 57 and p.piece <= 60:
+			RampSpawner.spawn_slope_turn(self, p.grid, p.piece, p.rotation, bh)
+
 		if p.piece == 5:
 			_spawn_pos = Vector3(p.grid.x * GRID, bh + 3, p.grid.y * GRID)
 			# Car faces the exit direction of the start piece

@@ -87,6 +87,10 @@ const PIECE_NAMES := [
 	"Przeszkody 1",        # 54 — bumps 1 voxel wide
 	"Przeszkody 2",        # 55 — bumps 2 voxels wide
 	"Przeszkody 3",        # 56 — bumps 3 voxels wide
+	"Slope zakret R +2",   # 57 — turn right with +2 rise
+	"Slope zakret L +2",   # 58 — turn left with +2 rise
+	"Slope zakret R +4",   # 59 — turn right with +4 rise
+	"Slope zakret L +4",   # 60 — turn left with +4 rise
 ]
 
 const HALF_RAMP_HEIGHT := 3
@@ -94,10 +98,10 @@ const HALF_RAMP_HEIGHT := 3
 static func get_ports(index: int) -> Array[Dictionary]:
 	# Turns: S→E or S→W
 	match index:
-		1, 24, 28, 34: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
-		2, 25, 29, 35: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
+		1, 24, 28, 34, 57, 59: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
+		2, 25, 29, 35, 58, 60: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
 	# All other standard pieces: S→N
-	if index >= 0 and index <= 56:
+	if index >= 0 and index <= 60:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
@@ -157,6 +161,10 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		54: return _bumpy_road(1)
 		55: return _bumpy_road(2)
 		56: return _bumpy_road(3)
+		57: return _slope_turn_clear(true, 2)
+		58: return _slope_turn_clear(false, 2)
+		59: return _slope_turn_clear(true, 4)
+		60: return _slope_turn_clear(false, 4)
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -929,4 +937,36 @@ static func _bumpy_road(bump_w: int) -> Array[Dictionary]:
 			if absi(x) < ROAD_W:
 				blocks.append({"pos": Vector3i(x, 1, bz), "type": WALL})
 				blocks.append({"pos": Vector3i(x, 1, bz + 1), "type": WALL})
+	return blocks
+
+
+# === SLOPE TURN: turn 90° with elevation change ===
+static func _slope_turn_clear(is_right: bool, rise: int) -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	var r := float(HALF)
+	var inner_r := r - float(ROAD_W)
+	var outer_r := r + float(ROAD_W)
+	var cx: float
+	var cz: float
+	var angle_min: float
+	var angle_max: float
+	if is_right:
+		cx = float(HALF); cz = float(-HALF)
+		angle_min = PI; angle_max = PI / 2.0
+	else:
+		cx = float(-HALF); cz = float(-HALF)
+		angle_min = 0.0; angle_max = PI / 2.0
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if _is_on_gentle_arc(float(x), float(z), cx, cz, inner_r, outer_r, angle_min, angle_max):
+				var dx := float(x) + 0.5 - cx
+				var dz := float(z) + 0.5 - cz
+				var angle := atan2(dz, dx)
+				if angle < 0.0:
+					angle += 2.0 * PI
+				var progress := (angle - angle_min) / (angle_max - angle_min)
+				progress = clampf(progress, 0.0, 1.0)
+				var local_h := int(ceil(progress * float(rise))) + 2
+				for h in range(0, local_h):
+					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 	return blocks
