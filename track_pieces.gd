@@ -78,6 +78,12 @@ const PIECE_NAMES := [
 	"Slope 60",            # 45 — tilted road 60° (steep)
 	"Slope 75",            # 46 — tilted road 75° (near vertical)
 	"Slope 90",            # 47 — vertical wall road
+	"QP 0-30",             # 48 — quarter-pipe flat to 30°
+	"QP 30-60",            # 49 — quarter-pipe 30° to 60°
+	"QP 60-90",            # 50 — quarter-pipe 60° to 90° (wall)
+	"QP 90-120",           # 51 — quarter-pipe 90° to 120° (past vertical)
+	"QP 120-150",          # 52 — quarter-pipe 120° to 150°
+	"QP 150-180",          # 53 — quarter-pipe 150° to 180° (inverted)
 ]
 
 const HALF_RAMP_HEIGHT := 3
@@ -88,7 +94,7 @@ static func get_ports(index: int) -> Array[Dictionary]:
 		1, 24, 28, 34: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
 		2, 25, 29, 35: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
 	# All other standard pieces: S→N
-	if index >= 0 and index <= 47:
+	if index >= 0 and index <= 53:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
@@ -144,6 +150,7 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		40: return _turbo_pad()
 		41: return _slowdown_section()
 		42, 43, 44, 45, 46, 47: return _slope_clear(index)
+		48, 49, 50, 51, 52, 53: return _qp_clear(index)
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -853,6 +860,11 @@ static func _slowdown_section() -> Array[Dictionary]:
 
 # === SLOPE: tilted road — clear AIR for collision mesh ===
 const SLOPE_ANGLES := {42: 15.0, 43: 30.0, 44: 45.0, 45: 60.0, 46: 75.0, 47: 90.0}
+# Quarter-pipe: [start_angle, end_angle] in degrees
+const QP_ANGLES := {
+	48: [0.0, 30.0], 49: [30.0, 60.0], 50: [60.0, 90.0],
+	51: [90.0, 120.0], 52: [120.0, 150.0], 53: [150.0, 180.0],
+}
 
 static func _slope_clear(piece_id: int) -> Array[Dictionary]:
 	var blocks: Array[Dictionary] = []
@@ -860,6 +872,19 @@ static func _slope_clear(piece_id: int) -> Array[Dictionary]:
 	var angle_rad := deg_to_rad(angle_deg)
 	var rise: int = ceili(sin(angle_rad) * float(SEGMENT_SIZE))
 	var clear_h: int = maxi(rise + 4, 8)
+	for z in range(LO, HI + 1):
+		for x in range(-ROAD_W - 2, ROAD_W + 3):
+			blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			for h in range(1, clear_h):
+				blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+	return blocks
+
+
+static func _qp_clear(piece_id: int) -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	var angles: Array = QP_ANGLES.get(piece_id, [0.0, 30.0])
+	var max_angle: float = maxf(absf(angles[0]), absf(angles[1]))
+	var clear_h: int = maxi(ceili(sin(deg_to_rad(max_angle)) * float(SEGMENT_SIZE)) + 6, 14)
 	for z in range(LO, HI + 1):
 		for x in range(-ROAD_W - 2, ROAD_W + 3):
 			blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})

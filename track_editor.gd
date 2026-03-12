@@ -197,6 +197,7 @@ const PIECE_CATEGORIES := {
 	#"Loop": [15, 16, 17, 18],      # DISABLED — barrel roll broken
 	"Petla": [19],
 	"Slopes": [42, 43, 44, 45, 46, 47],
+	"QP": [48, 49, 50, 51, 52, 53],
 }
 
 func _create_piece_toolbar() -> void:
@@ -364,6 +365,8 @@ func _short_name(piece_id: int) -> String:
 		39: "Skok", 40: "Turbo", 41: "Slow",
 		42: "15°", 43: "30°", 44: "45°",
 		45: "60°", 46: "75°", 47: "90°",
+		48: "0-30°", 49: "30-60°", 50: "60-90°",
+		51: "90-120°", 52: "120-150°", 53: "150-180°",
 	}
 	return shorts.get(piece_id, full)
 
@@ -603,7 +606,7 @@ func _update_preview() -> void:
 
 	# Special pieces (wall ride, loop, transition) — show shape preview
 	# Voxel-only pieces (platforma, gentle turns) use normal voxel preview
-	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 28, 29, 34, 35, 39, 42, 43, 44, 45, 46, 47]
+	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 28, 29, 34, 35, 39, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53]
 	if current_piece in shape_pieces:
 		_update_shape_preview()
 		return
@@ -893,6 +896,31 @@ func _update_shape_preview() -> void:
 			var n5 := (p15l - p05l).cross(p05r - p05l).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p05l, p05r, p15r, p15l, n5)
 
+	elif current_piece >= 48 and current_piece <= 53:
+		# Quarter-pipe preview — curved arc
+		var qp_angles: Array = TrackPieces.QP_ANGLES.get(current_piece, [0.0, 30.0])
+		var qp_from: float = deg_to_rad(qp_angles[0])
+		var qp_to: float = deg_to_rad(qp_angles[1])
+		var qp_R: float = float(TrackPieces.SEGMENT_SIZE)
+		var qp_pivot_y: float = ground + qp_R * cos(qp_from)
+		var qp_pivot_z: float = -hl - qp_R * sin(qp_from)
+		var qp_segs := 6
+		for seg6 in range(qp_segs):
+			var t06: float = float(seg6) / float(qp_segs)
+			var t16: float = float(seg6 + 1) / float(qp_segs)
+			var a06: float = lerpf(qp_from, qp_to, t06)
+			var a16: float = lerpf(qp_from, qp_to, t16)
+			var y06: float = qp_pivot_y - qp_R * cos(a06)
+			var z06: float = qp_pivot_z + qp_R * sin(a06)
+			var y16: float = qp_pivot_y - qp_R * cos(a16)
+			var z16: float = qp_pivot_z + qp_R * sin(a16)
+			var p06l := basis_rot * Vector3(-hw, y06, z06)
+			var p06r := basis_rot * Vector3(hw, y06, z06)
+			var p16l := basis_rot * Vector3(-hw, y16, z16)
+			var p16r := basis_rot * Vector3(hw, y16, z16)
+			var n6 := (p16l - p06l).cross(p06r - p06l).normalized()
+			RampSpawner._add_quad(verts, normals, indices, p06l, p06r, p16r, p16l, n6)
+
 	if verts.is_empty():
 		container.queue_free()
 		return
@@ -982,6 +1010,8 @@ func _place_piece() -> void:
 		RampSpawner.spawn_jump_pad(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece >= 42 and current_piece <= 47:
 		RampSpawner.spawn_slope(self, cursor_grid, current_piece, current_rotation, place_height)
+	elif current_piece >= 48 and current_piece <= 53:
+		RampSpawner.spawn_quarter_pipe(self, cursor_grid, current_piece, current_rotation, place_height)
 
 	# Remove existing piece at this grid position
 	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
