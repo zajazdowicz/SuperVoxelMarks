@@ -28,6 +28,7 @@ var _grace_timer := SPAWN_GRACE
 @onready var collision: CollisionShape3D = $CollisionShape3D
 
 var _smooth_floor_normal := Vector3.UP  # smoothed floor normal for visual alignment
+var _in_zero_g := 0  # >0 = inside zero-gravity zone (loop)
 
 var _front_wheels: Array[Node3D] = []
 var _rear_wheels: Array[Node3D] = []
@@ -385,7 +386,24 @@ func _physics_process(delta: float) -> void:
 	# --- Movement ---
 	var forward := -transform.basis.z
 
-	if airborne:
+	if _in_zero_g > 0:
+		# Zero-gravity zone (loop) — car sticks to any surface
+		floor_max_angle = deg_to_rad(170.0)
+		floor_snap_length = stats.floor_snap * 2.0
+		if is_on_floor():
+			var fn := get_floor_normal()
+			up_direction = fn
+			_gravity_dir = -fn
+			var slope_forward := (forward - fn * forward.dot(fn)).normalized()
+			var target_vel := slope_forward * speed
+			var blend: float = grip * stats.drift_factor if not _drifting else DRIFT_GRIP * grip
+			velocity = velocity.lerp(target_vel, clampf(blend, 0.1, 1.0))
+			# Gentle push toward surface to maintain contact
+			velocity += -fn * 5.0 * delta
+		else:
+			# Airborne in zero-G — no gravity, coast
+			velocity *= 0.999  # very slight drag
+	elif airborne:
 		up_direction = Vector3.UP
 		_gravity_dir = Vector3.DOWN
 		# No air control — maintain horizontal velocity, only gravity affects
@@ -841,3 +859,15 @@ func set_gravity_direction(dir: Vector3) -> void:
 
 func reset_gravity() -> void:
 	_gravity_dir = Vector3.DOWN
+
+
+func enter_zero_g() -> void:
+	_in_zero_g += 1
+
+func exit_zero_g() -> void:
+	_in_zero_g = maxi(0, _in_zero_g - 1)
+	if _in_zero_g == 0:
+		up_direction = Vector3.UP
+		_gravity_dir = Vector3.DOWN
+		floor_max_angle = deg_to_rad(stats.floor_angle)
+		floor_snap_length = stats.floor_snap

@@ -942,6 +942,32 @@ static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, _piece_id: int, rota
 	body.position = Vector3(float(grid_pos.x * GRID), float(base_height), float(grid_pos.y * GRID))
 	parent.add_child(body)
 
+	# Zero-gravity zone — Area3D covering the entire loop
+	var zone := Area3D.new()
+	zone.name = "ZeroGZone_%d_%d" % [grid_pos.x, grid_pos.y]
+	# Box covering loop area: x from -(offset+hw+2) to +(offset+hw+2), y from 0 to 2R+4, z from -HALF to HALF+GRID
+	var zone_shape := CollisionShape3D.new()
+	var zone_box := BoxShape3D.new()
+	var zone_hw_x: float = offset + hw + 2.0
+	var zone_h: float = R * 2.0 + 4.0
+	var zone_hz: float = float(HALF) + float(GRID) / 2.0 + 2.0
+	zone_box.size = Vector3(zone_hw_x * 2.0, zone_h, zone_hz * 2.0)
+	zone_shape.shape = zone_box
+	zone_shape.position = basis_rot * Vector3(0, zone_h / 2.0, float(GRID) / 2.0)
+	zone.add_child(zone_shape)
+	zone.collision_layer = 0
+	zone.collision_mask = 1  # detect car (layer 1)
+	zone.body_entered.connect(func(b: Node3D):
+		if b.has_method("enter_zero_g"):
+			b.enter_zero_g()
+	)
+	zone.body_exited.connect(func(b: Node3D):
+		if b.has_method("exit_zero_g"):
+			b.exit_zero_g()
+	)
+	zone.position = body.position
+	parent.add_child(zone)
+
 
 # Helper: flat ConvexPolygon road segment with shifting center
 static func _add_flat_road_seg(body: StaticBody3D, xc0: float, xc1: float,
