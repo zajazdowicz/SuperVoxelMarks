@@ -863,6 +863,10 @@ func reset_gravity() -> void:
 
 func enter_zero_g() -> void:
 	_in_zero_g += 1
+	# Switch camera to chase mode
+	var cam := get_viewport().get_camera_3d()
+	if cam and cam.has_method("set_chase_mode"):
+		cam.set_chase_mode(true)
 
 func exit_zero_g() -> void:
 	_in_zero_g = maxi(0, _in_zero_g - 1)
@@ -871,3 +875,7 @@ func exit_zero_g() -> void:
 		_gravity_dir = Vector3.DOWN
 		floor_max_angle = deg_to_rad(stats.floor_angle)
 		floor_snap_length = stats.floor_snap
+		# Switch camera back to iso
+		var cam := get_viewport().get_camera_3d()
+		if cam and cam.has_method("set_chase_mode"):
+			cam.set_chase_mode(false)

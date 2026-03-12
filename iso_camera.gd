@@ -1,5 +1,5 @@
 extends Camera3D
-## Isometric follow camera that rotates behind the car's direction.
+## Isometric follow camera that switches to chase cam in loops.
 
 @export var target: NodePath
 @export var height := 30.0
@@ -7,8 +7,15 @@ extends Camera3D
 @export var smoothing := 5.0
 @export var rotation_smoothing := 3.0
 
+# Chase cam settings (3rd person behind car)
+@export var chase_height := 3.0
+@export var chase_distance := 6.0
+@export var chase_smoothing := 8.0
+
 var _target_node: Node3D
 var _follow_angle := 0.0  # smoothed Y rotation of car
+var _chase_mode := false
+var _chase_blend := 0.0   # 0 = full iso, 1 = full chase
 
 
 func _ready() -> void:
@@ -16,18 +23,47 @@ func _ready() -> void:
 		_target_node = get_node(target)
 
 
+func set_chase_mode(enabled: bool) -> void:
+	_chase_mode = enabled
+
+
 func _process(delta: float) -> void:
 	if not _target_node:
 		return
+
+	# Blend toward target mode
+	var blend_target := 1.0 if _chase_mode else 0.0
+	_chase_blend = move_toward(_chase_blend, blend_target, delta * 2.0)
 
 	# Smoothly follow car's Y rotation
 	var car_angle: float = _target_node.rotation.y
 	_follow_angle = lerp_angle(_follow_angle, car_angle, rotation_smoothing * delta)
 
-	# Camera offset rotated by car's direction
-	var offset := Vector3(0, height, distance).rotated(Vector3.UP, _follow_angle)
 	var target_pos := _target_node.global_position
-	var desired := target_pos + offset
 
-	global_position = global_position.lerp(desired, smoothing * delta)
-	look_at(target_pos, Vector3.UP)
+	# ISO camera position
+	var iso_offset := Vector3(0, height, distance).rotated(Vector3.UP, _follow_angle)
+	var iso_pos := target_pos + iso_offset
+
+	# CHASE camera position — behind and above car
+	var car_back := _target_node.global_transform.basis.z.normalized()
+	var car_up := _target_node.up_direction if _target_node is CharacterBody3D else Vector3.UP
+	var chase_pos := target_pos + car_back * chase_distance + car_up * chase_height
+
+	# Blend between iso and chase
+	var desired: Vector3
+	if _chase_blend < 0.01:
+		desired = iso_pos
+	elif _chase_blend > 0.99:
+		desired = chase_pos
+	else:
+		desired = iso_pos.lerp(chase_pos, _chase_blend)
+
+	var spd := lerpf(smoothing, chase_smoothing, _chase_blend)
+	global_position = global_position.lerp(desired, spd * delta)
+
+	# Look at car — in chase mode, use car's up direction
+	var look_up := Vector3.UP.lerp(car_up, _chase_blend).normalized()
+	if look_up.length() < 0.1:
+		look_up = Vector3.UP
+	look_at(target_pos, look_up)
