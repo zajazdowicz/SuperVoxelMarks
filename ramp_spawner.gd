@@ -1424,7 +1424,7 @@ static func spawn_slope(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotat
 			var br := basis_rot * Vector3(bx, y0 + barrier_h, z0)
 			var tl := basis_rot * Vector3(bx, y1, z1)
 			var tr := basis_rot * Vector3(bx, y1 + barrier_h, z1)
-			var bn := (tl - bl).cross(br - bl).normalized() * side
+			var bn: Vector3 = (tl - bl).cross(br - bl).normalized() * side
 			_add_quad(verts, normals, indices, bl, br, tr, tl, bn)
 
 			# Barrier collision
