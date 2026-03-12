@@ -806,109 +806,260 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 
 
 # =======================================================================
-# VERTICAL LOOP (2 segments: up + down)
+# VERTICAL LOOP — dual-lane loop with X offset (TM style)
 # =======================================================================
-# Larger radius than barrel roll for a more dramatic loop.
-# Piece 19: "Petla gora" — 0° → 180° (ground → inverted at top)
-# Piece 20: "Petla dol"  — 180° → 360° (inverted → ground)
+# The road widens into 2 lanes at the loop base:
+#   Entry lane: x = +OFFSET (right side)
+#   Exit lane:  x = -OFFSET (left side)
+# The circle is in the YZ plane. As the car goes around, the road center
+# shifts linearly from +OFFSET (entry) through 0 (top) to -OFFSET (exit).
+# Entry/exit tapers connect the normal single-lane road to the loop.
 
-const VLOOP_R := 7.0  # loop radius (max height = ground + 2*R = 15)
-const VLOOP_SEGS := 12  # segments per half
+const VLOOP_R := 8.0       # loop radius — top at y = 1 + 2*8 = 17
+const VLOOP_SEGS := 24     # collision segments for full 360°
+const VLOOP_OFFSET := 3.0  # lane offset: entry at +3, exit at -3
 
-static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
+
+static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, _piece_id: int, rotation: int, base_height: int = 0) -> void:
 	var body := StaticBody3D.new()
 	body.name = "VLoop_%d_%d" % [grid_pos.x, grid_pos.y]
 
-	var half_idx := piece_id - 19  # 0 = up, 1 = down
-	var angle_start: float = float(half_idx) * PI
-	var angle_end: float = float(half_idx + 1) * PI
-
 	var hw: float = float(ROAD_W) + 0.5
 	var R: float = VLOOP_R
-	var hl: float = float(HALF)
 	var ground: float = 1.0
+	var cz: float = float(HALF)            # circle center Z = 6
+	var cy: float = ground + R              # circle center Y = 9
+	var offset: float = VLOOP_OFFSET
 	var rot_angle: float = -float(rotation) * PI / 2.0
 	var basis_rot := Basis(Vector3.UP, rot_angle)
+	var wall_h: float = 2.0
+	var taper_segs := 4
 
-	var verts := PackedVector3Array()
-	var normals := PackedVector3Array()
-	var indices := PackedInt32Array()
-	var tri_faces := PackedVector3Array()
+	# --- Entry taper: flat road z=-6→6, road center shifts x: 0→+offset ---
+	for seg in range(taper_segs):
+		var t0: float = float(seg) / float(taper_segs)
+		var t1: float = float(seg + 1) / float(taper_segs)
+		var z0: float = lerpf(-float(HALF), cz, t0)
+		var z1: float = lerpf(-float(HALF), cz, t1)
+		var xc0: float = lerpf(0.0, offset, t0)
+		var xc1: float = lerpf(0.0, offset, t1)
+		_add_flat_road_seg(body, xc0, xc1, ground, z0, z1, hw, basis_rot)
 
-	var wall_h: float = 2.0  # barrier height above road surface
-
+	# --- Loop circle: full 360°, x_center shifts +offset→-offset ---
 	for seg in range(VLOOP_SEGS):
-		var t0: float = float(seg) / float(VLOOP_SEGS)
-		var t1: float = float(seg + 1) / float(VLOOP_SEGS)
+		var a0: float = TAU * float(seg) / float(VLOOP_SEGS)
+		var a1: float = TAU * float(seg + 1) / float(VLOOP_SEGS)
 
-		var z0: float = lerpf(-hl, hl, t0)
-		var z1: float = lerpf(-hl, hl, t1)
+		var y0: float = cy - R * cos(a0)
+		var z0: float = cz + R * sin(a0)
+		var y1: float = cy - R * cos(a1)
+		var z1: float = cz + R * sin(a1)
 
-		var a0: float = lerpf(angle_start, angle_end, t0)
-		var a1: float = lerpf(angle_start, angle_end, t1)
+		# X center shifts linearly: +offset at a=0, 0 at a=π, -offset at a=2π
+		var xc0: float = offset * (1.0 - a0 / PI)
+		var xc1: float = offset * (1.0 - a1 / PI)
 
-		var cy0: float = ground + R * (1.0 - cos(a0))
-		var cy1: float = ground + R * (1.0 - cos(a1))
+		# Road surface quad
+		var p0l := basis_rot * Vector3(xc0 - hw, y0, z0)
+		var p0r := basis_rot * Vector3(xc0 + hw, y0, z0)
+		var p1l := basis_rot * Vector3(xc1 - hw, y1, z1)
+		var p1r := basis_rot * Vector3(xc1 + hw, y1, z1)
 
-		# Road surface
-		var p0l := basis_rot * Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0)
-		var p0r := basis_rot * Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0)
-		var p1l := basis_rot * Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1)
-		var p1r := basis_rot * Vector3(hw * cos(a1), cy1 + hw * sin(a1), z1)
+		# Thickness: outward from circle center
+		var out0 := Vector3(0.0, y0 - cy, z0 - cz).normalized()
+		var out1 := Vector3(0.0, y1 - cy, z1 - cz).normalized()
+		var b0l := basis_rot * Vector3(xc0 - hw, y0 + out0.y, z0 + out0.z)
+		var b0r := basis_rot * Vector3(xc0 + hw, y0 + out0.y, z0 + out0.z)
+		var b1l := basis_rot * Vector3(xc1 - hw, y1 + out1.y, z1 + out1.z)
+		var b1r := basis_rot * Vector3(xc1 + hw, y1 + out1.y, z1 + out1.z)
 
-		var n := (p1l - p0l).cross(p0r - p0l).normalized()
-		_add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
+		var road_pts := PackedVector3Array()
+		road_pts.append(p0l); road_pts.append(p0r)
+		road_pts.append(p1l); road_pts.append(p1r)
+		road_pts.append(b0l); road_pts.append(b0r)
+		road_pts.append(b1l); road_pts.append(b1r)
+		var road_col := CollisionShape3D.new()
+		var road_shape := ConvexPolygonShape3D.new()
+		road_shape.points = road_pts
+		road_col.shape = road_shape
+		body.add_child(road_col)
 
-		tri_faces.append(p0l); tri_faces.append(p0r); tri_faces.append(p1r)
-		tri_faces.append(p0l); tri_faces.append(p1r); tri_faces.append(p1l)
+		# Walls — inward toward circle center
+		var inward0 := basis_rot * Vector3(0.0, cy - y0, cz - z0).normalized() * wall_h
+		var inward1 := basis_rot * Vector3(0.0, cy - y1, cz - z1).normalized() * wall_h
 
-		# Barriers: walls rising from road edges perpendicular to road surface.
-		# Surface "up" direction at angle a (perpendicular to road, in local space):
-		#   up = (-sin(a), cos(a), 0) — rotates with the road
-		# Wall top = road edge + up * wall_h (computed in local space, then rotated)
-		var up0_local := Vector3(-sin(a0), cos(a0), 0.0) * wall_h
-		var up1_local := Vector3(-sin(a1), cos(a1), 0.0) * wall_h
+		var wl_pts := PackedVector3Array()
+		wl_pts.append(p0l); wl_pts.append(p0l + inward0)
+		wl_pts.append(p1l); wl_pts.append(p1l + inward1)
+		var wl_col := CollisionShape3D.new()
+		var wl_shape := ConvexPolygonShape3D.new()
+		wl_shape.points = wl_pts
+		wl_col.shape = wl_shape
+		body.add_child(wl_col)
 
-		# Left wall top points (local, then rotated)
-		var w0lt := basis_rot * (Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0) + up0_local)
-		var w1lt := basis_rot * (Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1) + up1_local)
-		var wn_l := (p0l - w0lt).cross(p1l - w0lt).normalized()
-		_add_quad(verts, normals, indices, p0l, p1l, w1lt, w0lt, wn_l)
-		tri_faces.append(p0l); tri_faces.append(p1l); tri_faces.append(w1lt)
-		tri_faces.append(p0l); tri_faces.append(w1lt); tri_faces.append(w0lt)
+		var wr_pts := PackedVector3Array()
+		wr_pts.append(p0r); wr_pts.append(p0r + inward0)
+		wr_pts.append(p1r); wr_pts.append(p1r + inward1)
+		var wr_col := CollisionShape3D.new()
+		var wr_shape := ConvexPolygonShape3D.new()
+		wr_shape.points = wr_pts
+		wr_col.shape = wr_shape
+		body.add_child(wr_col)
 
-		# Right wall top points
-		var w0rt := basis_rot * (Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0) + up0_local)
-		var w1rt := basis_rot * (Vector3(hw * cos(a1), cy1 + hw * sin(a1), z1) + up1_local)
-		var wn_r := (w0rt - p0r).cross(p1r - p0r).normalized()
-		_add_quad(verts, normals, indices, p0r, w0rt, w1rt, p1r, wn_r)
-		tri_faces.append(p0r); tri_faces.append(w0rt); tri_faces.append(w1rt)
-		tri_faces.append(p0r); tri_faces.append(w1rt); tri_faces.append(p1r)
+	# --- Exit taper: flat road z=6→18, road center shifts x: -offset→0 ---
+	var z_exit_end: float = float(HALF) + float(GRID)  # 18
+	for seg in range(taper_segs):
+		var t0: float = float(seg) / float(taper_segs)
+		var t1: float = float(seg + 1) / float(taper_segs)
+		var z0: float = lerpf(cz, z_exit_end, t0)
+		var z1: float = lerpf(cz, z_exit_end, t1)
+		var xc0: float = lerpf(-offset, 0.0, t0)
+		var xc1: float = lerpf(-offset, 0.0, t1)
+		_add_flat_road_seg(body, xc0, xc1, ground, z0, z1, hw, basis_rot)
 
-	var concave := ConcavePolygonShape3D.new()
-	concave.set_faces(tri_faces)
-	var col_shape := CollisionShape3D.new()
-	col_shape.shape = concave
-	body.add_child(col_shape)
-
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.35, 0.3, 0.35)
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mi.material_override = mat
-	body.add_child(mi)
+	# Visual mesh
+	var visual := _create_vloop_visual(hw, R, cy, cz, offset, wall_h, basis_rot)
+	body.add_child(visual)
 
 	body.position = Vector3(float(grid_pos.x * GRID), float(base_height), float(grid_pos.y * GRID))
 	parent.add_child(body)
+
+
+# Helper: flat ConvexPolygon road segment with shifting center
+static func _add_flat_road_seg(body: StaticBody3D, xc0: float, xc1: float,
+		y: float, z0: float, z1: float, hw: float, basis_rot: Basis) -> void:
+	var p0l := basis_rot * Vector3(xc0 - hw, y, z0)
+	var p0r := basis_rot * Vector3(xc0 + hw, y, z0)
+	var p1l := basis_rot * Vector3(xc1 - hw, y, z1)
+	var p1r := basis_rot * Vector3(xc1 + hw, y, z1)
+	var b0l := basis_rot * Vector3(xc0 - hw, y - 0.5, z0)
+	var b0r := basis_rot * Vector3(xc0 + hw, y - 0.5, z0)
+	var b1l := basis_rot * Vector3(xc1 - hw, y - 0.5, z1)
+	var b1r := basis_rot * Vector3(xc1 + hw, y - 0.5, z1)
+	var pts := PackedVector3Array()
+	pts.append(p0l); pts.append(p0r)
+	pts.append(p1l); pts.append(p1r)
+	pts.append(b0l); pts.append(b0r)
+	pts.append(b1l); pts.append(b1r)
+	var col := CollisionShape3D.new()
+	var shape := ConvexPolygonShape3D.new()
+	shape.points = pts
+	col.shape = shape
+	body.add_child(col)
+
+
+static func _create_vloop_visual(hw: float, R: float, cy: float,
+		cz: float, offset: float, wall_h: float, basis_rot: Basis) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var asphalt_color := Color(0.25, 0.25, 0.28)
+	var curb_color := Color(0.9, 0.9, 0.9)
+	var wall_color := Color(0.75, 0.2, 0.15)
+	var taper_segs := 4
+	var ground: float = 1.0
+
+	# Entry taper visual
+	for seg in range(taper_segs):
+		var t0: float = float(seg) / float(taper_segs)
+		var t1: float = float(seg + 1) / float(taper_segs)
+		var z0: float = lerpf(-float(HALF), cz, t0)
+		var z1: float = lerpf(-float(HALF), cz, t1)
+		var xc0: float = lerpf(0.0, offset, t0)
+		var xc1: float = lerpf(0.0, offset, t1)
+		_add_vloop_taper_visual(st, xc0, xc1, ground, z0, z1, basis_rot, asphalt_color, curb_color)
+
+	# Loop circle visual
+	for seg in range(VLOOP_SEGS):
+		var a0: float = TAU * float(seg) / float(VLOOP_SEGS)
+		var a1: float = TAU * float(seg + 1) / float(VLOOP_SEGS)
+		var y0: float = cy - R * cos(a0)
+		var z0: float = cz + R * sin(a0)
+		var y1: float = cy - R * cos(a1)
+		var z1: float = cz + R * sin(a1)
+		var xc0: float = offset * (1.0 - a0 / PI)
+		var xc1: float = offset * (1.0 - a1 / PI)
+
+		# Road surface tiles
+		for ix in range(-ROAD_W, ROAD_W + 1):
+			var x0: float = xc0 + float(ix) - 0.5
+			var x1: float = xc0 + float(ix) + 0.5
+			var x2: float = xc1 + float(ix) - 0.5
+			var x3: float = xc1 + float(ix) + 0.5
+			var is_curb := absi(ix) == ROAD_W and seg % 3 == 0
+			var col: Color = curb_color if is_curb else asphalt_color
+
+			var va := basis_rot * Vector3(x0, y0, z0)
+			var vb := basis_rot * Vector3(x1, y0, z0)
+			var vc := basis_rot * Vector3(x3, y1, z1)
+			var vd := basis_rot * Vector3(x2, y1, z1)
+
+			var normal := (vc - va).cross(vb - va).normalized()
+			st.set_color(col)
+			st.set_normal(normal)
+			st.add_vertex(va); st.add_vertex(vb); st.add_vertex(vc)
+			st.add_vertex(va); st.add_vertex(vc); st.add_vertex(vd)
+
+		# Wall visuals
+		var p0l := basis_rot * Vector3(xc0 - hw, y0, z0)
+		var p0r := basis_rot * Vector3(xc0 + hw, y0, z0)
+		var p1l := basis_rot * Vector3(xc1 - hw, y1, z1)
+		var p1r := basis_rot * Vector3(xc1 + hw, y1, z1)
+		var inward0 := basis_rot * Vector3(0.0, cy - y0, cz - z0).normalized() * wall_h
+		var inward1 := basis_rot * Vector3(0.0, cy - y1, cz - z1).normalized() * wall_h
+
+		st.set_color(wall_color)
+		var wn_l := (p1l - p0l).cross(inward0).normalized()
+		st.set_normal(wn_l)
+		st.add_vertex(p0l); st.add_vertex(p1l); st.add_vertex(p1l + inward1)
+		st.add_vertex(p0l); st.add_vertex(p1l + inward1); st.add_vertex(p0l + inward0)
+
+		var wn_r := inward0.cross(p1r - p0r).normalized()
+		st.set_normal(wn_r)
+		st.add_vertex(p0r); st.add_vertex(p0r + inward0); st.add_vertex(p1r + inward1)
+		st.add_vertex(p0r); st.add_vertex(p1r + inward1); st.add_vertex(p1r)
+
+	# Exit taper visual
+	var z_exit_end: float = float(HALF) + float(GRID)
+	for seg in range(taper_segs):
+		var t0: float = float(seg) / float(taper_segs)
+		var t1: float = float(seg + 1) / float(taper_segs)
+		var z0: float = lerpf(cz, z_exit_end, t0)
+		var z1: float = lerpf(cz, z_exit_end, t1)
+		var xc0: float = lerpf(-offset, 0.0, t0)
+		var xc1: float = lerpf(-offset, 0.0, t1)
+		_add_vloop_taper_visual(st, xc0, xc1, ground, z0, z1, basis_rot, asphalt_color, curb_color)
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	return mi
+
+
+static func _add_vloop_taper_visual(st: SurfaceTool, xc0: float, xc1: float,
+		y: float, z0: float, z1: float, basis_rot: Basis,
+		asphalt_color: Color, curb_color: Color) -> void:
+	for ix in range(-ROAD_W, ROAD_W + 1):
+		var x0: float = xc0 + float(ix) - 0.5
+		var x1: float = xc0 + float(ix) + 0.5
+		var x2: float = xc1 + float(ix) - 0.5
+		var x3: float = xc1 + float(ix) + 0.5
+		var is_curb := absi(ix) == ROAD_W
+		var col: Color = curb_color if is_curb else asphalt_color
+
+		var va := basis_rot * Vector3(x0, y, z0)
+		var vb := basis_rot * Vector3(x1, y, z0)
+		var vc := basis_rot * Vector3(x3, y, z1)
+		var vd := basis_rot * Vector3(x2, y, z1)
+
+		var normal := Vector3.UP
+		st.set_color(col)
+		st.set_normal(normal)
+		st.add_vertex(va); st.add_vertex(vb); st.add_vertex(vc)
+		st.add_vertex(va); st.add_vertex(vc); st.add_vertex(vd)
 
 
 # =======================================================================

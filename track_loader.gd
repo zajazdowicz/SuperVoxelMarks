@@ -57,7 +57,7 @@ func _build_track() -> void:
 		if p.piece >= 15 and p.piece <= 18:
 			RampSpawner.spawn_loop(self, p.grid, p.piece, p.rotation, bh)
 
-		if p.piece == 19 or p.piece == 20:
+		if p.piece == 19:
 			RampSpawner.spawn_vloop(self, p.grid, p.piece, p.rotation, bh)
 
 		if p.piece == 22 or p.piece == 23:

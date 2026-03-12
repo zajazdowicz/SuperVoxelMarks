@@ -49,8 +49,8 @@ const PIECE_NAMES := [
 	"Loop gora",     # 16 — 90° → 180°
 	"Loop zjazd",    # 17 — 180° → 270°
 	"Loop wyjazd",   # 18 — 270° → 360°
-	"Petla gora",    # 19 — 0° → 180° (vertical loop up)
-	"Petla dol",     # 20 — 180° → 360° (vertical loop down)
+	"Petla",         # 19 — full 360° vertical loop (spans 2 cells)
+	"(petla cell2)", # 20 — reserved (second cell occupied by piece 19)
 	"Platforma",     # 21 — flat road at height with pillars underneath
 	"Lacznik gora",  # 22 — smooth transition before ramp up (anti-lip)
 	"Lacznik dol",   # 23 — smooth transition after ramp down (anti-lip)
@@ -114,7 +114,8 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		13: return _wall_ride_straight()
 		14: return _wall_ride_exit()
 		15, 16, 17, 18: return _loop_quarter(index)
-		19, 20: return _vloop_half(index)
+		19: return _vloop_full()
+		20: return []  # marker only — piece 19 covers both cells
 		21: return _platform()
 		22: return _transition_up()
 		23: return _transition_down()
@@ -475,15 +476,19 @@ static func _loop_quarter(piece_id: int) -> Array[Dictionary]:
 	return blocks
 
 
-# === VERTICAL LOOP HALF: 2 pieces (180° each), R=7, max height=15 ===
-static func _vloop_half(_piece_id: int) -> Array[Dictionary]:
+# === VERTICAL LOOP: dual-lane circle, spans 2 grid cells ===
+# Road widens for 2 lanes (offset ±3). Circle R=8, center y=9 z=6.
+# ConvexPolygon handles all collision — voxels cleared to AIR.
+static func _vloop_full() -> Array[Dictionary]:
 	var blocks: Array[Dictionary] = []
-	var total_h := 16  # ground(1) + 2*R(14) + margin = 16
-	for z in range(LO, HI + 1):
+	var loop_top := 18  # clearance height (2*R + margin)
+	# Spans 2 grid cells: z from LO to HI + SEGMENT_SIZE
+	for z in range(LO, HI + SEGMENT_SIZE + 1):
 		for x in range(LO, HI + 1):
-			if absi(x) <= ROAD_W + 1:
-				for h in range(0, total_h):
-					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+			# Keep ASPHALT at y=0 as base, clear AIR above for full loop
+			blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			for h in range(1, loop_top):
+				blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 	return blocks
 
 

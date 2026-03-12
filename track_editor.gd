@@ -189,7 +189,7 @@ const PIECE_CATEGORIES := {
 	"Banked": [28, 29],
 	"Wall Ride": [12, 13, 14],
 	#"Loop": [15, 16, 17, 18],      # DISABLED — barrel roll broken
-	#"Petla": [19, 20],              # DISABLED — vloop broken
+	"Petla": [19],
 }
 
 func _create_piece_toolbar() -> void:
@@ -351,7 +351,7 @@ func _update_preview() -> void:
 
 	# Special pieces (wall ride, loop, transition) — show shape preview
 	# Voxel-only pieces (platforma, gentle turns) use normal voxel preview
-	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 28, 29, 34, 35, 39]
+	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 28, 29, 34, 35, 39]
 	if current_piece in shape_pieces:
 		_update_shape_preview()
 		return
@@ -464,28 +464,56 @@ func _update_shape_preview() -> void:
 			var n := (p1l - p0l).cross(p0r - p0l).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
-	elif current_piece == 19 or current_piece == 20:
-		# Vertical loop preview — same math, larger radius
-		var half_idx := current_piece - 19
-		var angle_start: float = float(half_idx) * PI
-		var angle_end: float = float(half_idx + 1) * PI
+	elif current_piece == 19:
+		# Vertical loop preview — dual-lane circle with X offset
 		var R: float = RampSpawner.VLOOP_R
-		var segs := 12
+		var cy_loop: float = ground + R
+		var cz_loop: float = float(TrackPieces.HALF)
+		var loffset: float = RampSpawner.VLOOP_OFFSET
+		# Entry taper
+		for seg in range(4):
+			var t0: float = float(seg) / 4.0
+			var t1: float = float(seg + 1) / 4.0
+			var z0_t := lerpf(-hl, cz_loop, t0)
+			var z1_t := lerpf(-hl, cz_loop, t1)
+			var xc0_t := lerpf(0.0, loffset, t0)
+			var xc1_t := lerpf(0.0, loffset, t1)
+			var p0l_t := basis_rot * Vector3(xc0_t - hw, ground, z0_t)
+			var p0r_t := basis_rot * Vector3(xc0_t + hw, ground, z0_t)
+			var p1l_t := basis_rot * Vector3(xc1_t - hw, ground, z1_t)
+			var p1r_t := basis_rot * Vector3(xc1_t + hw, ground, z1_t)
+			RampSpawner._add_quad(verts, normals, indices, p0l_t, p0r_t, p1r_t, p1l_t, Vector3.UP)
+		# Circle
+		var segs := 16
 		for seg in range(segs):
-			var t0: float = float(seg) / float(segs)
-			var t1: float = float(seg + 1) / float(segs)
-			var z0 := lerpf(-hl, hl, t0)
-			var z1 := lerpf(-hl, hl, t1)
-			var a0 := lerpf(angle_start, angle_end, t0)
-			var a1 := lerpf(angle_start, angle_end, t1)
-			var cy0 := ground + R * (1.0 - cos(a0))
-			var cy1 := ground + R * (1.0 - cos(a1))
-			var p0l := basis_rot * Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0)
-			var p0r := basis_rot * Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0)
-			var p1l := basis_rot * Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1)
-			var p1r := basis_rot * Vector3(hw * cos(a1), cy1 + hw * sin(a1), z1)
+			var a0: float = TAU * float(seg) / float(segs)
+			var a1: float = TAU * float(seg + 1) / float(segs)
+			var y0_l := cy_loop - R * cos(a0)
+			var z0_l := cz_loop + R * sin(a0)
+			var y1_l := cy_loop - R * cos(a1)
+			var z1_l := cz_loop + R * sin(a1)
+			var xc0_l := loffset * (1.0 - a0 / PI)
+			var xc1_l := loffset * (1.0 - a1 / PI)
+			var p0l := basis_rot * Vector3(xc0_l - hw, y0_l, z0_l)
+			var p0r := basis_rot * Vector3(xc0_l + hw, y0_l, z0_l)
+			var p1l := basis_rot * Vector3(xc1_l - hw, y1_l, z1_l)
+			var p1r := basis_rot * Vector3(xc1_l + hw, y1_l, z1_l)
 			var n := (p1l - p0l).cross(p0r - p0l).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
+		# Exit taper
+		var z_exit: float = float(TrackPieces.HALF) + float(TrackPieces.SEGMENT_SIZE)
+		for seg in range(4):
+			var t0: float = float(seg) / 4.0
+			var t1: float = float(seg + 1) / 4.0
+			var z0_e := lerpf(cz_loop, z_exit, t0)
+			var z1_e := lerpf(cz_loop, z_exit, t1)
+			var xc0_e := lerpf(-loffset, 0.0, t0)
+			var xc1_e := lerpf(-loffset, 0.0, t1)
+			var p0l_e := basis_rot * Vector3(xc0_e - hw, ground, z0_e)
+			var p0r_e := basis_rot * Vector3(xc0_e + hw, ground, z0_e)
+			var p1l_e := basis_rot * Vector3(xc1_e - hw, ground, z1_e)
+			var p1r_e := basis_rot * Vector3(xc1_e + hw, ground, z1_e)
+			RampSpawner._add_quad(verts, normals, indices, p0l_e, p0r_e, p1r_e, p1l_e, Vector3.UP)
 
 	elif current_piece == 22 or current_piece == 23:
 		# Transition preview — sine curve
@@ -668,7 +696,7 @@ func _place_piece() -> void:
 		RampSpawner.spawn_wall_ride(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece >= 15 and current_piece <= 18:
 		RampSpawner.spawn_loop(self, cursor_grid, current_piece, current_rotation, place_height)
-	elif current_piece == 19 or current_piece == 20:
+	elif current_piece == 19:
 		RampSpawner.spawn_vloop(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece == 22 or current_piece == 23:
 		RampSpawner.spawn_transition(self, cursor_grid, current_piece, current_rotation, place_height)
@@ -687,6 +715,20 @@ func _place_piece() -> void:
 		"rotation": current_rotation,
 		"base_height": place_height,
 	})
+
+	# Full loop (piece 19) occupies 2 cells — register the second cell
+	if current_piece == 19:
+		var ports := TrackPieces.get_ports(current_piece)
+		var rp := TrackPieces.rotate_ports(ports, current_rotation)
+		var cell2: Vector2i = cursor_grid + Vector2i(rp[1].dir)
+		placed_pieces = placed_pieces.filter(func(p): return p.grid != cell2)
+		placed_pieces.append({
+			"grid": cell2,
+			"piece": 20,  # marker for second cell
+			"rotation": current_rotation,
+			"base_height": place_height,
+		})
+
 	_auto_save()
 	_snap_to_next_port()
 
@@ -783,7 +825,7 @@ func _load_track(track_name: String) -> void:
 			RampSpawner.spawn_wall_ride(self, p.grid, p.piece, p.rotation, bh)
 		elif p.piece >= 15 and p.piece <= 18:
 			RampSpawner.spawn_loop(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece == 19 or p.piece == 20:
+		elif p.piece == 19:
 			RampSpawner.spawn_vloop(self, p.grid, p.piece, p.rotation, bh)
 		elif p.piece == 22 or p.piece == 23:
 			RampSpawner.spawn_transition(self, p.grid, p.piece, p.rotation, bh)
@@ -856,7 +898,8 @@ func _snap_to_next_port() -> void:
 
 	# Second port is the "exit" (first is entry)
 	var exit_port: Dictionary = rotated_ports[1]
-	var next_grid: Vector2i = cursor_grid + Vector2i(exit_port.dir)
+	var step: int = 2 if current_piece == 19 else 1  # loop spans 2 cells
+	var next_grid: Vector2i = cursor_grid + Vector2i(exit_port.dir) * step
 
 	# Check if there's already a piece at the next position
 	var occupied := false
