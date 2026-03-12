@@ -231,6 +231,40 @@ void fragment() {
 	silhouette.material_override = mat
 	mesh.add_child(silhouette)
 
+	# Green arrow showing driving direction (same occluded shader)
+	var arrow := MeshInstance3D.new()
+	arrow.name = "OccludedArrow"
+	var arrow_mesh := PrismMesh.new()
+	arrow_mesh.size = Vector3(0.6, 0.3, 1.0)
+	arrow.mesh = arrow_mesh
+	arrow.rotation.x = -PI / 2.0  # point forward (-Z)
+	arrow.position = Vector3(0, 0.4, -0.8)
+	arrow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	var arrow_mat := ShaderMaterial.new()
+	var arrow_shader := Shader.new()
+	arrow_shader.code = """shader_type spatial;
+render_mode unshaded, depth_test_disabled, cull_disabled, shadows_disabled, fog_disabled;
+
+uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
+
+void fragment() {
+	float raw_depth = textureLod(depth_tex, SCREEN_UV, 0.0).r;
+	vec4 upos = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, raw_depth, 1.0);
+	float scene_dist = -upos.z / upos.w;
+	float frag_dist = -VERTEX.z;
+	if (frag_dist < scene_dist + 0.5) {
+		discard;
+	}
+	ALBEDO = vec3(0.2, 0.9, 0.3);
+	ALPHA = 0.6;
+}
+"""
+	arrow_shader.code = arrow_shader.code
+	arrow_mat.shader = arrow_shader
+	arrow.material_override = arrow_mat
+	mesh.add_child(arrow)
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
