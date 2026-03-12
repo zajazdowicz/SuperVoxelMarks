@@ -196,6 +196,7 @@ const PIECE_CATEGORIES := {
 	"Wall Ride": [12, 13, 14],
 	#"Loop": [15, 16, 17, 18],      # DISABLED — barrel roll broken
 	"Petla": [19],
+	"Slopes": [42, 43, 44, 45, 46, 47],
 }
 
 func _create_piece_toolbar() -> void:
@@ -361,6 +362,8 @@ func _short_name(piece_id: int) -> String:
 		34: "Rampa-Z P", 35: "Rampa-Z L",
 		36: "Piasek", 37: "Woda", 38: "Bruk",
 		39: "Skok", 40: "Turbo", 41: "Slow",
+		42: "15°", 43: "30°", 44: "45°",
+		45: "60°", 46: "75°", 47: "90°",
 	}
 	return shorts.get(piece_id, full)
 
@@ -600,7 +603,7 @@ func _update_preview() -> void:
 
 	# Special pieces (wall ride, loop, transition) — show shape preview
 	# Voxel-only pieces (platforma, gentle turns) use normal voxel preview
-	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 28, 29, 34, 35, 39]
+	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 28, 29, 34, 35, 39, 42, 43, 44, 45, 46, 47]
 	if current_piece in shape_pieces:
 		_update_shape_preview()
 		return
@@ -868,6 +871,28 @@ func _update_shape_preview() -> void:
 			var n4 := (p14l - p04l).cross(p04r - p04l).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p04l, p04r, p14r, p14l, n4)
 
+	elif current_piece >= 42 and current_piece <= 47:
+		# Slope preview — tilted road
+		var angle_deg5: float = TrackPieces.SLOPE_ANGLES.get(current_piece, 45.0)
+		var angle_rad5 := deg_to_rad(angle_deg5)
+		var seg_len5: float = float(TrackPieces.SEGMENT_SIZE)
+		var run5: float = cos(angle_rad5) * seg_len5
+		var rise5: float = sin(angle_rad5) * seg_len5
+		var segs5 := 4
+		for seg5 in range(segs5):
+			var t05: float = float(seg5) / float(segs5)
+			var t15: float = float(seg5 + 1) / float(segs5)
+			var z05 := lerpf(-hl, -hl + run5, t05)
+			var z15 := lerpf(-hl, -hl + run5, t15)
+			var y05: float = ground + rise5 * t05
+			var y15: float = ground + rise5 * t15
+			var p05l := basis_rot * Vector3(-hw, y05, z05)
+			var p05r := basis_rot * Vector3(hw, y05, z05)
+			var p15l := basis_rot * Vector3(-hw, y15, z15)
+			var p15r := basis_rot * Vector3(hw, y15, z15)
+			var n5 := (p15l - p05l).cross(p05r - p05l).normalized()
+			RampSpawner._add_quad(verts, normals, indices, p05l, p05r, p15r, p15l, n5)
+
 	if verts.is_empty():
 		container.queue_free()
 		return
@@ -955,6 +980,8 @@ func _place_piece() -> void:
 		RampSpawner.spawn_ramp_turn(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece == 39:
 		RampSpawner.spawn_jump_pad(self, cursor_grid, current_piece, current_rotation, place_height)
+	elif current_piece >= 42 and current_piece <= 47:
+		RampSpawner.spawn_slope(self, cursor_grid, current_piece, current_rotation, place_height)
 
 	# Remove existing piece at this grid position
 	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
@@ -1006,7 +1033,7 @@ func _remove_piece() -> void:
 					tool.set_voxel(offset + Vector3i(x, y, z), TrackPieces.AIR)
 
 	# Remove collision shapes if exist (ramp, wall ride, loop)
-	for prefix in ["RampCollision", "WallRide", "Loop", "VLoop"]:
+	for prefix in ["RampCollision", "WallRide", "Loop", "VLoop", "Slope", "ZeroGZone"]:
 		var node_name := "%s_%d_%d" % [prefix, cursor_grid.x, cursor_grid.y]
 		var existing := get_node_or_null(node_name)
 		if existing:

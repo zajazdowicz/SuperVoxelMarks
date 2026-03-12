@@ -1347,3 +1347,188 @@ static func _create_jump_visual(hw: float, hl: float, jump_h: float, ground: flo
 	mat2.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mi.material_override = mat2
 	return mi
+
+
+# === SLOPE: tilted road at fixed angle ===
+
+static func spawn_slope(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
+	var angle_deg: float = TrackPieces.SLOPE_ANGLES.get(piece_id, 45.0)
+	var angle_rad := deg_to_rad(angle_deg)
+
+	var body := StaticBody3D.new()
+	body.name = "Slope_%d_%d" % [grid_pos.x, grid_pos.y]
+
+	var hw: float = float(ROAD_W) + 0.5
+	var hl: float = float(HALF)
+	var ground: float = 1.0
+	var rot_angle: float = -float(rotation) * PI / 2.0
+	var basis_rot := Basis(Vector3.UP, rot_angle)
+
+	# Road tilts upward: south edge at ground, north edge rises
+	# For 90° slope: road is vertical wall
+	var seg_len: float = float(TrackPieces.SEGMENT_SIZE)
+	var run: float = cos(angle_rad) * seg_len   # horizontal distance
+	var rise: float = sin(angle_rad) * seg_len  # vertical distance
+
+	var segs := 6
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var indices := PackedInt32Array()
+
+	for seg in range(segs):
+		var t0: float = float(seg) / float(segs)
+		var t1: float = float(seg + 1) / float(segs)
+
+		# Position along the tilted surface
+		var z0: float = lerpf(-hl, -hl + run, t0)
+		var z1: float = lerpf(-hl, -hl + run, t1)
+		var y0: float = ground + rise * t0
+		var y1: float = ground + rise * t1
+
+		var p0l := basis_rot * Vector3(-hw, y0, z0)
+		var p0r := basis_rot * Vector3(hw, y0, z0)
+		var p1l := basis_rot * Vector3(-hw, y1, z1)
+		var p1r := basis_rot * Vector3(hw, y1, z1)
+
+		# Visual quad
+		var n := (p1l - p0l).cross(p0r - p0l).normalized()
+		_add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
+
+		# Collision slab (8 points: 4 top + 4 bottom)
+		var thickness := 0.5
+		var col_points := PackedVector3Array()
+		col_points.append(p0l); col_points.append(p0r)
+		col_points.append(p1l); col_points.append(p1r)
+		col_points.append(p0l + Vector3(0, -thickness, 0))
+		col_points.append(p0r + Vector3(0, -thickness, 0))
+		col_points.append(p1l + Vector3(0, -thickness, 0))
+		col_points.append(p1r + Vector3(0, -thickness, 0))
+		var shape := ConvexPolygonShape3D.new()
+		shape.points = col_points
+		var col_node := CollisionShape3D.new()
+		col_node.shape = shape
+		body.add_child(col_node)
+
+	# Side barriers
+	for side in [-1.0, 1.0]:
+		var bx: float = hw * side
+		var barrier_h := 1.5
+		for seg in range(segs):
+			var t0: float = float(seg) / float(segs)
+			var t1: float = float(seg + 1) / float(segs)
+			var z0: float = lerpf(-hl, -hl + run, t0)
+			var z1: float = lerpf(-hl, -hl + run, t1)
+			var y0: float = ground + rise * t0
+			var y1: float = ground + rise * t1
+			var bl := basis_rot * Vector3(bx, y0, z0)
+			var br := basis_rot * Vector3(bx, y0 + barrier_h, z0)
+			var tl := basis_rot * Vector3(bx, y1, z1)
+			var tr := basis_rot * Vector3(bx, y1 + barrier_h, z1)
+			var bn := (tl - bl).cross(br - bl).normalized() * side
+			_add_quad(verts, normals, indices, bl, br, tr, tl, bn)
+
+			# Barrier collision
+			var bcol := PackedVector3Array()
+			bcol.append(bl); bcol.append(br); bcol.append(tl); bcol.append(tr)
+			var bw := basis_rot * Vector3(0.3 * side, 0, 0)
+			bcol.append(bl + bw); bcol.append(br + bw)
+			bcol.append(tl + bw); bcol.append(tr + bw)
+			var bshape := ConvexPolygonShape3D.new()
+			bshape.points = bcol
+			var bcol_node := CollisionShape3D.new()
+			bcol_node.shape = bshape
+			body.add_child(bcol_node)
+
+	# Visual mesh
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.3, 0.3, 0.35)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	body.add_child(mi)
+
+	# Also add voxel-style visual on the road surface
+	body.add_child(_create_slope_visual(segs, hw, hl, ground, run, rise, basis_rot))
+
+	body.position = Vector3(grid_pos.x * GRID, base_height, grid_pos.y * GRID)
+	parent.add_child(body)
+
+	# Zero-G zone for steep slopes (>=45°)
+	if angle_deg >= 45.0:
+		var zone := Area3D.new()
+		zone.name = "ZeroGZone_%d_%d" % [grid_pos.x, grid_pos.y]
+		var zone_box := BoxShape3D.new()
+		var zone_h: float = rise + 4.0
+		var zone_center_y: float = ground + rise / 2.0
+		var zone_center_z: float = -hl + run / 2.0
+		zone_box.size = Vector3(hw * 2.0 + 2.0, zone_h, maxf(run, 4.0) + 2.0)
+		var zone_col := CollisionShape3D.new()
+		zone_col.shape = zone_box
+		zone_col.position = basis_rot * Vector3(0, zone_center_y, zone_center_z)
+		zone.add_child(zone_col)
+		zone.collision_layer = 0
+		zone.collision_mask = 1
+		zone.body_entered.connect(func(b): if b.has_method("enter_zero_g"): b.enter_zero_g())
+		zone.body_exited.connect(func(b): if b.has_method("exit_zero_g"): b.exit_zero_g())
+		zone.position = Vector3(grid_pos.x * GRID, base_height, grid_pos.y * GRID)
+		parent.add_child(zone)
+
+
+static func _create_slope_visual(segs: int, hw: float, hl: float, ground: float, run: float, rise: float, basis_rot: Basis) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var road_color := Color(0.3, 0.3, 0.35)
+	var curb_color := Color(0.85, 0.85, 0.85)
+	var wall_color := Color(0.75, 0.2, 0.15)
+
+	var grid_step := 1.0
+	var road_w_f := hw - 0.5  # inner road edge
+
+	for seg in range(segs * 3):
+		var t0: float = float(seg) / float(segs * 3)
+		var t1: float = float(seg + 1) / float(segs * 3)
+		var z0: float = lerpf(-hl, -hl + run, t0)
+		var z1: float = lerpf(-hl, -hl + run, t1)
+		var y0: float = ground + rise * t0
+		var y1: float = ground + rise * t1
+
+		# Road strips across width
+		var strips := 5
+		for si in range(strips):
+			var sx0: float = lerpf(-hw, hw, float(si) / float(strips))
+			var sx1: float = lerpf(-hw, hw, float(si + 1) / float(strips))
+
+			var col: Color
+			if absf(sx0) >= road_w_f or absf(sx1) >= road_w_f:
+				col = curb_color
+			else:
+				col = road_color
+			# Slight variation for grid feel
+			col = col.darkened(0.05 * (seg % 2))
+
+			var a := basis_rot * Vector3(sx0, y0, z0)
+			var b := basis_rot * Vector3(sx1, y0, z0)
+			var c := basis_rot * Vector3(sx1, y1, z1)
+			var d := basis_rot * Vector3(sx0, y1, z1)
+			var n := (d - a).cross(b - a).normalized()
+			st.set_color(col)
+			st.set_normal(n)
+			st.add_vertex(a); st.add_vertex(b); st.add_vertex(c)
+			st.add_vertex(a); st.add_vertex(c); st.add_vertex(d)
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	return mi

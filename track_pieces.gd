@@ -72,6 +72,12 @@ const PIECE_NAMES := [
 	"Skok",                # 39 — jump pad (mini ramp)
 	"Turbo",               # 40 — turbo boost (x2.0)
 	"Spowolnienie",        # 41 — slowdown trap
+	"Slope 15",            # 42 — tilted road 15°
+	"Slope 30",            # 43 — tilted road 30°
+	"Slope 45",            # 44 — tilted road 45°
+	"Slope 60",            # 45 — tilted road 60° (steep)
+	"Slope 75",            # 46 — tilted road 75° (near vertical)
+	"Slope 90",            # 47 — vertical wall road
 ]
 
 const HALF_RAMP_HEIGHT := 3
@@ -82,7 +88,7 @@ static func get_ports(index: int) -> Array[Dictionary]:
 		1, 24, 28, 34: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
 		2, 25, 29, 35: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
 	# All other standard pieces: S→N
-	if index >= 0 and index <= 41:
+	if index >= 0 and index <= 47:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
@@ -137,6 +143,7 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		39: return _jump_pad()
 		40: return _turbo_pad()
 		41: return _slowdown_section()
+		42, 43, 44, 45, 46, 47: return _slope_clear(index)
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -841,4 +848,21 @@ static func _slowdown_section() -> Array[Dictionary]:
 			elif absi(x) == ROAD_W + 1:
 				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
 				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+# === SLOPE: tilted road — clear AIR for collision mesh ===
+const SLOPE_ANGLES := {42: 15.0, 43: 30.0, 44: 45.0, 45: 60.0, 46: 75.0, 47: 90.0}
+
+static func _slope_clear(piece_id: int) -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	var angle_deg: float = SLOPE_ANGLES.get(piece_id, 45.0)
+	var angle_rad := deg_to_rad(angle_deg)
+	var rise: int = ceili(sin(angle_rad) * float(SEGMENT_SIZE))
+	var clear_h: int = maxi(rise + 4, 8)
+	for z in range(LO, HI + 1):
+		for x in range(-ROAD_W - 2, ROAD_W + 3):
+			blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			for h in range(1, clear_h):
+				blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 	return blocks
