@@ -712,7 +712,6 @@ static func spawn_wall_ride(parent: Node3D, grid_pos: Vector2i, piece_id: int, r
 # At t=0.5 the road is inverted at max height. Wall-ride physics handles adhesion.
 
 const LOOP_SEG_PER_QUARTER := 8  # segments per quarter (8 = smooth enough)
-const LOOP_R := 10.0  # barrel roll twist radius — loop diameter = 2*R + road_width ≈ 29
 
 static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
 	var body := StaticBody3D.new()
@@ -722,8 +721,7 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 	var angle_start: float = float(quarter) * PI / 2.0
 	var angle_end: float = float(quarter + 1) * PI / 2.0
 
-	var hw: float = float(ROAD_W) + 0.5  # 4.5 — half road width
-	var R: float = LOOP_R                  # 10.0 — twist radius (center of road circle)
+	var hw: float = float(ROAD_W) + 0.5  # 4.5 — twist radius
 	var hl: float = float(HALF)  # 6
 	var ground: float = 1.0
 	var rot_angle: float = -float(rotation) * PI / 2.0
@@ -732,9 +730,9 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 	var verts := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var indices := PackedInt32Array()
+	var tri_faces := PackedVector3Array()
 
 	var wall_h: float = 2.0  # barrier height
-	var slab_thick: float = 1.0  # collision slab thickness
 
 	for seg in range(LOOP_SEG_PER_QUARTER):
 		var t0: float = float(seg) / float(LOOP_SEG_PER_QUARTER)
@@ -746,11 +744,9 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 		var a0: float = lerpf(angle_start, angle_end, t0)
 		var a1: float = lerpf(angle_start, angle_end, t1)
 
-		# Road center height follows circle: cy = ground + R*(1-cos(a))
-		var cy0: float = ground + R * (1.0 - cos(a0))
-		var cy1: float = ground + R * (1.0 - cos(a1))
+		var cy0: float = ground + hw * (1.0 - cos(a0))
+		var cy1: float = ground + hw * (1.0 - cos(a1))
 
-		# Road edges: left/right offset by hw, rotated by angle a
 		var p0l := basis_rot * Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0)
 		var p0r := basis_rot * Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0)
 		var p1l := basis_rot * Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1)
@@ -759,17 +755,10 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 		var n := (p1l - p0l).cross(p0r - p0l).normalized()
 		_add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
-		# Collision slab: top surface + bottom support (shifted inward toward circle center)
-		var down0 := Vector3(sin(a0), -cos(a0), 0.0) * slab_thick
-		var down1 := Vector3(sin(a1), -cos(a1), 0.0) * slab_thick
-		_add_col_slab(body,
-			p0l, p0r, p1l, p1r,
-			basis_rot * (Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0) + down0),
-			basis_rot * (Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0) + down0),
-			basis_rot * (Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1) + down1),
-			basis_rot * (Vector3(hw * cos(a1), cy1 + hw * sin(a1), z1) + down1))
+		tri_faces.append(p0l); tri_faces.append(p0r); tri_faces.append(p1r)
+		tri_faces.append(p0l); tri_faces.append(p1r); tri_faces.append(p1l)
 
-		# Barriers — walls on left and right edges
+		# Barriers (same logic as vloop)
 		var up0_local := Vector3(-sin(a0), cos(a0), 0.0) * wall_h
 		var up1_local := Vector3(-sin(a1), cos(a1), 0.0) * wall_h
 
@@ -777,13 +766,21 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 		var w1lt := basis_rot * (Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1) + up1_local)
 		var wn_l := (p0l - w0lt).cross(p1l - w0lt).normalized()
 		_add_quad(verts, normals, indices, p0l, p1l, w1lt, w0lt, wn_l)
-		_add_col_slab(body, p0l, w0lt, p1l, w1lt, p0l + basis_rot * down0, w0lt + basis_rot * down0, p1l + basis_rot * down1, w1lt + basis_rot * down1)
+		tri_faces.append(p0l); tri_faces.append(p1l); tri_faces.append(w1lt)
+		tri_faces.append(p0l); tri_faces.append(w1lt); tri_faces.append(w0lt)
 
 		var w0rt := basis_rot * (Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0) + up0_local)
 		var w1rt := basis_rot * (Vector3(hw * cos(a1), cy1 + hw * sin(a1), z1) + up1_local)
 		var wn_r := (w0rt - p0r).cross(p1r - p0r).normalized()
 		_add_quad(verts, normals, indices, p0r, w0rt, w1rt, p1r, wn_r)
-		_add_col_slab(body, p0r, w0rt, p1r, w1rt, p0r + basis_rot * down0, w0rt + basis_rot * down0, p1r + basis_rot * down1, w1rt + basis_rot * down1)
+		tri_faces.append(p0r); tri_faces.append(w0rt); tri_faces.append(w1rt)
+		tri_faces.append(p0r); tri_faces.append(w1rt); tri_faces.append(p1r)
+
+	var concave := ConcavePolygonShape3D.new()
+	concave.set_faces(tri_faces)
+	var col_shape := CollisionShape3D.new()
+	col_shape.shape = concave
+	body.add_child(col_shape)
 
 	# Visual mesh
 	var arrays := []
@@ -806,19 +803,6 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 	var world_z: float = float(grid_pos.y * GRID)
 	body.position = Vector3(world_x, float(base_height), world_z)
 	parent.add_child(body)
-
-
-static func _add_col_slab(body: StaticBody3D, t0: Vector3, t1: Vector3, t2: Vector3, t3: Vector3,
-		b0: Vector3, b1: Vector3, b2: Vector3, b3: Vector3) -> void:
-	## 8-point ConvexPolygon slab: 4 top + 4 bottom points.
-	var pts := PackedVector3Array()
-	pts.append(t0); pts.append(t1); pts.append(t2); pts.append(t3)
-	pts.append(b0); pts.append(b1); pts.append(b2); pts.append(b3)
-	var col := CollisionShape3D.new()
-	var shape := ConvexPolygonShape3D.new()
-	shape.points = pts
-	col.shape = shape
-	body.add_child(col)
 
 
 # =======================================================================
