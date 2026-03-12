@@ -234,11 +234,35 @@ void fragment() {
 	# Green arrow showing driving direction (same occluded shader)
 	var arrow := MeshInstance3D.new()
 	arrow.name = "OccludedArrow"
-	var arrow_mesh := PrismMesh.new()
-	arrow_mesh.size = Vector3(0.6, 0.3, 1.0)
-	arrow.mesh = arrow_mesh
-	arrow.rotation.x = -PI / 2.0  # point forward (-Z)
-	arrow.position = Vector3(0, 0.4, -0.8)
+	# Flat arrow shape: triangle tip + rectangle shaft, lying in XZ plane
+	var arr_mesh := ArrayMesh.new()
+	var av := PackedVector3Array()
+	var an := PackedVector3Array()
+	var ai := PackedInt32Array()
+	# Arrowhead triangle (tip at -Z = forward)
+	av.append(Vector3(0.0, 0.0, -0.9))   # tip
+	av.append(Vector3(-0.5, 0.0, -0.2))   # back-left
+	av.append(Vector3(0.5, 0.0, -0.2))    # back-right
+	# Shaft rectangle
+	av.append(Vector3(-0.15, 0.0, -0.2))  # front-left
+	av.append(Vector3(0.15, 0.0, -0.2))   # front-right
+	av.append(Vector3(-0.15, 0.0, 0.4))   # back-left
+	av.append(Vector3(0.15, 0.0, 0.4))    # back-right
+	for _i in range(7):
+		an.append(Vector3.UP)
+	# Arrowhead (both sides for cull_disabled)
+	ai.append(0); ai.append(1); ai.append(2)
+	# Shaft quad
+	ai.append(3); ai.append(5); ai.append(4)
+	ai.append(4); ai.append(5); ai.append(6)
+	var arr_arrays := []
+	arr_arrays.resize(Mesh.ARRAY_MAX)
+	arr_arrays[Mesh.ARRAY_VERTEX] = av
+	arr_arrays[Mesh.ARRAY_NORMAL] = an
+	arr_arrays[Mesh.ARRAY_INDEX] = ai
+	arr_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr_arrays)
+	arrow.mesh = arr_mesh
+	arrow.position = Vector3(0, 0.5, -0.2)
 	arrow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var arrow_mat := ShaderMaterial.new()
