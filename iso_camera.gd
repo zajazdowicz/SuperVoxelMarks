@@ -47,7 +47,7 @@ func _process(delta: float) -> void:
 
 	# CHASE camera position — behind and above car
 	var car_back := _target_node.global_transform.basis.z.normalized()
-	var car_up := _target_node.up_direction if _target_node is CharacterBody3D else Vector3.UP
+	var car_up: Vector3 = _target_node.up_direction if _target_node is CharacterBody3D else Vector3.UP
 	var chase_pos := target_pos + car_back * chase_distance + car_up * chase_height
 
 	# Blend between iso and chase

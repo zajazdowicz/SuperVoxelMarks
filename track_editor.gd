@@ -20,7 +20,10 @@ var _piece_buttons: Array[Button] = []
 var _piece_button_ids: Array[int] = []
 var _eraser_mode := false
 var _eraser_button: Button
-var _pieces_row: HBoxContainer
+var _pieces_grid: GridContainer
+var _active_category := 0
+var _cat_buttons: Array[Button] = []
+var _thumbnail_cache: Dictionary = {}  # piece_id -> ImageTexture
 
 var _preview_colors := {
 	TrackPieces.ASPHALT: Color(0.25, 0.25, 0.28, 0.6),
@@ -50,7 +53,7 @@ func _ready() -> void:
 	_update_cursor()
 	_update_ui()
 	_refresh_track_list()
-	help_label.text = "Strzalki=rusz | 1-9=segment | R=obroc | ENTER=postaw | X=gumka | T=testuj | PgUp/Dn=wys"
+	help_label.text = "Strzalki=rusz | Q/E=klocek | R=obroc | ENTER=postaw | X=gumka | T=testuj | PgUp/Dn=wys"
 
 	# Load track only if coming back from test (not from menu)
 	if TrackData.current_track != "" and TrackData.current_track != "_new_":
@@ -59,6 +62,9 @@ func _ready() -> void:
 	else:
 		TrackData.current_track = ""
 		track_name_edit.text = "nowa_trasa"
+
+	# Generate thumbnails and refresh toolbar
+	_generate_all_thumbnails()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -199,9 +205,9 @@ func _create_piece_toolbar() -> void:
 	var panel := PanelContainer.new()
 	panel.name = "PieceToolbar"
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.1, 0.12, 0.9)
-	style.content_margin_left = 8.0
-	style.content_margin_right = 8.0
+	style.bg_color = Color(0.1, 0.1, 0.12, 0.92)
+	style.content_margin_left = 6.0
+	style.content_margin_right = 6.0
 	style.content_margin_top = 4.0
 	style.content_margin_bottom = 6.0
 	panel.add_theme_stylebox_override("panel", style)
@@ -211,7 +217,7 @@ func _create_piece_toolbar() -> void:
 	panel.anchor_right = 1.0
 	panel.anchor_top = 1.0
 	panel.anchor_bottom = 1.0
-	panel.offset_top = -90.0
+	panel.offset_top = -140.0
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	ui.add_child(panel)
 
@@ -219,16 +225,16 @@ func _create_piece_toolbar() -> void:
 	vbox.add_theme_constant_override("separation", 4)
 	panel.add_child(vbox)
 
-	# Category tabs
+	# Category tabs in ScrollContainer
+	var tab_scroll := ScrollContainer.new()
+	tab_scroll.custom_minimum_size = Vector2(0, 34)
+	tab_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tab_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	vbox.add_child(tab_scroll)
+
 	var tab_row := HBoxContainer.new()
 	tab_row.add_theme_constant_override("separation", 2)
-	vbox.add_child(tab_row)
-
-	_pieces_row = HBoxContainer.new()
-	_pieces_row.name = "PiecesRow"
-	_pieces_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	_pieces_row.add_theme_constant_override("separation", 4)
-	vbox.add_child(_pieces_row)
+	tab_scroll.add_child(tab_row)
 
 	var cat_keys := PIECE_CATEGORIES.keys()
 	for ci in range(cat_keys.size()):
@@ -240,14 +246,29 @@ func _create_piece_toolbar() -> void:
 		var idx: int = ci
 		cat_btn.pressed.connect(func(): _show_category(idx))
 		tab_row.add_child(cat_btn)
+		_cat_buttons.append(cat_btn)
 
 	# Eraser button in tabs row
 	_eraser_button = Button.new()
-	_eraser_button.text = "X: Gumka"
+	_eraser_button.text = "X Gumka"
 	_eraser_button.custom_minimum_size = Vector2(0, 30)
 	_eraser_button.focus_mode = Control.FOCUS_NONE
 	_eraser_button.pressed.connect(func(): _eraser_mode = true; _update_ui(); _update_preview())
 	tab_row.add_child(_eraser_button)
+
+	# Piece grid in ScrollContainer
+	var piece_scroll := ScrollContainer.new()
+	piece_scroll.custom_minimum_size = Vector2(0, 90)
+	piece_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	piece_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	vbox.add_child(piece_scroll)
+
+	_pieces_grid = GridContainer.new()
+	_pieces_grid.name = "PiecesGrid"
+	_pieces_grid.columns = 20  # enough for any category, wraps won't happen
+	_pieces_grid.add_theme_constant_override("h_separation", 4)
+	_pieces_grid.add_theme_constant_override("v_separation", 2)
+	piece_scroll.add_child(_pieces_grid)
 
 	# Show first category by default
 	_show_category(0)
@@ -257,53 +278,285 @@ func _show_category(cat_index: int) -> void:
 	var cat_keys := PIECE_CATEGORIES.keys()
 	if cat_index < 0 or cat_index >= cat_keys.size():
 		return
-
-	if not _pieces_row:
+	if not _pieces_grid:
 		return
 
+	_active_category = cat_index
+
 	# Clear old buttons
-	for child in _pieces_row.get_children():
-		_pieces_row.remove_child(child)
+	for child in _pieces_grid.get_children():
+		_pieces_grid.remove_child(child)
 		child.queue_free()
 	_piece_buttons.clear()
 	_piece_button_ids.clear()
 	_eraser_mode = false
 
+	# Highlight active category tab
+	_highlight_cat_tabs()
+
 	var cat_name: String = cat_keys[cat_index]
 	var piece_ids: Array = PIECE_CATEGORIES[cat_name]
 
 	for pid in piece_ids:
-		var btn := Button.new()
-		btn.text = TrackPieces.PIECE_NAMES[pid]
-		btn.custom_minimum_size = Vector2(0, 40)
-		btn.focus_mode = Control.FOCUS_NONE
-		var piece_idx: int = pid
-		btn.pressed.connect(func(): _select_piece(piece_idx))
-		_pieces_row.add_child(btn)
+		var btn := _create_thumbnail_button(pid)
+		_pieces_grid.add_child(btn)
 		_piece_buttons.append(btn)
 		_piece_button_ids.append(pid)
 
-	_eraser_mode = false
 	_update_ui()
 	_update_preview()
 
 
+func _create_thumbnail_button(piece_id: int) -> Button:
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(72, 82)
+	btn.focus_mode = Control.FOCUS_NONE
+	var piece_idx: int = piece_id
+	btn.pressed.connect(func(): _select_piece(piece_idx))
+
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 1)
+	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(vb)
+
+	# Thumbnail image
+	var tex_rect := TextureRect.new()
+	tex_rect.custom_minimum_size = Vector2(64, 64)
+	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if _thumbnail_cache.has(piece_id):
+		tex_rect.texture = _thumbnail_cache[piece_id]
+	vb.add_child(tex_rect)
+
+	# Short label
+	var lbl := Label.new()
+	lbl.text = _short_name(piece_id)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(lbl)
+
+	return btn
+
+
+func _short_name(piece_id: int) -> String:
+	# Shortened names for toolbar display
+	var full: String = TrackPieces.PIECE_NAMES[piece_id]
+	var shorts := {
+		0: "Prosta", 1: "Zakret P", 2: "Zakret L",
+		3: "Rampa+", 4: "Rampa-", 5: "Start",
+		6: "Szykana", 7: "Boost", 8: "Check",
+		9: "Lod", 10: "Ziemia", 11: "Sprint",
+		12: "WR wej", 13: "WR prosta", 14: "WR wyj",
+		19: "Petla",
+		21: "Platforma", 22: "Lacz+", 23: "Lacz-",
+		24: "Lagodny P", 25: "Lagodny L",
+		26: "Esowka P", 27: "Esowka L",
+		28: "Bank P", 29: "Bank L",
+		30: "Rampa+ pol", 31: "Rampa- pol",
+		32: "Most", 33: "Tunel",
+		34: "Rampa-Z P", 35: "Rampa-Z L",
+		36: "Piasek", 37: "Woda", 38: "Bruk",
+		39: "Skok", 40: "Turbo", 41: "Slow",
+	}
+	return shorts.get(piece_id, full)
+
+
+func _highlight_cat_tabs() -> void:
+	var active_tab_style := StyleBoxFlat.new()
+	active_tab_style.bg_color = Color(0.2, 0.25, 0.4, 0.9)
+	active_tab_style.border_color = Color(0.4, 0.6, 1.0)
+	active_tab_style.border_width_bottom = 2
+	active_tab_style.content_margin_left = 6.0
+	active_tab_style.content_margin_right = 6.0
+	active_tab_style.content_margin_top = 4.0
+	active_tab_style.content_margin_bottom = 4.0
+
+	for i in range(_cat_buttons.size()):
+		if i == _active_category:
+			_cat_buttons[i].add_theme_stylebox_override("normal", active_tab_style)
+			_cat_buttons[i].add_theme_stylebox_override("hover", active_tab_style)
+			_cat_buttons[i].add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+		else:
+			_cat_buttons[i].remove_theme_stylebox_override("normal")
+			_cat_buttons[i].remove_theme_stylebox_override("hover")
+			_cat_buttons[i].remove_theme_color_override("font_color")
+
+
+# --- Thumbnail generation (2D pixel rendering — no SubViewport) ---
+
+const THUMB_SIZE := 64
+const THUMB_BG := Color(0.15, 0.15, 0.18, 1.0)
+const THUMB_VOXEL_COLORS := {
+	TrackPieces.ASPHALT: Color(0.35, 0.35, 0.4),
+	TrackPieces.GRASS: Color(0.25, 0.6, 0.2),
+	TrackPieces.WALL: Color(0.8, 0.25, 0.15),
+	TrackPieces.CURB: Color(0.85, 0.85, 0.85),
+	TrackPieces.SAND: Color(0.8, 0.7, 0.4),
+	TrackPieces.RAMP_N: Color(0.45, 0.45, 0.55),
+	TrackPieces.RAMP_E: Color(0.45, 0.45, 0.55),
+	TrackPieces.RAMP_S: Color(0.45, 0.45, 0.55),
+	TrackPieces.RAMP_W: Color(0.45, 0.45, 0.55),
+	TrackPieces.RAMP_SURFACE: Color(0.4, 0.4, 0.45),
+	TrackPieces.BOOST: Color(0.1, 0.85, 0.95),
+	TrackPieces.ICE: Color(0.7, 0.85, 0.95),
+	TrackPieces.DIRT: Color(0.55, 0.35, 0.15),
+	TrackPieces.WALL_RIDE: Color(0.55, 0.35, 0.65),
+	TrackPieces.WATER: Color(0.25, 0.45, 0.85),
+	TrackPieces.COBBLESTONE: Color(0.55, 0.5, 0.45),
+	TrackPieces.TURBO: Color(1.0, 0.6, 0.0),
+	TrackPieces.SLOWDOWN: Color(0.7, 0.15, 0.15),
+}
+
+func _generate_all_thumbnails() -> void:
+	for pid in range(TrackPieces.PIECE_NAMES.size()):
+		if pid == 20:
+			continue
+		if pid >= 15 and pid <= 18:
+			continue
+		_thumbnail_cache[pid] = _render_piece_thumbnail(pid)
+	_show_category(_active_category)
+
+
+func _render_piece_thumbnail(piece_id: int) -> ImageTexture:
+	var piece := TrackPieces.get_piece(piece_id)
+	if piece.is_empty():
+		return _make_placeholder_thumbnail(piece_id)
+
+	# Collect non-AIR blocks, find top per XZ column
+	var top_blocks := {}  # Vector2i -> {pos, type}
+	for block in piece:
+		if block.type == TrackPieces.AIR:
+			continue
+		var key := Vector2i(block.pos.x, block.pos.z)
+		if not top_blocks.has(key) or block.pos.y > top_blocks[key].pos.y:
+			top_blocks[key] = block
+
+	if top_blocks.is_empty():
+		return _make_placeholder_thumbnail(piece_id)
+
+	# Find XZ bounds
+	var min_x := 999
+	var max_x := -999
+	var min_z := 999
+	var max_z := -999
+	var min_y := 999
+	var max_y := -999
+	for block in top_blocks.values():
+		min_x = mini(min_x, block.pos.x)
+		max_x = maxi(max_x, block.pos.x)
+		min_z = mini(min_z, block.pos.z)
+		max_z = maxi(max_z, block.pos.z)
+		min_y = mini(min_y, block.pos.y)
+		max_y = maxi(max_y, block.pos.y)
+
+	var range_x := max_x - min_x + 1
+	var range_z := max_z - min_z + 1
+	var range_y := max_y - min_y + 1
+
+	# Map voxel XZ to pixel coords with 2px padding
+	var pad := 2
+	var usable := THUMB_SIZE - pad * 2
+	var scale_val: float = float(usable) / float(maxi(range_x, range_z))
+	scale_val = minf(scale_val, 5.0)  # max 5px per voxel
+
+	var img := Image.create(THUMB_SIZE, THUMB_SIZE, false, Image.FORMAT_RGBA8)
+	img.fill(THUMB_BG)
+
+	# Center the drawing
+	var draw_w := int(range_x * scale_val)
+	var draw_h := int(range_z * scale_val)
+	var ox := (THUMB_SIZE - draw_w) / 2
+	var oy := (THUMB_SIZE - draw_h) / 2
+
+	for block in top_blocks.values():
+		var color: Color = THUMB_VOXEL_COLORS.get(block.type, Color(0.5, 0.5, 0.5))
+		# Height-based brightness: higher = lighter
+		if range_y > 0:
+			var hf: float = float(block.pos.y - min_y) / float(maxi(range_y, 1))
+			color = color.lightened(hf * 0.3)
+
+		var px := ox + int((block.pos.x - min_x) * scale_val)
+		var py := oy + int((block.pos.z - min_z) * scale_val)
+		var pw := maxi(1, int(scale_val))
+		var ph := maxi(1, int(scale_val))
+
+		for dy in range(ph):
+			for dx in range(pw):
+				var fx := px + dx
+				var fy := py + dy
+				if fx >= 0 and fx < THUMB_SIZE and fy >= 0 and fy < THUMB_SIZE:
+					img.set_pixel(fx, fy, color)
+
+	# Draw direction arrow (north = up = -z) in center
+	_draw_thumb_arrow(img, THUMB_SIZE / 2, oy + 2, Color(0.0, 1.0, 0.3, 0.8))
+
+	return ImageTexture.create_from_image(img)
+
+
+func _draw_thumb_arrow(img: Image, cx: int, tip_y: int, color: Color) -> void:
+	# Small arrow pointing up (direction indicator)
+	var arrow_len := 8
+	for i in range(arrow_len):
+		var y := tip_y + i
+		if y >= 0 and y < THUMB_SIZE and cx >= 0 and cx < THUMB_SIZE:
+			img.set_pixel(cx, y, color)
+	# Arrowhead
+	for d in range(1, 4):
+		var y := tip_y + d
+		if y >= 0 and y < THUMB_SIZE:
+			if cx - d >= 0:
+				img.set_pixel(cx - d, y, color)
+			if cx + d < THUMB_SIZE:
+				img.set_pixel(cx + d, y, color)
+
+
+func _make_placeholder_thumbnail(piece_id: int) -> ImageTexture:
+	var img := Image.create(THUMB_SIZE, THUMB_SIZE, false, Image.FORMAT_RGBA8)
+	img.fill(THUMB_BG)
+	var color := Color(0.3, 0.25, 0.5)
+	if piece_id == 19:
+		color = Color(0.2, 0.5, 0.7)
+	elif piece_id >= 12 and piece_id <= 14:
+		color = Color(0.55, 0.35, 0.65)
+	elif piece_id == 28 or piece_id == 29:
+		color = Color(0.4, 0.5, 0.3)
+	elif piece_id == 34 or piece_id == 35:
+		color = Color(0.5, 0.4, 0.3)
+	elif piece_id == 22 or piece_id == 23:
+		color = Color(0.4, 0.4, 0.45)
+	elif piece_id == 39:
+		color = Color(0.6, 0.4, 0.2)
+
+	# Filled rounded rect
+	var m := 6
+	for y in range(m, THUMB_SIZE - m):
+		for x in range(m, THUMB_SIZE - m):
+			img.set_pixel(x, y, color)
+
+	# Direction arrow
+	_draw_thumb_arrow(img, THUMB_SIZE / 2, 10, color.lightened(0.5))
+
+	return ImageTexture.create_from_image(img)
+
+
 func _highlight_piece_button() -> void:
 	var active_style := StyleBoxFlat.new()
-	active_style.bg_color = Color(0.3, 0.3, 0.1, 0.8)
+	active_style.bg_color = Color(0.25, 0.25, 0.1, 0.9)
 	active_style.border_color = Color(1.0, 0.8, 0.0)
-	active_style.border_width_bottom = 3
-	active_style.content_margin_left = 8.0
-	active_style.content_margin_right = 8.0
-	active_style.content_margin_top = 4.0
-	active_style.content_margin_bottom = 4.0
+	active_style.set_border_width_all(2)
+	active_style.content_margin_left = 4.0
+	active_style.content_margin_right = 4.0
+	active_style.content_margin_top = 2.0
+	active_style.content_margin_bottom = 2.0
 
 	var eraser_style := StyleBoxFlat.new()
 	eraser_style.bg_color = Color(0.4, 0.1, 0.1, 0.8)
 	eraser_style.border_color = Color(1.0, 0.2, 0.2)
-	eraser_style.border_width_bottom = 3
-	eraser_style.content_margin_left = 8.0
-	eraser_style.content_margin_right = 8.0
+	eraser_style.set_border_width_all(2)
+	eraser_style.content_margin_left = 6.0
+	eraser_style.content_margin_right = 6.0
 	eraser_style.content_margin_top = 4.0
 	eraser_style.content_margin_bottom = 4.0
 
@@ -311,25 +564,19 @@ func _highlight_piece_button() -> void:
 		var btn := _piece_buttons[i]
 		var btn_piece_id: int = _piece_button_ids[i] if i < _piece_button_ids.size() else -1
 		if not _eraser_mode and btn_piece_id == current_piece:
-			btn.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
-			btn.add_theme_color_override("font_hover_color", Color(1.0, 0.9, 0.2))
 			btn.add_theme_stylebox_override("normal", active_style)
 			btn.add_theme_stylebox_override("hover", active_style)
 		else:
-			btn.remove_theme_color_override("font_color")
-			btn.remove_theme_color_override("font_hover_color")
 			btn.remove_theme_stylebox_override("normal")
 			btn.remove_theme_stylebox_override("hover")
 
 	# Eraser button highlight
 	if _eraser_mode:
 		_eraser_button.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-		_eraser_button.add_theme_color_override("font_hover_color", Color(1.0, 0.3, 0.3))
 		_eraser_button.add_theme_stylebox_override("normal", eraser_style)
 		_eraser_button.add_theme_stylebox_override("hover", eraser_style)
 	else:
 		_eraser_button.remove_theme_color_override("font_color")
-		_eraser_button.remove_theme_color_override("font_hover_color")
 		_eraser_button.remove_theme_stylebox_override("normal")
 		_eraser_button.remove_theme_stylebox_override("hover")
 
