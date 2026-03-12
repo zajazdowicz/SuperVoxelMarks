@@ -37,12 +37,21 @@ func _build_track() -> void:
 	_checkpoint_count = 0
 	var has_finish := false
 
-	for p in pieces:
+	# Sort by base_height — higher pieces built last so their voxels win
+	var sorted := pieces.duplicate()
+	sorted.sort_custom(func(a, b): return a.get("base_height", 0) < b.get("base_height", 0))
+
+	for p in sorted:
 		var piece := TrackPieces.get_piece(p.piece)
 		var rotated := TrackPieces.rotate_piece(piece, p.rotation)
 		var bh: int = p.get("base_height", 0)
 		var offset := Vector3i(p.grid.x * GRID, bh, p.grid.y * GRID)
 		for block in rotated:
+			# Skip AIR writes that would destroy higher pieces' voxels
+			if block.type == TrackPieces.AIR:
+				var existing: int = tool.get_voxel(offset + block.pos)
+				if existing != TrackPieces.AIR and existing != TrackPieces.GRASS:
+					continue
 			tool.set_voxel(offset + block.pos, block.type)
 
 		var world_pos := Vector3(p.grid.x * GRID, float(bh), p.grid.y * GRID)

@@ -1160,12 +1160,19 @@ func _load_track(track_name: String) -> void:
 	await get_tree().create_timer(0.5).timeout
 	var tool := terrain.get_voxel_tool()
 	tool.channel = VoxelBuffer.CHANNEL_TYPE
-	for p in placed_pieces:
+	# Sort by base_height — higher pieces built last so their voxels win
+	var sorted := placed_pieces.duplicate()
+	sorted.sort_custom(func(a, b): return a.get("base_height", 0) < b.get("base_height", 0))
+	for p in sorted:
 		var piece := TrackPieces.get_piece(p.piece)
 		var rotated := TrackPieces.rotate_piece(piece, p.rotation)
 		var bh: int = p.get("base_height", 0)
 		var offset := Vector3i(p.grid.x * GRID, bh, p.grid.y * GRID)
 		for block in rotated:
+			if block.type == TrackPieces.AIR:
+				var existing: int = tool.get_voxel(offset + block.pos)
+				if existing != TrackPieces.AIR and existing != TrackPieces.GRASS:
+					continue
 			tool.set_voxel(offset + block.pos, block.type)
 		# Spawn collision for special pieces
 		if p.piece in [3, 4, 30, 31]:
