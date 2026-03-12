@@ -477,14 +477,16 @@ static func _loop_quarter(piece_id: int) -> Array[Dictionary]:
 
 
 # === VERTICAL LOOP: dual-lane circle, spans 2 grid cells ===
-# Road widens for 2 lanes (offset ±3). Circle R=8, center y=9 z=6.
+# Road widens for 2 lanes (offset ±5). Circle R=10, top at y=21.
+# Wider clearing needed: x from -10 to +10 to fit both lanes.
 # ConvexPolygon handles all collision — voxels cleared to AIR.
 static func _vloop_full() -> Array[Dictionary]:
 	var blocks: Array[Dictionary] = []
-	var loop_top := 18  # clearance height (2*R + margin)
+	var loop_top := 24  # clearance height: 2*R + hw + margin = 2*10 + 4.5 + ~0
+	var x_clear := ROAD_W + 6  # 10 — wide enough for both offset lanes
 	# Spans 2 grid cells: z from LO to HI + SEGMENT_SIZE
 	for z in range(LO, HI + SEGMENT_SIZE + 1):
-		for x in range(LO, HI + 1):
+		for x in range(-x_clear, x_clear + 1):
 			# Keep ASPHALT at y=0 as base, clear AIR above for full loop
 			blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
 			for h in range(1, loop_top):

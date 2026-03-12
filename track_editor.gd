@@ -470,18 +470,18 @@ func _update_shape_preview() -> void:
 		var cy_loop: float = ground + R
 		var cz_loop: float = float(TrackPieces.HALF)
 		var loffset: float = RampSpawner.VLOOP_OFFSET
-		# Entry taper
+		# Entry taper — road widens
 		for seg in range(4):
 			var t0: float = float(seg) / 4.0
 			var t1: float = float(seg + 1) / 4.0
 			var z0_t := lerpf(-hl, cz_loop, t0)
 			var z1_t := lerpf(-hl, cz_loop, t1)
-			var xc0_t := lerpf(0.0, loffset, t0)
-			var xc1_t := lerpf(0.0, loffset, t1)
-			var p0l_t := basis_rot * Vector3(xc0_t - hw, ground, z0_t)
-			var p0r_t := basis_rot * Vector3(xc0_t + hw, ground, z0_t)
-			var p1l_t := basis_rot * Vector3(xc1_t - hw, ground, z1_t)
-			var p1r_t := basis_rot * Vector3(xc1_t + hw, ground, z1_t)
+			var hw0_t := lerpf(hw, loffset + hw, t0)
+			var hw1_t := lerpf(hw, loffset + hw, t1)
+			var p0l_t := basis_rot * Vector3(-hw0_t, ground, z0_t)
+			var p0r_t := basis_rot * Vector3(hw0_t, ground, z0_t)
+			var p1l_t := basis_rot * Vector3(-hw1_t, ground, z1_t)
+			var p1r_t := basis_rot * Vector3(hw1_t, ground, z1_t)
 			RampSpawner._add_quad(verts, normals, indices, p0l_t, p0r_t, p1r_t, p1l_t, Vector3.UP)
 		# Circle
 		var segs := 16
@@ -500,19 +500,19 @@ func _update_shape_preview() -> void:
 			var p1r := basis_rot * Vector3(xc1_l + hw, y1_l, z1_l)
 			var n := (p1l - p0l).cross(p0r - p0l).normalized()
 			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
-		# Exit taper
+		# Exit taper — road narrows
 		var z_exit: float = float(TrackPieces.HALF) + float(TrackPieces.SEGMENT_SIZE)
 		for seg in range(4):
 			var t0: float = float(seg) / 4.0
 			var t1: float = float(seg + 1) / 4.0
 			var z0_e := lerpf(cz_loop, z_exit, t0)
 			var z1_e := lerpf(cz_loop, z_exit, t1)
-			var xc0_e := lerpf(-loffset, 0.0, t0)
-			var xc1_e := lerpf(-loffset, 0.0, t1)
-			var p0l_e := basis_rot * Vector3(xc0_e - hw, ground, z0_e)
-			var p0r_e := basis_rot * Vector3(xc0_e + hw, ground, z0_e)
-			var p1l_e := basis_rot * Vector3(xc1_e - hw, ground, z1_e)
-			var p1r_e := basis_rot * Vector3(xc1_e + hw, ground, z1_e)
+			var hw0_e := lerpf(loffset + hw, hw, t0)
+			var hw1_e := lerpf(loffset + hw, hw, t1)
+			var p0l_e := basis_rot * Vector3(-hw0_e, ground, z0_e)
+			var p0r_e := basis_rot * Vector3(hw0_e, ground, z0_e)
+			var p1l_e := basis_rot * Vector3(-hw1_e, ground, z1_e)
+			var p1r_e := basis_rot * Vector3(hw1_e, ground, z1_e)
 			RampSpawner._add_quad(verts, normals, indices, p0l_e, p0r_e, p1r_e, p1l_e, Vector3.UP)
 
 	elif current_piece == 22 or current_piece == 23:

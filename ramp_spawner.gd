@@ -815,9 +815,9 @@ static func spawn_loop(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotati
 # shifts linearly from +OFFSET (entry) through 0 (top) to -OFFSET (exit).
 # Entry/exit tapers connect the normal single-lane road to the loop.
 
-const VLOOP_R := 8.0       # loop radius — top at y = 1 + 2*8 = 17
+const VLOOP_R := 10.0      # loop radius — top at y = 1 + 2*10 = 21
 const VLOOP_SEGS := 24     # collision segments for full 360°
-const VLOOP_OFFSET := 3.0  # lane offset: entry at +3, exit at -3
+const VLOOP_OFFSET := 5.0  # lane offset: entry at +5, exit at -5 (full lane separation)
 
 
 static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, _piece_id: int, rotation: int, base_height: int = 0) -> void:
@@ -835,15 +835,25 @@ static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, _piece_id: int, rota
 	var wall_h: float = 2.0
 	var taper_segs := 4
 
-	# --- Entry taper: flat road z=-6→6, road center shifts x: 0→+offset ---
+	# --- Entry taper: road WIDENS from normal (hw) to double-wide ---
+	# At z=-HALF: normal width, center at 0
+	# At z=cz: entry lane at +offset, road edge from +offset-hw to +offset+hw
+	# The full double road goes from -offset-hw to +offset+hw
 	for seg in range(taper_segs):
 		var t0: float = float(seg) / float(taper_segs)
 		var t1: float = float(seg + 1) / float(taper_segs)
 		var z0: float = lerpf(-float(HALF), cz, t0)
 		var z1: float = lerpf(-float(HALF), cz, t1)
-		var xc0: float = lerpf(0.0, offset, t0)
-		var xc1: float = lerpf(0.0, offset, t1)
-		_add_flat_road_seg(body, xc0, xc1, ground, z0, z1, hw, basis_rot)
+		# Road widens: left edge goes from -hw to -(offset+hw), right from +hw to +(offset+hw)
+		var xl0: float = lerpf(-hw, -(offset + hw), t0)
+		var xr0: float = lerpf(hw, offset + hw, t0)
+		var xl1: float = lerpf(-hw, -(offset + hw), t1)
+		var xr1: float = lerpf(hw, offset + hw, t1)
+		var p0l := basis_rot * Vector3(xl0, ground, z0)
+		var p0r := basis_rot * Vector3(xr0, ground, z0)
+		var p1l := basis_rot * Vector3(xl1, ground, z1)
+		var p1r := basis_rot * Vector3(xr1, ground, z1)
+		_add_col_box(body, p0l, p0r, p1l, p1r, ground - 0.5, basis_rot)
 
 	# --- Loop circle: full 360°, x_center shifts +offset→-offset ---
 	for seg in range(VLOOP_SEGS):
@@ -906,16 +916,24 @@ static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, _piece_id: int, rota
 		wr_col.shape = wr_shape
 		body.add_child(wr_col)
 
-	# --- Exit taper: flat road z=6→18, road center shifts x: -offset→0 ---
+	# --- Exit taper: road NARROWS from double-wide back to normal ---
+	# At z=cz: exit lane at -offset, full double-wide road
+	# At z=z_exit_end: normal width, center at 0
 	var z_exit_end: float = float(HALF) + float(GRID)  # 18
 	for seg in range(taper_segs):
 		var t0: float = float(seg) / float(taper_segs)
 		var t1: float = float(seg + 1) / float(taper_segs)
 		var z0: float = lerpf(cz, z_exit_end, t0)
 		var z1: float = lerpf(cz, z_exit_end, t1)
-		var xc0: float = lerpf(-offset, 0.0, t0)
-		var xc1: float = lerpf(-offset, 0.0, t1)
-		_add_flat_road_seg(body, xc0, xc1, ground, z0, z1, hw, basis_rot)
+		var xl0: float = lerpf(-(offset + hw), -hw, t0)
+		var xr0: float = lerpf(offset + hw, hw, t0)
+		var xl1: float = lerpf(-(offset + hw), -hw, t1)
+		var xr1: float = lerpf(offset + hw, hw, t1)
+		var p0l := basis_rot * Vector3(xl0, ground, z0)
+		var p0r := basis_rot * Vector3(xr0, ground, z0)
+		var p1l := basis_rot * Vector3(xl1, ground, z1)
+		var p1r := basis_rot * Vector3(xr1, ground, z1)
+		_add_col_box(body, p0l, p0r, p1l, p1r, ground - 0.5, basis_rot)
 
 	# Visual mesh
 	var visual := _create_vloop_visual(hw, R, cy, cz, offset, wall_h, basis_rot)
@@ -959,15 +977,15 @@ static func _create_vloop_visual(hw: float, R: float, cy: float,
 	var taper_segs := 4
 	var ground: float = 1.0
 
-	# Entry taper visual
+	# Entry taper visual — road widens from normal to double-wide
 	for seg in range(taper_segs):
 		var t0: float = float(seg) / float(taper_segs)
 		var t1: float = float(seg + 1) / float(taper_segs)
 		var z0: float = lerpf(-float(HALF), cz, t0)
 		var z1: float = lerpf(-float(HALF), cz, t1)
-		var xc0: float = lerpf(0.0, offset, t0)
-		var xc1: float = lerpf(0.0, offset, t1)
-		_add_vloop_taper_visual(st, xc0, xc1, ground, z0, z1, basis_rot, asphalt_color, curb_color)
+		var hw0: float = lerpf(hw, offset + hw, t0)
+		var hw1: float = lerpf(hw, offset + hw, t1)
+		_add_vloop_wide_taper_visual(st, 0.0, 0.0, hw0, hw1, ground, z0, z1, basis_rot, asphalt_color, curb_color)
 
 	# Loop circle visual
 	for seg in range(VLOOP_SEGS):
@@ -1019,16 +1037,16 @@ static func _create_vloop_visual(hw: float, R: float, cy: float,
 		st.add_vertex(p0r); st.add_vertex(p0r + inward0); st.add_vertex(p1r + inward1)
 		st.add_vertex(p0r); st.add_vertex(p1r + inward1); st.add_vertex(p1r)
 
-	# Exit taper visual
+	# Exit taper visual — road narrows from double-wide back to normal
 	var z_exit_end: float = float(HALF) + float(GRID)
 	for seg in range(taper_segs):
 		var t0: float = float(seg) / float(taper_segs)
 		var t1: float = float(seg + 1) / float(taper_segs)
 		var z0: float = lerpf(cz, z_exit_end, t0)
 		var z1: float = lerpf(cz, z_exit_end, t1)
-		var xc0: float = lerpf(-offset, 0.0, t0)
-		var xc1: float = lerpf(-offset, 0.0, t1)
-		_add_vloop_taper_visual(st, xc0, xc1, ground, z0, z1, basis_rot, asphalt_color, curb_color)
+		var hw0: float = lerpf(offset + hw, hw, t0)
+		var hw1: float = lerpf(offset + hw, hw, t1)
+		_add_vloop_wide_taper_visual(st, 0.0, 0.0, hw0, hw1, ground, z0, z1, basis_rot, asphalt_color, curb_color)
 
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
@@ -1058,6 +1076,30 @@ static func _add_vloop_taper_visual(st: SurfaceTool, xc0: float, xc1: float,
 		var normal := Vector3.UP
 		st.set_color(col)
 		st.set_normal(normal)
+		st.add_vertex(va); st.add_vertex(vb); st.add_vertex(vc)
+		st.add_vertex(va); st.add_vertex(vc); st.add_vertex(vd)
+
+
+static func _add_vloop_wide_taper_visual(st: SurfaceTool, xc0: float, xc1: float,
+		hw0: float, hw1: float, y: float, z0: float, z1: float, basis_rot: Basis,
+		asphalt_color: Color, curb_color: Color) -> void:
+	# Draw tiles across the full width from -hw to +hw (variable width)
+	var tiles := 10
+	for i in range(tiles):
+		var t0f: float = float(i) / float(tiles)
+		var t1f: float = float(i + 1) / float(tiles)
+		var x0l: float = xc0 + lerpf(-hw0, hw0, t0f)
+		var x0r: float = xc0 + lerpf(-hw0, hw0, t1f)
+		var x1l: float = xc1 + lerpf(-hw1, hw1, t0f)
+		var x1r: float = xc1 + lerpf(-hw1, hw1, t1f)
+		var is_edge := i == 0 or i == tiles - 1
+		var col: Color = curb_color if is_edge else asphalt_color
+		var va := basis_rot * Vector3(x0l, y, z0)
+		var vb := basis_rot * Vector3(x0r, y, z0)
+		var vc := basis_rot * Vector3(x1r, y, z1)
+		var vd := basis_rot * Vector3(x1l, y, z1)
+		st.set_color(col)
+		st.set_normal(Vector3.UP)
 		st.add_vertex(va); st.add_vertex(vb); st.add_vertex(vc)
 		st.add_vertex(va); st.add_vertex(vc); st.add_vertex(vd)
 
