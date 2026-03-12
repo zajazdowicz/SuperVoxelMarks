@@ -188,8 +188,7 @@ const PIECE_CATEGORIES := {
 	"Rampy": [3, 4, 30, 31, 34, 35, 21, 32, 33, 22, 23],
 	"Banked": [28, 29],
 	"Wall Ride": [12, 13, 14],
-	#"Loop": [15, 16, 17, 18],      # DISABLED — barrel roll broken
-	"Petla": [19],
+	"Loop": [15, 16, 17, 18],
 }
 
 func _create_piece_toolbar() -> void:
@@ -443,10 +442,11 @@ func _update_shape_preview() -> void:
 			RampSpawner._add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
 
 	elif current_piece >= 15 and current_piece <= 18:
-		# Loop quarter preview — barrel roll geometry matching ramp_spawner
+		# Loop quarter preview — barrel roll with R=LOOP_R
 		var quarter := current_piece - 15
 		var angle_start: float = float(quarter) * PI / 2.0
 		var angle_end: float = float(quarter + 1) * PI / 2.0
+		var R: float = RampSpawner.LOOP_R
 		var segs := 8
 		for seg in range(segs):
 			var t0: float = float(seg) / float(segs)
@@ -455,8 +455,8 @@ func _update_shape_preview() -> void:
 			var z1 := lerpf(-hl, hl, t1)
 			var a0 := lerpf(angle_start, angle_end, t0)
 			var a1 := lerpf(angle_start, angle_end, t1)
-			var cy0 := ground + hw * (1.0 - cos(a0))
-			var cy1 := ground + hw * (1.0 - cos(a1))
+			var cy0 := ground + R * (1.0 - cos(a0))
+			var cy1 := ground + R * (1.0 - cos(a1))
 			var p0l := basis_rot * Vector3(-hw * cos(a0), cy0 - hw * sin(a0), z0)
 			var p0r := basis_rot * Vector3(hw * cos(a0), cy0 + hw * sin(a0), z0)
 			var p1l := basis_rot * Vector3(-hw * cos(a1), cy1 - hw * sin(a1), z1)

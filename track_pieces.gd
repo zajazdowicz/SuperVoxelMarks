@@ -45,10 +45,10 @@ const PIECE_NAMES := [
 	"Wall Ride wejscie",  # 12
 	"Wall Ride prosta",   # 13
 	"Wall Ride wyjscie",  # 14
-	"Loop wjazd",    # 15 — 0° → 90°
-	"Loop gora",     # 16 — 90° → 180°
-	"Loop zjazd",    # 17 — 180° → 270°
-	"Loop wyjazd",   # 18 — 270° → 360°
+	"Loop QP gora",  # 15 — 0° → 90° (flat → vertical)
+	"Loop przew.",   # 16 — 90° → 180° (vertical → inverted)
+	"Loop powrot",   # 17 — 180° → 270° (inverted → vertical)
+	"Loop QP dol",   # 18 — 270° → 360° (vertical → flat)
 	"Petla",         # 19 — full 360° vertical loop (spans 2 cells)
 	"(petla cell2)", # 20 — reserved (second cell occupied by piece 19)
 	"Platforma",     # 21 — flat road at height with pillars underneath
@@ -461,13 +461,21 @@ static func _wall_ride_exit() -> Array[Dictionary]:
 
 
 # === LOOP QUARTER: barrel roll split into 4 pieces (90° each) ===
-# hw = ROAD_W + 0.5 = 4.5. Max height at 180° = ground + 2*hw = 10.
-# Quarters 1,2 (90°-270°) need more clearance than 0,3.
+# R=10, hw=4.5. Max height at 180° = ground + 2*R + hw ≈ 25.5.
+# Quarters 0,3 (entry/exit): max ~R+hw=15. Quarters 1,2 (top): max ~2R+hw=25.
+const LOOP_R := 10  # must match RampSpawner.LOOP_R
 static func _loop_quarter(piece_id: int) -> Array[Dictionary]:
 	var blocks: Array[Dictionary] = []
 	var quarter := piece_id - 15  # 0..3
-	# Quarters 0,3 (entry/exit): max ~10. Quarters 1,2 (top): max ~12.
-	var total_h := 12 if (quarter == 1 or quarter == 2) else 11
+	# Q0 (0→90°): max height = ground + R + hw ≈ 15
+	# Q1 (90→180°): max height = ground + 2R + hw ≈ 26
+	# Q2 (180→270°): same as Q1
+	# Q3 (270→360°): same as Q0
+	var total_h: int
+	if quarter == 1 or quarter == 2:
+		total_h = LOOP_R * 2 + ROAD_W + 3  # ~27
+	else:
+		total_h = LOOP_R + ROAD_W + 5  # ~19
 	for z in range(LO, HI + 1):
 		for x in range(LO, HI + 1):
 			if absi(x) <= ROAD_W + 1:
