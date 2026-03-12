@@ -84,6 +84,9 @@ const PIECE_NAMES := [
 	"QP 90-120",           # 51 — quarter-pipe 90° to 120° (past vertical)
 	"QP 120-150",          # 52 — quarter-pipe 120° to 150°
 	"QP 150-180",          # 53 — quarter-pipe 150° to 180° (inverted)
+	"Przeszkody 1",        # 54 — bumps 1 voxel wide
+	"Przeszkody 2",        # 55 — bumps 2 voxels wide
+	"Przeszkody 3",        # 56 — bumps 3 voxels wide
 ]
 
 const HALF_RAMP_HEIGHT := 3
@@ -94,7 +97,7 @@ static func get_ports(index: int) -> Array[Dictionary]:
 		1, 24, 28, 34: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
 		2, 25, 29, 35: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
 	# All other standard pieces: S→N
-	if index >= 0 and index <= 53:
+	if index >= 0 and index <= 56:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
@@ -151,6 +154,9 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		41: return _slowdown_section()
 		42, 43, 44, 45, 46, 47: return _slope_clear(index)
 		48, 49, 50, 51, 52, 53: return _qp_clear(index)
+		54: return _bumpy_road(1)
+		55: return _bumpy_road(2)
+		56: return _bumpy_road(3)
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -894,4 +900,33 @@ static func _qp_clear(piece_id: int) -> Array[Dictionary]:
 			if absi(x) <= ROAD_W:
 				for h in range(0, clear_h):
 					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+	return blocks
+
+
+# === BUMPY ROAD: straight with 3 bumps alternating left/right ===
+static func _bumpy_road(bump_w: int) -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	# Base road (same as straight)
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				if absi(x) == ROAD_W and z % 3 == 0:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	# 3 bumps: alternating left/right/center, width = bump_w voxels
+	var bump_positions := [-3, 1, 5]
+	var bump_sides := [-1, 1, 0]  # -1=left, +1=right, 0=center
+	var half_w: int = bump_w / 2  # integer division: 0, 1, 1
+	for bi in range(bump_positions.size()):
+		var bz: int = bump_positions[bi]
+		var side: int = bump_sides[bi]
+		var cx: int = side * 2
+		for x in range(cx - half_w, cx + half_w + 1):
+			if absi(x) < ROAD_W:
+				blocks.append({"pos": Vector3i(x, 1, bz), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, bz + 1), "type": WALL})
 	return blocks
