@@ -204,6 +204,8 @@ const PIECE_CATEGORIES := {
 	"Petla": [19],
 	"Slopes": [42, 43, 44, 45, 46, 47],
 	"QP": [48, 49, 50, 51, 52, 53],
+	"Przeszkody": [54, 55, 56],
+	"Slope Turn": [57, 58, 59, 60],
 }
 
 func _create_piece_toolbar() -> void:
