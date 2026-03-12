@@ -217,23 +217,23 @@ func _create_piece_toolbar() -> void:
 	panel.anchor_right = 1.0
 	panel.anchor_top = 1.0
 	panel.anchor_bottom = 1.0
-	panel.offset_top = -140.0
+	panel.offset_top = -280.0
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	ui.add_child(panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
+	vbox.add_theme_constant_override("separation", 6)
 	panel.add_child(vbox)
 
 	# Category tabs in ScrollContainer
 	var tab_scroll := ScrollContainer.new()
-	tab_scroll.custom_minimum_size = Vector2(0, 34)
+	tab_scroll.custom_minimum_size = Vector2(0, 56)
 	tab_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	tab_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	vbox.add_child(tab_scroll)
 
 	var tab_row := HBoxContainer.new()
-	tab_row.add_theme_constant_override("separation", 2)
+	tab_row.add_theme_constant_override("separation", 4)
 	tab_scroll.add_child(tab_row)
 
 	var cat_keys := PIECE_CATEGORIES.keys()
@@ -241,7 +241,8 @@ func _create_piece_toolbar() -> void:
 		var cat_name: String = cat_keys[ci]
 		var cat_btn := Button.new()
 		cat_btn.text = cat_name
-		cat_btn.custom_minimum_size = Vector2(0, 30)
+		cat_btn.custom_minimum_size = Vector2(0, 50)
+		cat_btn.add_theme_font_size_override("font_size", 24)
 		cat_btn.focus_mode = Control.FOCUS_NONE
 		var idx: int = ci
 		cat_btn.pressed.connect(func(): _show_category(idx))
@@ -251,14 +252,15 @@ func _create_piece_toolbar() -> void:
 	# Eraser button in tabs row
 	_eraser_button = Button.new()
 	_eraser_button.text = "X Gumka"
-	_eraser_button.custom_minimum_size = Vector2(0, 30)
+	_eraser_button.custom_minimum_size = Vector2(0, 50)
+	_eraser_button.add_theme_font_size_override("font_size", 24)
 	_eraser_button.focus_mode = Control.FOCUS_NONE
 	_eraser_button.pressed.connect(func(): _eraser_mode = true; _update_ui(); _update_preview())
 	tab_row.add_child(_eraser_button)
 
 	# Piece grid in ScrollContainer
 	var piece_scroll := ScrollContainer.new()
-	piece_scroll.custom_minimum_size = Vector2(0, 90)
+	piece_scroll.custom_minimum_size = Vector2(0, 180)
 	piece_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	piece_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	vbox.add_child(piece_scroll)
@@ -309,7 +311,7 @@ func _show_category(cat_index: int) -> void:
 
 func _create_thumbnail_button(piece_id: int) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(72, 82)
+	btn.custom_minimum_size = Vector2(120, 150)
 	btn.focus_mode = Control.FOCUS_NONE
 	var piece_idx: int = piece_id
 	btn.pressed.connect(func(): _select_piece(piece_idx))
@@ -322,7 +324,7 @@ func _create_thumbnail_button(piece_id: int) -> Button:
 
 	# Thumbnail image
 	var tex_rect := TextureRect.new()
-	tex_rect.custom_minimum_size = Vector2(64, 64)
+	tex_rect.custom_minimum_size = Vector2(100, 100)
 	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if _thumbnail_cache.has(piece_id):
@@ -333,7 +335,7 @@ func _create_thumbnail_button(piece_id: int) -> Button:
 	var lbl := Label.new()
 	lbl.text = _short_name(piece_id)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(lbl)
 

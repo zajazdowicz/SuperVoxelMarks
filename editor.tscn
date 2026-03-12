@@ -30,15 +30,15 @@ transparency = 1
 albedo_color = Color(0.2, 0.8, 1.0, 0.3)
 
 [sub_resource type="LabelSettings" id="LabelSettings_1"]
-font_size = 22
+font_size = 40
 font_color = Color(1, 1, 1, 1)
-outline_size = 3
+outline_size = 4
 outline_color = Color(0, 0, 0, 1)
 
 [sub_resource type="LabelSettings" id="LabelSettings_2"]
-font_size = 16
+font_size = 28
 font_color = Color(0.8, 0.8, 0.8, 1)
-outline_size = 2
+outline_size = 3
 outline_color = Color(0, 0, 0, 1)
 
 [node name="Editor" type="Node3D"]

@@ -36,7 +36,7 @@ func _create_ui() -> void:
 	timer_label.offset_top = 10.0
 	timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var timer_s := LabelSettings.new()
-	timer_s.font_size = 36
+	timer_s.font_size = 56
 	timer_s.font_color = Color.WHITE
 	timer_s.outline_size = 4
 	timer_s.outline_color = Color.BLACK
@@ -52,7 +52,7 @@ func _create_ui() -> void:
 	best_label.offset_top = 52.0
 	best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var best_s := LabelSettings.new()
-	best_s.font_size = 20
+	best_s.font_size = 32
 	best_s.font_color = Color(0.4, 0.8, 1.0)
 	best_s.outline_size = 3
 	best_s.outline_color = Color.BLACK
@@ -68,7 +68,7 @@ func _create_ui() -> void:
 	delta_label.offset_top = 76.0
 	delta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var delta_s := LabelSettings.new()
-	delta_s.font_size = 22
+	delta_s.font_size = 34
 	delta_s.font_color = Color(0.3, 1.0, 0.3)
 	delta_s.outline_size = 3
 	delta_s.outline_color = Color.BLACK
@@ -81,7 +81,7 @@ func _create_ui() -> void:
 	remaining_label.offset_top = 10.0
 	remaining_label.offset_right = 200.0
 	var rem_s := LabelSettings.new()
-	rem_s.font_size = 24
+	rem_s.font_size = 36
 	rem_s.font_color = Color(0.8, 0.8, 0.8)
 	rem_s.outline_size = 3
 	rem_s.outline_color = Color.BLACK
@@ -96,7 +96,7 @@ func _create_ui() -> void:
 	speed_label.offset_top = 10.0
 	speed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	var speed_s := LabelSettings.new()
-	speed_s.font_size = 24
+	speed_s.font_size = 36
 	speed_s.font_color = Color(0.8, 0.8, 0.8)
 	speed_s.outline_size = 3
 	speed_s.outline_color = Color.BLACK
@@ -112,7 +112,7 @@ func _create_ui() -> void:
 	countdown_label.offset_right = 200.0
 	countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var cd_s := LabelSettings.new()
-	cd_s.font_size = 72
+	cd_s.font_size = 110
 	cd_s.font_color = Color(1.0, 1.0, 1.0)
 	cd_s.outline_size = 6
 	cd_s.outline_color = Color.BLACK
@@ -128,7 +128,7 @@ func _create_ui() -> void:
 	info_label.offset_right = 200.0
 	info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var info_s := LabelSettings.new()
-	info_s.font_size = 28
+	info_s.font_size = 44
 	info_s.font_color = Color(1.0, 0.9, 0.2)
 	info_s.outline_size = 4
 	info_s.outline_color = Color.BLACK
@@ -144,7 +144,7 @@ func _create_ui() -> void:
 	laps_label.offset_right = -10.0
 	laps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	var laps_s := LabelSettings.new()
-	laps_s.font_size = 18
+	laps_s.font_size = 28
 	laps_s.font_color = Color(0.7, 0.9, 0.7)
 	laps_s.outline_size = 3
 	laps_s.outline_color = Color.BLACK

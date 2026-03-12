@@ -462,19 +462,27 @@ func _physics_process(delta: float) -> void:
 	var pre_speed := velocity.length()
 	move_and_slide()
 
-	# --- Wall bounce (only on flat ground, not on ramps) ---
-	if get_slide_collision_count() > 0 and is_on_floor():
-		var fn := get_floor_normal()
-		var on_slope := fn.dot(Vector3.UP) < 0.95
-		if not on_slope:
-			var col := get_slide_collision(0)
-			var normal := col.get_normal()
-			if absf(normal.y) < 0.3 and pre_speed > 3.0:
-				var reflect := velocity.reflect(normal)
-				velocity = reflect * 0.4
-				speed = maxf(speed * 0.5, 0.0)
-				global_position += normal * 0.15
-				_spawn_wall_sparks(global_position, normal)
+	# --- Wall bounce ---
+	for ci in range(get_slide_collision_count()):
+		var col := get_slide_collision(ci)
+		var normal := col.get_normal()
+		# Only bounce off vertical-ish walls (not floors/ramps)
+		if absf(normal.y) > 0.5:
+			continue
+		if pre_speed < 2.0:
+			continue
+		# Bounce strength scales with impact speed
+		var impact := absf(velocity.dot(normal))
+		if impact < 1.5:
+			continue
+		var bounce_factor := clampf(impact / 30.0, 0.15, 0.45)
+		var reflect := velocity.reflect(normal)
+		velocity = reflect * bounce_factor
+		speed = maxf(speed * (1.0 - bounce_factor), 0.0)
+		global_position += normal * 0.1
+		if impact > 4.0:
+			_spawn_wall_sparks(col.get_position(), normal)
+		break  # one bounce per frame
 
 	# --- Visual ---
 	if mesh:

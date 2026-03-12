@@ -54,7 +54,7 @@ func _create_player_ui() -> void:
 	var name_label := Label.new()
 	name_label.text = "NICK:"
 	var name_settings := LabelSettings.new()
-	name_settings.font_size = 22
+	name_settings.font_size = 36
 	name_settings.font_color = Color.WHITE
 	name_label.label_settings = name_settings
 	player_row.add_child(name_label)
@@ -63,8 +63,8 @@ func _create_player_ui() -> void:
 	name_input.text = PlayerData.player_name
 	name_input.placeholder_text = "Wpisz nick"
 	name_input.max_length = 15
-	name_input.custom_minimum_size = Vector2(200, 40)
-	name_input.add_theme_font_size_override("font_size", 20)
+	name_input.custom_minimum_size = Vector2(350, 60)
+	name_input.add_theme_font_size_override("font_size", 32)
 	var input_style := StyleBoxFlat.new()
 	input_style.bg_color = Color(0.12, 0.12, 0.18)
 	input_style.border_color = Color(0.3, 0.7, 1.0)
@@ -76,8 +76,8 @@ func _create_player_ui() -> void:
 
 	# Flag button
 	flag_button = Button.new()
-	flag_button.custom_minimum_size = Vector2(60, 40)
-	flag_button.add_theme_font_size_override("font_size", 20)
+	flag_button.custom_minimum_size = Vector2(80, 60)
+	flag_button.add_theme_font_size_override("font_size", 32)
 	var flag_style := StyleBoxFlat.new()
 	flag_style.bg_color = Color(0.12, 0.12, 0.18)
 	flag_style.border_color = Color(0.3, 0.7, 1.0)
@@ -160,14 +160,14 @@ func _create_flag_modal() -> void:
 	var title := Label.new()
 	title.text = "WYBIERZ FLAGE"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_font_size_override("font_size", 40)
 	title.add_theme_color_override("font_color", Color(0.3, 0.7, 1.0))
 	vbox.add_child(title)
 
 	# Search
 	var search := LineEdit.new()
 	search.placeholder_text = "Szukaj kraju..."
-	search.add_theme_font_size_override("font_size", 18)
+	search.add_theme_font_size_override("font_size", 28)
 	var search_style := StyleBoxFlat.new()
 	search_style.bg_color = Color(0.1, 0.1, 0.15)
 	search_style.border_color = Color(0.3, 0.7, 1.0)
@@ -178,8 +178,8 @@ func _create_flag_modal() -> void:
 	# "None" button
 	var none_btn := Button.new()
 	none_btn.text = "BEZ FLAGI"
-	none_btn.custom_minimum_size = Vector2(0, 35)
-	none_btn.add_theme_font_size_override("font_size", 16)
+	none_btn.custom_minimum_size = Vector2(0, 50)
+	none_btn.add_theme_font_size_override("font_size", 26)
 	none_btn.pressed.connect(_on_flag_selected.bind(""))
 	vbox.add_child(none_btn)
 
@@ -205,8 +205,8 @@ func _create_flag_modal() -> void:
 	# Close button
 	var close_btn := Button.new()
 	close_btn.text = "ZAMKNIJ"
-	close_btn.custom_minimum_size = Vector2(0, 40)
-	close_btn.add_theme_font_size_override("font_size", 18)
+	close_btn.custom_minimum_size = Vector2(0, 55)
+	close_btn.add_theme_font_size_override("font_size", 28)
 	var close_style := StyleBoxFlat.new()
 	close_style.bg_color = Color(0.25, 0.05, 0.05)
 	close_style.border_color = Color(1.0, 0.3, 0.3)
