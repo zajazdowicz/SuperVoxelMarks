@@ -1048,6 +1048,70 @@ static func _create_vloop_visual(hw: float, R: float, cy: float,
 		var hw1: float = lerpf(offset + hw, hw, t1)
 		_add_vloop_wide_taper_visual(st, 0.0, 0.0, hw0, hw1, ground, z0, z1, basis_rot, asphalt_color, curb_color)
 
+	# --- Racing line: green strip showing optimal path ---
+	var line_color := Color(0.1, 0.9, 0.2)
+	var line_w: float = 0.4  # half-width of the line strip
+	var line_lift: float = 0.05  # slight lift above surface to avoid z-fight
+	var line_segs := 40  # total segments for full path
+
+	# Entry taper: line goes from center (x=0) to right lane (x=+offset)
+	for seg in range(8):
+		var t0l: float = float(seg) / 8.0
+		var t1l: float = float(seg + 1) / 8.0
+		var z0l: float = lerpf(-float(HALF), cz, t0l)
+		var z1l: float = lerpf(-float(HALF), cz, t1l)
+		var xc0l: float = lerpf(0.0, offset, t0l)
+		var xc1l: float = lerpf(0.0, offset, t1l)
+		var la := basis_rot * Vector3(xc0l - line_w, ground + line_lift, z0l)
+		var lb := basis_rot * Vector3(xc0l + line_w, ground + line_lift, z0l)
+		var lc := basis_rot * Vector3(xc1l + line_w, ground + line_lift, z1l)
+		var ld := basis_rot * Vector3(xc1l - line_w, ground + line_lift, z1l)
+		st.set_color(line_color)
+		st.set_normal(Vector3.UP)
+		st.add_vertex(la); st.add_vertex(lb); st.add_vertex(lc)
+		st.add_vertex(la); st.add_vertex(lc); st.add_vertex(ld)
+
+	# Circle: line follows the road center which shifts +offset→-offset
+	for seg in range(line_segs):
+		var a0l: float = TAU * float(seg) / float(line_segs)
+		var a1l: float = TAU * float(seg + 1) / float(line_segs)
+		var y0l: float = cy - R * cos(a0l)
+		var z0l: float = cz + R * sin(a0l)
+		var y1l: float = cy - R * cos(a1l)
+		var z1l: float = cz + R * sin(a1l)
+		var xc0l: float = offset * (1.0 - a0l / PI)
+		var xc1l: float = offset * (1.0 - a1l / PI)
+		# Lift line slightly outward from circle center
+		var out0l := Vector3(0.0, y0l - cy, z0l - cz).normalized() * line_lift
+		var out1l := Vector3(0.0, y1l - cy, z1l - cz).normalized() * line_lift
+		var la := basis_rot * Vector3(xc0l - line_w, y0l + out0l.y, z0l + out0l.z)
+		var lb := basis_rot * Vector3(xc0l + line_w, y0l + out0l.y, z0l + out0l.z)
+		var lc := basis_rot * Vector3(xc1l + line_w, y1l + out1l.y, z1l + out1l.z)
+		var ld := basis_rot * Vector3(xc1l - line_w, y1l + out1l.y, z1l + out1l.z)
+		var ln := (ld - la).cross(lb - la).normalized()
+		st.set_color(line_color)
+		st.set_normal(ln)
+		st.add_vertex(la); st.add_vertex(lb); st.add_vertex(lc)
+		st.add_vertex(la); st.add_vertex(lc); st.add_vertex(ld)
+
+	# Exit taper: line goes from left lane (x=-offset) back to center (x=0)
+	var z_exit_l: float = float(HALF) + float(GRID)
+	for seg in range(8):
+		var t0l: float = float(seg) / 8.0
+		var t1l: float = float(seg + 1) / 8.0
+		var z0l: float = lerpf(cz, z_exit_l, t0l)
+		var z1l: float = lerpf(cz, z_exit_l, t1l)
+		var xc0l: float = lerpf(-offset, 0.0, t0l)
+		var xc1l: float = lerpf(-offset, 0.0, t1l)
+		var la := basis_rot * Vector3(xc0l - line_w, ground + line_lift, z0l)
+		var lb := basis_rot * Vector3(xc0l + line_w, ground + line_lift, z0l)
+		var lc := basis_rot * Vector3(xc1l + line_w, ground + line_lift, z1l)
+		var ld := basis_rot * Vector3(xc1l - line_w, ground + line_lift, z1l)
+		st.set_color(line_color)
+		st.set_normal(Vector3.UP)
+		st.add_vertex(la); st.add_vertex(lb); st.add_vertex(lc)
+		st.add_vertex(la); st.add_vertex(lc); st.add_vertex(ld)
+
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
 	var mat := StandardMaterial3D.new()
