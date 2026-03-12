@@ -47,11 +47,6 @@ func _build_track() -> void:
 		var bh: int = p.get("base_height", 0)
 		var offset := Vector3i(p.grid.x * GRID, bh, p.grid.y * GRID)
 		for block in rotated:
-			# Skip AIR writes that would destroy higher pieces' voxels
-			if block.type == TrackPieces.AIR:
-				var existing: int = tool.get_voxel(offset + block.pos)
-				if existing != TrackPieces.AIR and existing != TrackPieces.GRASS:
-					continue
 			tool.set_voxel(offset + block.pos, block.type)
 
 		var world_pos := Vector3(p.grid.x * GRID, float(bh), p.grid.y * GRID)

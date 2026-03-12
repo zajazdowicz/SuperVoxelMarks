@@ -1169,10 +1169,6 @@ func _load_track(track_name: String) -> void:
 		var bh: int = p.get("base_height", 0)
 		var offset := Vector3i(p.grid.x * GRID, bh, p.grid.y * GRID)
 		for block in rotated:
-			if block.type == TrackPieces.AIR:
-				var existing: int = tool.get_voxel(offset + block.pos)
-				if existing != TrackPieces.AIR and existing != TrackPieces.GRASS:
-					continue
 			tool.set_voxel(offset + block.pos, block.type)
 		# Spawn collision for special pieces
 		if p.piece in [3, 4, 30, 31]:
