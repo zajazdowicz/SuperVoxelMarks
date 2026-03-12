@@ -1315,7 +1315,7 @@ static func _create_jump_visual(hw: float, hl: float, jump_h: float, ground: flo
 # =======================================================================
 # SLOPE TURN: 90° turn with elevation change (no barriers)
 # =======================================================================
-const SLOPE_TURN_DELTAS := {57: 2, 58: 2, 59: 4, 60: 4}
+const SLOPE_TURN_DELTAS := {57: 2, 58: 2, 59: 4, 60: 4, 61: 0, 62: 0}
 
 static func spawn_slope_turn(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
 	var body := StaticBody3D.new()
@@ -1327,7 +1327,7 @@ static func spawn_slope_turn(parent: Node3D, grid_pos: Vector2i, piece_id: int, 
 	var inner_r: float = r - float(ROAD_W)
 	var outer_r: float = r + float(ROAD_W)
 
-	var is_right: bool = piece_id == 57 or piece_id == 59
+	var is_right: bool = piece_id == 57 or piece_id == 59 or piece_id == 61
 	var cx: float
 	var cz: float
 	var a_start: float

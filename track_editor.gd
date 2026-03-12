@@ -205,7 +205,7 @@ const PIECE_CATEGORIES := {
 	"Slopes": [42, 43, 44, 45, 46, 47],
 	"QP": [48, 49, 50, 51, 52, 53],
 	"Przeszkody": [54, 55, 56],
-	"Slope Turn": [57, 58, 59, 60],
+	"Slope Turn": [61, 62, 57, 58, 59, 60],
 }
 
 func _create_piece_toolbar() -> void:
@@ -614,7 +614,7 @@ func _update_preview() -> void:
 
 	# Special pieces (wall ride, loop, transition) — show shape preview
 	# Voxel-only pieces (platforma, gentle turns) use normal voxel preview
-	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 28, 29, 34, 35, 39, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 57, 58, 59, 60]
+	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 28, 29, 34, 35, 39, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 57, 58, 59, 60, 61, 62]
 	if current_piece in shape_pieces:
 		_update_shape_preview()
 		return
@@ -864,7 +864,7 @@ func _update_shape_preview() -> void:
 			var n3 := (pi13 - pi03).cross(po03 - pi03).normalized()
 			RampSpawner._add_quad(verts, normals, indices, pi03, po03, po13, pi13, n3)
 
-	elif current_piece >= 57 and current_piece <= 60:
+	elif current_piece >= 57 and current_piece <= 62:
 		# Slope turn preview — arc with rising height
 		var is_right_st := current_piece == 57 or current_piece == 59
 		var r_st := float(TrackPieces.HALF)
@@ -1052,7 +1052,7 @@ func _place_piece() -> void:
 		RampSpawner.spawn_slope(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece >= 48 and current_piece <= 53:
 		RampSpawner.spawn_quarter_pipe(self, cursor_grid, current_piece, current_rotation, place_height, _qp_down)
-	elif current_piece >= 57 and current_piece <= 60:
+	elif current_piece >= 57 and current_piece <= 62:
 		RampSpawner.spawn_slope_turn(self, cursor_grid, current_piece, current_rotation, place_height)
 
 	# Remove existing piece at this grid position
@@ -1194,7 +1194,7 @@ func _load_track(track_name: String) -> void:
 		elif p.piece >= 48 and p.piece <= 53:
 			var qp_down: bool = p.get("down", false)
 			RampSpawner.spawn_quarter_pipe(self, p.grid, p.piece, p.rotation, bh, qp_down)
-		elif p.piece >= 57 and p.piece <= 60:
+		elif p.piece >= 57 and p.piece <= 62:
 			RampSpawner.spawn_slope_turn(self, p.grid, p.piece, p.rotation, bh)
 	# Second pass: clear boundary voxels at ramp HIGH end
 	for p in placed_pieces:
@@ -1252,7 +1252,7 @@ func _snap_to_next_port() -> void:
 		current_height = maxi(0, current_height - TrackPieces.TRANSITION_HEIGHT)
 	elif current_piece >= 42 and current_piece <= 47:  # slopes
 		var angle_rad := deg_to_rad(TrackPieces.SLOPE_ANGLES[current_piece])
-		var rise: int = ceili(sin(angle_rad) * float(TrackPieces.SEGMENT_SIZE))
+		var rise: int = roundi(sin(angle_rad) * float(TrackPieces.SEGMENT_SIZE))
 		current_height += rise
 	elif current_piece >= 48 and current_piece <= 53:  # quarter-pipes
 		var delta: int = TrackPieces.QP_DELTAS[current_piece]
@@ -1260,7 +1260,7 @@ func _snap_to_next_port() -> void:
 			current_height = maxi(0, current_height - delta)
 		else:
 			current_height += delta
-	elif current_piece >= 57 and current_piece <= 60:  # slope turns
+	elif current_piece >= 57 and current_piece <= 62:  # slope turns
 		var st_delta: int = RampSpawner.SLOPE_TURN_DELTAS.get(current_piece, 2)
 		current_height += st_delta
 

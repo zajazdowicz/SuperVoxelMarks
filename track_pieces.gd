@@ -91,6 +91,8 @@ const PIECE_NAMES := [
 	"Slope zakret L +2",   # 58 — turn left with +2 rise
 	"Slope zakret R +4",   # 59 — turn right with +4 rise
 	"Slope zakret L +4",   # 60 — turn left with +4 rise
+	"Slope zakret R",      # 61 — flat turn right (collision mesh)
+	"Slope zakret L",      # 62 — flat turn left (collision mesh)
 ]
 
 const HALF_RAMP_HEIGHT := 3
@@ -98,10 +100,10 @@ const HALF_RAMP_HEIGHT := 3
 static func get_ports(index: int) -> Array[Dictionary]:
 	# Turns: S→E or S→W
 	match index:
-		1, 24, 28, 34, 57, 59: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
-		2, 25, 29, 35, 58, 60: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
+		1, 24, 28, 34, 57, 59, 61: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
+		2, 25, 29, 35, 58, 60, 62: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
 	# All other standard pieces: S→N
-	if index >= 0 and index <= 60:
+	if index >= 0 and index <= 62:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
@@ -165,6 +167,8 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		58: return _slope_turn_clear(false, 2)
 		59: return _slope_turn_clear(true, 4)
 		60: return _slope_turn_clear(false, 4)
+		61: return _slope_turn_clear(true, 0)
+		62: return _slope_turn_clear(false, 0)
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:

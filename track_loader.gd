@@ -83,7 +83,7 @@ func _build_track() -> void:
 			var qp_down: bool = p.get("down", false)
 			RampSpawner.spawn_quarter_pipe(self, p.grid, p.piece, p.rotation, bh, qp_down)
 
-		if p.piece >= 57 and p.piece <= 60:
+		if p.piece >= 57 and p.piece <= 62:
 			RampSpawner.spawn_slope_turn(self, p.grid, p.piece, p.rotation, bh)
 
 		if p.piece == 5:
