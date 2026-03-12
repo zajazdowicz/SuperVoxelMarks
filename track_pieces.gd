@@ -865,6 +865,8 @@ const QP_ANGLES := {
 	48: [0.0, 30.0], 49: [30.0, 60.0], 50: [60.0, 90.0],
 	51: [90.0, 120.0], 52: [120.0, 150.0], 53: [150.0, 180.0],
 }
+# Fixed integer height deltas — sum = 24 = 2*R (loop diameter)
+const QP_DELTAS := {48: 2, 49: 4, 50: 6, 51: 6, 52: 4, 53: 2}
 
 static func _slope_clear(piece_id: int) -> Array[Dictionary]:
 	var blocks: Array[Dictionary] = []
@@ -873,10 +875,11 @@ static func _slope_clear(piece_id: int) -> Array[Dictionary]:
 	var rise: int = ceili(sin(angle_rad) * float(SEGMENT_SIZE))
 	var clear_h: int = maxi(rise + 4, 8)
 	for z in range(LO, HI + 1):
-		for x in range(-ROAD_W - 2, ROAD_W + 3):
-			blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
-			for h in range(1, clear_h):
-				blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+		for x in range(LO, HI + 1):
+			# Road area: clear ALL voxels to AIR including boundaries
+			if absi(x) <= ROAD_W:
+				for h in range(0, clear_h):
+					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 	return blocks
 
 
@@ -886,8 +889,9 @@ static func _qp_clear(piece_id: int) -> Array[Dictionary]:
 	var max_angle: float = maxf(absf(angles[0]), absf(angles[1]))
 	var clear_h: int = maxi(ceili(sin(deg_to_rad(max_angle)) * float(SEGMENT_SIZE)) + 6, 14)
 	for z in range(LO, HI + 1):
-		for x in range(-ROAD_W - 2, ROAD_W + 3):
-			blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
-			for h in range(1, clear_h):
-				blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+		for x in range(LO, HI + 1):
+			# Road area: clear ALL voxels to AIR including boundaries
+			if absi(x) <= ROAD_W:
+				for h in range(0, clear_h):
+					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 	return blocks

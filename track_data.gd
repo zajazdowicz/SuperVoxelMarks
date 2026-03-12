@@ -9,13 +9,16 @@ func save_track(track_name: String, pieces: Array[Dictionary]) -> void:
 	var file := FileAccess.open("user://tracks/%s.json" % track_name, FileAccess.WRITE)
 	var data: Array = []
 	for p in pieces:
-		data.append({
+		var entry := {
 			"gx": p.grid.x,
 			"gz": p.grid.y,
 			"piece": p.piece,
 			"rotation": p.rotation,
 			"bh": p.get("base_height", 0),
-		})
+		}
+		if p.get("down", false):
+			entry["down"] = 1
+		data.append(entry)
 	file.store_string(JSON.stringify(data))
 
 
@@ -33,6 +36,7 @@ func load_track(track_name: String) -> Array[Dictionary]:
 			"piece": int(entry.piece),
 			"rotation": int(entry.rotation),
 			"base_height": int(entry.get("bh", 0)),
+			"down": bool(entry.get("down", 0)),
 		})
 	return result
 

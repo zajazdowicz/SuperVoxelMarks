@@ -1364,122 +1364,32 @@ static func spawn_slope(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotat
 	var rot_angle: float = -float(rotation) * PI / 2.0
 	var basis_rot := Basis(Vector3.UP, rot_angle)
 
-	# Road tilts upward: south edge at ground, north edge rises
-	# For 90° slope: road is vertical wall
 	var seg_len: float = float(TrackPieces.SEGMENT_SIZE)
-	var run: float = cos(angle_rad) * seg_len   # horizontal distance
-	var rise: float = sin(angle_rad) * seg_len  # vertical distance
+	var rise: float = sin(angle_rad) * seg_len
+	var run: float = seg_len
 
-	var segs := 6
-	var verts := PackedVector3Array()
-	var normals := PackedVector3Array()
-	var indices := PackedInt32Array()
-
+	# Same approach as ramps: 4 segments + _add_col_box
+	var segs := 4
 	for seg in range(segs):
 		var t0: float = float(seg) / float(segs)
 		var t1: float = float(seg + 1) / float(segs)
-
-		# Position along the tilted surface
-		var z0: float = lerpf(-hl, -hl + run, t0)
-		var z1: float = lerpf(-hl, -hl + run, t1)
+		var z0: float = lerpf(-hl, hl, t0)
+		var z1: float = lerpf(-hl, hl, t1)
 		var y0: float = ground + rise * t0
 		var y1: float = ground + rise * t1
 
-		var p0l := basis_rot * Vector3(-hw, y0, z0)
-		var p0r := basis_rot * Vector3(hw, y0, z0)
-		var p1l := basis_rot * Vector3(-hw, y1, z1)
-		var p1r := basis_rot * Vector3(hw, y1, z1)
+		_add_col_box(body,
+			basis_rot * Vector3(-hw, y0, z0),
+			basis_rot * Vector3(hw, y0, z0),
+			basis_rot * Vector3(-hw, y1, z1),
+			basis_rot * Vector3(hw, y1, z1),
+			min(y0, y1) - 0.5, basis_rot)
 
-		# Visual quad
-		var n := (p1l - p0l).cross(p0r - p0l).normalized()
-		_add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
-
-		# Collision slab (8 points: 4 top + 4 bottom)
-		var thickness := 0.5
-		var col_points := PackedVector3Array()
-		col_points.append(p0l); col_points.append(p0r)
-		col_points.append(p1l); col_points.append(p1r)
-		col_points.append(p0l + Vector3(0, -thickness, 0))
-		col_points.append(p0r + Vector3(0, -thickness, 0))
-		col_points.append(p1l + Vector3(0, -thickness, 0))
-		col_points.append(p1r + Vector3(0, -thickness, 0))
-		var shape := ConvexPolygonShape3D.new()
-		shape.points = col_points
-		var col_node := CollisionShape3D.new()
-		col_node.shape = shape
-		body.add_child(col_node)
-
-	# Side barriers
-	for side in [-1.0, 1.0]:
-		var bx: float = hw * side
-		var barrier_h := 1.5
-		for seg in range(segs):
-			var t0: float = float(seg) / float(segs)
-			var t1: float = float(seg + 1) / float(segs)
-			var z0: float = lerpf(-hl, -hl + run, t0)
-			var z1: float = lerpf(-hl, -hl + run, t1)
-			var y0: float = ground + rise * t0
-			var y1: float = ground + rise * t1
-			var bl := basis_rot * Vector3(bx, y0, z0)
-			var br := basis_rot * Vector3(bx, y0 + barrier_h, z0)
-			var tl := basis_rot * Vector3(bx, y1, z1)
-			var tr := basis_rot * Vector3(bx, y1 + barrier_h, z1)
-			var bn: Vector3 = (tl - bl).cross(br - bl).normalized() * side
-			_add_quad(verts, normals, indices, bl, br, tr, tl, bn)
-
-			# Barrier collision
-			var bcol := PackedVector3Array()
-			bcol.append(bl); bcol.append(br); bcol.append(tl); bcol.append(tr)
-			var bw := basis_rot * Vector3(0.3 * side, 0, 0)
-			bcol.append(bl + bw); bcol.append(br + bw)
-			bcol.append(tl + bw); bcol.append(tr + bw)
-			var bshape := ConvexPolygonShape3D.new()
-			bshape.points = bcol
-			var bcol_node := CollisionShape3D.new()
-			bcol_node.shape = bshape
-			body.add_child(bcol_node)
-
-	# Visual mesh
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.3, 0.3, 0.35)
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mi.material_override = mat
-	body.add_child(mi)
-
-	# Also add voxel-style visual on the road surface
+	# Visual mesh (road surface only, no barriers)
 	body.add_child(_create_slope_visual(segs, hw, hl, ground, run, rise, basis_rot))
 
 	body.position = Vector3(grid_pos.x * GRID, base_height, grid_pos.y * GRID)
 	parent.add_child(body)
-
-	# Zero-G zone for steep slopes (>=45°)
-	if angle_deg >= 45.0:
-		var zone := Area3D.new()
-		zone.name = "ZeroGZone_%d_%d" % [grid_pos.x, grid_pos.y]
-		var zone_box := BoxShape3D.new()
-		var zone_h: float = rise + 4.0
-		var zone_center_y: float = ground + rise / 2.0
-		var zone_center_z: float = -hl + run / 2.0
-		zone_box.size = Vector3(hw * 2.0 + 2.0, zone_h, maxf(run, 4.0) + 2.0)
-		var zone_col := CollisionShape3D.new()
-		zone_col.shape = zone_box
-		zone_col.position = basis_rot * Vector3(0, zone_center_y, zone_center_z)
-		zone.add_child(zone_col)
-		zone.collision_layer = 0
-		zone.collision_mask = 1
-		zone.body_entered.connect(func(b): if b.has_method("enter_zero_g"): b.enter_zero_g())
-		zone.body_exited.connect(func(b): if b.has_method("exit_zero_g"): b.exit_zero_g())
-		zone.position = Vector3(grid_pos.x * GRID, base_height, grid_pos.y * GRID)
-		parent.add_child(zone)
 
 
 static func _create_slope_visual(segs: int, hw: float, hl: float, ground: float, run: float, rise: float, basis_rot: Basis) -> MeshInstance3D:
@@ -1496,8 +1406,8 @@ static func _create_slope_visual(segs: int, hw: float, hl: float, ground: float,
 	for seg in range(segs * 3):
 		var t0: float = float(seg) / float(segs * 3)
 		var t1: float = float(seg + 1) / float(segs * 3)
-		var z0: float = lerpf(-hl, -hl + run, t0)
-		var z1: float = lerpf(-hl, -hl + run, t1)
+		var z0: float = lerpf(-hl, hl, t0)
+		var z1: float = lerpf(-hl, hl, t1)
 		var y0: float = ground + rise * t0
 		var y1: float = ground + rise * t1
 
@@ -1534,15 +1444,64 @@ static func _create_slope_visual(segs: int, hw: float, hl: float, ground: float,
 	return mi
 
 
-# === QUARTER-PIPE: smooth curved transition between two angles ===
+static func _create_qp_visual(segs: int, hw: float, hl: float, ground: float, h_delta: float, going_down: bool, basis_rot: Basis) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-static func spawn_quarter_pipe(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0) -> void:
-	var angles: Array = TrackPieces.QP_ANGLES.get(piece_id, [0.0, 30.0])
-	var angle_from: float = deg_to_rad(angles[0])
-	var angle_to: float = deg_to_rad(angles[1])
+	var road_color := Color(0.3, 0.3, 0.35)
+	var curb_color := Color(0.85, 0.85, 0.85)
+	var road_w_f := hw - 0.5
 
+	for seg in range(segs * 3):
+		var t0: float = float(seg) / float(segs * 3)
+		var t1: float = float(seg + 1) / float(segs * 3)
+		var z0: float = lerpf(-hl, hl, t0)
+		var z1: float = lerpf(-hl, hl, t1)
+		var s0: float = t0 * t0 * (3.0 - 2.0 * t0)
+		var s1: float = t1 * t1 * (3.0 - 2.0 * t1)
+		var y0: float
+		var y1: float
+		if going_down:
+			y0 = ground + h_delta * (1.0 - s0)
+			y1 = ground + h_delta * (1.0 - s1)
+		else:
+			y0 = ground + h_delta * s0
+			y1 = ground + h_delta * s1
+
+		var strips := 5
+		for si in range(strips):
+			var sx0: float = lerpf(-hw, hw, float(si) / float(strips))
+			var sx1: float = lerpf(-hw, hw, float(si + 1) / float(strips))
+			var col: Color
+			if absf(sx0) >= road_w_f or absf(sx1) >= road_w_f:
+				col = curb_color
+			else:
+				col = road_color
+			col = col.darkened(0.05 * (seg % 2))
+			var a := basis_rot * Vector3(sx0, y0, z0)
+			var b := basis_rot * Vector3(sx1, y0, z0)
+			var c := basis_rot * Vector3(sx1, y1, z1)
+			var d := basis_rot * Vector3(sx0, y1, z1)
+			var n := (d - a).cross(b - a).normalized()
+			st.set_color(col)
+			st.set_normal(n)
+			st.add_vertex(a); st.add_vertex(b); st.add_vertex(c)
+			st.add_vertex(a); st.add_vertex(c); st.add_vertex(d)
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	return mi
+
+
+# === QUARTER-PIPE: smooth curved transition ===
+
+static func spawn_quarter_pipe(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotation: int, base_height: int = 0, going_down: bool = false) -> void:
 	var body := StaticBody3D.new()
-	body.name = "Slope_%d_%d" % [grid_pos.x, grid_pos.y]
+	body.name = "QP_%d_%d" % [grid_pos.x, grid_pos.y]
 
 	var hw: float = float(ROAD_W) + 0.5
 	var hl: float = float(HALF)
@@ -1550,129 +1509,39 @@ static func spawn_quarter_pipe(parent: Node3D, grid_pos: Vector2i, piece_id: int
 	var rot_angle: float = -float(rotation) * PI / 2.0
 	var basis_rot := Basis(Vector3.UP, rot_angle)
 
-	# Quarter-pipe is an arc in YZ plane. Pivot at start, road curves from
-	# angle_from to angle_to. R = segment size for smooth feel.
-	var R: float = float(TrackPieces.SEGMENT_SIZE)
-	var pivot_y: float = ground + R * cos(angle_from)
-	var pivot_z: float = -hl - R * sin(angle_from)
+	var h_delta: float = float(TrackPieces.QP_DELTAS.get(piece_id, 2))
 
-	var segs := 8
-	var verts := PackedVector3Array()
-	var normals := PackedVector3Array()
-	var indices := PackedInt32Array()
-
+	# Same approach as ramps: 4 segments + _add_col_box
+	var segs := 4
 	for seg in range(segs):
 		var t0: float = float(seg) / float(segs)
 		var t1: float = float(seg + 1) / float(segs)
-		var a0: float = lerpf(angle_from, angle_to, t0)
-		var a1: float = lerpf(angle_from, angle_to, t1)
+		var z0: float = lerpf(-hl, hl, t0)
+		var z1: float = lerpf(-hl, hl, t1)
 
-		var y0: float = pivot_y - R * cos(a0)
-		var z0: float = pivot_z + R * sin(a0)
-		var y1: float = pivot_y - R * cos(a1)
-		var z1: float = pivot_z + R * sin(a1)
+		# Smoothstep easing for smooth curve
+		var s0: float = t0 * t0 * (3.0 - 2.0 * t0)
+		var s1: float = t1 * t1 * (3.0 - 2.0 * t1)
 
-		var p0l := basis_rot * Vector3(-hw, y0, z0)
-		var p0r := basis_rot * Vector3(hw, y0, z0)
-		var p1l := basis_rot * Vector3(-hw, y1, z1)
-		var p1r := basis_rot * Vector3(hw, y1, z1)
+		var y0: float
+		var y1: float
+		if going_down:
+			y0 = ground + h_delta * (1.0 - s0)
+			y1 = ground + h_delta * (1.0 - s1)
+		else:
+			y0 = ground + h_delta * s0
+			y1 = ground + h_delta * s1
 
-		var n: Vector3 = (p1l - p0l).cross(p0r - p0l).normalized()
-		_add_quad(verts, normals, indices, p0l, p0r, p1r, p1l, n)
+		_add_col_box(body,
+			basis_rot * Vector3(-hw, y0, z0),
+			basis_rot * Vector3(hw, y0, z0),
+			basis_rot * Vector3(-hw, y1, z1),
+			basis_rot * Vector3(hw, y1, z1),
+			min(y0, y1) - 0.5, basis_rot)
 
-		# Collision slab — thickness follows surface normal inward
-		var mid_a: float = (a0 + a1) / 2.0
-		var inward := basis_rot * Vector3(0, sin(mid_a), -cos(mid_a)).normalized() * -0.5
-		var col_points := PackedVector3Array()
-		col_points.append(p0l); col_points.append(p0r)
-		col_points.append(p1l); col_points.append(p1r)
-		col_points.append(p0l + inward); col_points.append(p0r + inward)
-		col_points.append(p1l + inward); col_points.append(p1r + inward)
-		var shape := ConvexPolygonShape3D.new()
-		shape.points = col_points
-		var col_node := CollisionShape3D.new()
-		col_node.shape = shape
-		body.add_child(col_node)
-
-	# Side barriers
-	for side in [-1.0, 1.0]:
-		var bx: float = hw * side
-		var barrier_h := 1.5
-		for seg in range(segs):
-			var t0: float = float(seg) / float(segs)
-			var t1: float = float(seg + 1) / float(segs)
-			var a0: float = lerpf(angle_from, angle_to, t0)
-			var a1: float = lerpf(angle_from, angle_to, t1)
-			var y0: float = pivot_y - R * cos(a0)
-			var z0: float = pivot_z + R * sin(a0)
-			var y1: float = pivot_y - R * cos(a1)
-			var z1: float = pivot_z + R * sin(a1)
-
-			# Barrier extends along surface normal (outward)
-			var surf_n0 := basis_rot * Vector3(0, -sin(a0), cos(a0)).normalized()
-			var surf_n1 := basis_rot * Vector3(0, -sin(a1), cos(a1)).normalized()
-			var bl := basis_rot * Vector3(bx, y0, z0)
-			var tl := basis_rot * Vector3(bx, y1, z1)
-			var br: Vector3 = bl + surf_n0 * barrier_h
-			var tr: Vector3 = tl + surf_n1 * barrier_h
-			var bn: Vector3 = (tl - bl).cross(br - bl).normalized() * side
-			_add_quad(verts, normals, indices, bl, br, tr, tl, bn)
-
-			var bcol := PackedVector3Array()
-			bcol.append(bl); bcol.append(br); bcol.append(tl); bcol.append(tr)
-			var bw := basis_rot * Vector3(0.3 * side, 0, 0)
-			bcol.append(bl + bw); bcol.append(br + bw)
-			bcol.append(tl + bw); bcol.append(tr + bw)
-			var bshape := ConvexPolygonShape3D.new()
-			bshape.points = bcol
-			var bcol_node := CollisionShape3D.new()
-			bcol_node.shape = bshape
-			body.add_child(bcol_node)
-
-	# Visual mesh
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var qp_mesh := ArrayMesh.new()
-	qp_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	var mi := MeshInstance3D.new()
-	mi.mesh = qp_mesh
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.3, 0.3, 0.35)
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mi.material_override = mat
-	body.add_child(mi)
+	# Visual mesh (road surface only, no barriers)
+	var vis := _create_qp_visual(segs, hw, hl, ground, h_delta, going_down, basis_rot)
+	body.add_child(vis)
 
 	body.position = Vector3(grid_pos.x * GRID, base_height, grid_pos.y * GRID)
 	parent.add_child(body)
-
-	# Zero-G zone for all quarter-pipes
-	var zone := Area3D.new()
-	zone.name = "ZeroGZone_%d_%d" % [grid_pos.x, grid_pos.y]
-	var min_y := ground
-	var max_y := ground
-	var min_z := -hl
-	var max_z := -hl
-	for i in range(segs + 1):
-		var t: float = float(i) / float(segs)
-		var a: float = lerpf(angle_from, angle_to, t)
-		var py: float = pivot_y - R * cos(a)
-		var pz: float = pivot_z + R * sin(a)
-		min_y = minf(min_y, py)
-		max_y = maxf(max_y, py)
-		min_z = minf(min_z, pz)
-		max_z = maxf(max_z, pz)
-	var zone_box := BoxShape3D.new()
-	zone_box.size = Vector3(hw * 2.0 + 2.0, (max_y - min_y) + 4.0, (max_z - min_z) + 4.0)
-	var zone_col := CollisionShape3D.new()
-	zone_col.shape = zone_box
-	zone_col.position = basis_rot * Vector3(0, (min_y + max_y) / 2.0, (min_z + max_z) / 2.0)
-	zone.add_child(zone_col)
-	zone.collision_layer = 0
-	zone.collision_mask = 1
-	zone.body_entered.connect(func(b): if b.has_method("enter_zero_g"): b.enter_zero_g())
-	zone.body_exited.connect(func(b): if b.has_method("exit_zero_g"): b.exit_zero_g())
-	zone.position = Vector3(grid_pos.x * GRID, base_height, grid_pos.y * GRID)
-	parent.add_child(zone)

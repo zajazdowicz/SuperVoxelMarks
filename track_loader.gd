@@ -76,7 +76,8 @@ func _build_track() -> void:
 			RampSpawner.spawn_slope(self, p.grid, p.piece, p.rotation, bh)
 
 		if p.piece >= 48 and p.piece <= 53:
-			RampSpawner.spawn_quarter_pipe(self, p.grid, p.piece, p.rotation, bh)
+			var qp_down: bool = p.get("down", false)
+			RampSpawner.spawn_quarter_pipe(self, p.grid, p.piece, p.rotation, bh, qp_down)
 
 		if p.piece == 5:
 			_spawn_pos = Vector3(p.grid.x * GRID, bh + 3, p.grid.y * GRID)

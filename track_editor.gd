@@ -19,6 +19,7 @@ var _preview_node: Node3D
 var _piece_buttons: Array[Button] = []
 var _piece_button_ids: Array[int] = []
 var _eraser_mode := false
+var _qp_down := false  # QP arc direction: false=UP, true=DOWN (toggle with F)
 var _eraser_button: Button
 var _pieces_grid: GridContainer
 var _active_category := 0
@@ -111,6 +112,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				_place_piece()
 		KEY_DELETE, KEY_BACKSPACE:
 			_remove_piece()
+		KEY_F:
+			_qp_down = not _qp_down
+			_update_ui()
+			_update_preview()
 		KEY_T:
 			_test_track()
 		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9:
@@ -141,7 +146,8 @@ func _update_ui() -> void:
 	if _eraser_mode:
 		piece_label.text = "GUMKA (X=wylacz) | H: %d" % current_height
 	else:
-		piece_label.text = "%s | Rot: %s | H: %d" % [TrackPieces.PIECE_NAMES[current_piece], rot_label, current_height]
+		var down_label := " | DOWN" if _qp_down else ""
+		piece_label.text = "%s | Rot: %s | H: %d%s" % [TrackPieces.PIECE_NAMES[current_piece], rot_label, current_height, down_label]
 	_highlight_piece_button()
 
 
@@ -973,6 +979,10 @@ func _place_piece() -> void:
 		place_height = maxi(0, current_height - TrackPieces.HALF_RAMP_HEIGHT)
 	elif current_piece == 23:  # transition down
 		place_height = maxi(0, current_height - TrackPieces.TRANSITION_HEIGHT)
+	elif _qp_down and current_piece >= 48 and current_piece <= 53:
+		# DOWN QP: base_height at the LOW end, car enters from HIGH (current_height)
+		var qp_delta: int = TrackPieces.QP_DELTAS[current_piece]
+		place_height = maxi(0, current_height - qp_delta)
 
 	var offset := Vector3i(cursor_grid.x * GRID, place_height, cursor_grid.y * GRID)
 	for block in rotated:
@@ -1011,16 +1021,19 @@ func _place_piece() -> void:
 	elif current_piece >= 42 and current_piece <= 47:
 		RampSpawner.spawn_slope(self, cursor_grid, current_piece, current_rotation, place_height)
 	elif current_piece >= 48 and current_piece <= 53:
-		RampSpawner.spawn_quarter_pipe(self, cursor_grid, current_piece, current_rotation, place_height)
+		RampSpawner.spawn_quarter_pipe(self, cursor_grid, current_piece, current_rotation, place_height, _qp_down)
 
 	# Remove existing piece at this grid position
 	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
-	placed_pieces.append({
+	var piece_data := {
 		"grid": cursor_grid,
 		"piece": current_piece,
 		"rotation": current_rotation,
 		"base_height": place_height,
-	})
+	}
+	if _qp_down and current_piece >= 48 and current_piece <= 53:
+		piece_data["down"] = true
+	placed_pieces.append(piece_data)
 
 	# Full loop (piece 19) occupies 2 cells — register the second cell
 	if current_piece == 19:
@@ -1195,6 +1208,16 @@ func _snap_to_next_port() -> void:
 		current_height += TrackPieces.TRANSITION_HEIGHT
 	elif current_piece == 23:  # transition down
 		current_height = maxi(0, current_height - TrackPieces.TRANSITION_HEIGHT)
+	elif current_piece >= 42 and current_piece <= 47:  # slopes
+		var angle_rad := deg_to_rad(TrackPieces.SLOPE_ANGLES[current_piece])
+		var rise: int = ceili(sin(angle_rad) * float(TrackPieces.SEGMENT_SIZE))
+		current_height += rise
+	elif current_piece >= 48 and current_piece <= 53:  # quarter-pipes
+		var delta: int = TrackPieces.QP_DELTAS[current_piece]
+		if _qp_down:
+			current_height = maxi(0, current_height - delta)
+		else:
+			current_height += delta
 
 	var ports := TrackPieces.get_ports(current_piece)
 	var rotated_ports := TrackPieces.rotate_ports(ports, current_rotation)
