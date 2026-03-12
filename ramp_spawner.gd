@@ -894,27 +894,6 @@ static func spawn_vloop(parent: Node3D, grid_pos: Vector2i, _piece_id: int, rota
 		road_col.shape = road_shape
 		body.add_child(road_col)
 
-		# Walls — inward toward circle center
-		var inward0 := basis_rot * Vector3(0.0, cy - y0, cz - z0).normalized() * wall_h
-		var inward1 := basis_rot * Vector3(0.0, cy - y1, cz - z1).normalized() * wall_h
-
-		var wl_pts := PackedVector3Array()
-		wl_pts.append(p0l); wl_pts.append(p0l + inward0)
-		wl_pts.append(p1l); wl_pts.append(p1l + inward1)
-		var wl_col := CollisionShape3D.new()
-		var wl_shape := ConvexPolygonShape3D.new()
-		wl_shape.points = wl_pts
-		wl_col.shape = wl_shape
-		body.add_child(wl_col)
-
-		var wr_pts := PackedVector3Array()
-		wr_pts.append(p0r); wr_pts.append(p0r + inward0)
-		wr_pts.append(p1r); wr_pts.append(p1r + inward1)
-		var wr_col := CollisionShape3D.new()
-		var wr_shape := ConvexPolygonShape3D.new()
-		wr_shape.points = wr_pts
-		wr_col.shape = wr_shape
-		body.add_child(wr_col)
 
 	# --- Exit taper: road NARROWS from double-wide back to normal ---
 	# At z=cz: exit lane at -offset, full double-wide road
@@ -1044,24 +1023,6 @@ static func _create_vloop_visual(hw: float, R: float, cy: float,
 			st.add_vertex(va); st.add_vertex(vb); st.add_vertex(vc)
 			st.add_vertex(va); st.add_vertex(vc); st.add_vertex(vd)
 
-		# Wall visuals
-		var p0l := basis_rot * Vector3(xc0 - hw, y0, z0)
-		var p0r := basis_rot * Vector3(xc0 + hw, y0, z0)
-		var p1l := basis_rot * Vector3(xc1 - hw, y1, z1)
-		var p1r := basis_rot * Vector3(xc1 + hw, y1, z1)
-		var inward0 := basis_rot * Vector3(0.0, cy - y0, cz - z0).normalized() * wall_h
-		var inward1 := basis_rot * Vector3(0.0, cy - y1, cz - z1).normalized() * wall_h
-
-		st.set_color(wall_color)
-		var wn_l := (p1l - p0l).cross(inward0).normalized()
-		st.set_normal(wn_l)
-		st.add_vertex(p0l); st.add_vertex(p1l); st.add_vertex(p1l + inward1)
-		st.add_vertex(p0l); st.add_vertex(p1l + inward1); st.add_vertex(p0l + inward0)
-
-		var wn_r := inward0.cross(p1r - p0r).normalized()
-		st.set_normal(wn_r)
-		st.add_vertex(p0r); st.add_vertex(p0r + inward0); st.add_vertex(p1r + inward1)
-		st.add_vertex(p0r); st.add_vertex(p1r + inward1); st.add_vertex(p1r)
 
 	# Exit taper visual — road narrows from double-wide back to normal
 	var z_exit_end: float = float(HALF) + float(GRID)
