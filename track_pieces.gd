@@ -72,6 +72,14 @@ const PIECE_NAMES := [
 	"Skok",                # 39 — jump pad (mini ramp)
 	"Turbo",               # 40 — turbo boost (x2.0)
 	"Spowolnienie",        # 41 — slowdown trap
+	"QP 0-45",             # 42 — quarter-pipe twist 0°→45°
+	"QP 45-90",            # 43 — quarter-pipe twist 45°→90°
+	"QP 90-135",           # 44 — quarter-pipe twist 90°→135°
+	"QP 135-180",          # 45 — quarter-pipe twist 135°→180° (inverted)
+	"QP 180-225",          # 46 — quarter-pipe twist 180°→225°
+	"QP 225-270",          # 47 — quarter-pipe twist 225°→270°
+	"QP 270-315",          # 48 — quarter-pipe twist 270°→315°
+	"QP 315-360",          # 49 — quarter-pipe twist 315°→360° (back to flat)
 ]
 
 const HALF_RAMP_HEIGHT := 3
@@ -82,7 +90,7 @@ static func get_ports(index: int) -> Array[Dictionary]:
 		1, 24, 28, 34: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "E", "dir": Vector2i(1, 0)}]
 		2, 25, 29, 35: return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "W", "dir": Vector2i(-1, 0)}]
 	# All other standard pieces: S→N
-	if index >= 0 and index <= 41:
+	if index >= 0 and index <= 49:
 		return [{"side": "S", "dir": Vector2i(0, -1)}, {"side": "N", "dir": Vector2i(0, 1)}]
 	return []
 
@@ -137,6 +145,7 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		39: return _jump_pad()
 		40: return _turbo_pad()
 		41: return _slowdown_section()
+		42, 43, 44, 45, 46, 47, 48, 49: return _qp_twist(index)
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -489,6 +498,33 @@ static func _vloop_full() -> Array[Dictionary]:
 			blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
 			for h in range(1, loop_top):
 				blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+	return blocks
+
+
+# === QUARTER-PIPE TWIST: 45° increments, R=10 ===
+# Pieces 42-49: each twists road by 45°. 8 pieces = full 360° barrel roll loop.
+# R=10, hw=4.5. Height from circle: y_center = 1 + R*(1-cos(a))
+# Max y at 180° = 1 + 2*10 + 4.5 = 25.5
+const QP_R := 10
+static func _qp_twist(piece_id: int) -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	var step := piece_id - 42  # 0..7
+	var a_start: float = float(step) * PI / 4.0
+	var a_end: float = float(step + 1) * PI / 4.0
+	# Compute max height needed in this piece
+	var hw_f := float(ROAD_W) + 0.5
+	var y_max := 0.0
+	for i in range(9):  # sample 9 points
+		var a: float = lerpf(a_start, a_end, float(i) / 8.0)
+		var cy: float = 1.0 + float(QP_R) * (1.0 - cos(a))
+		var edge_y: float = cy + hw_f * absf(sin(a)) + hw_f * absf(cos(a))
+		y_max = maxf(y_max, edge_y)
+	var total_h := int(ceil(y_max)) + 3  # +3 for barrier headroom
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W + 2:
+				for h in range(0, total_h):
+					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
 	return blocks
 
 

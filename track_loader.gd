@@ -72,6 +72,9 @@ func _build_track() -> void:
 		if p.piece == 39:
 			RampSpawner.spawn_jump_pad(self, p.grid, p.piece, p.rotation, bh)
 
+		if p.piece >= 42 and p.piece <= 49:
+			RampSpawner.spawn_qp_twist(self, p.grid, p.piece, p.rotation, bh)
+
 		if p.piece == 5:
 			_spawn_pos = Vector3(p.grid.x * GRID, bh + 3, p.grid.y * GRID)
 			# Car faces the exit direction of the start piece
