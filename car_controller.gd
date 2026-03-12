@@ -85,6 +85,7 @@ func _ready() -> void:
 	# Load F1 car model
 	_load_car_model()
 	_setup_particles()
+	_setup_occluded_silhouette()
 
 
 func _load_car_model() -> void:
@@ -193,6 +194,42 @@ func _create_smoke_emitter() -> GPUParticles3D:
 	p.process_material = mat
 	p.draw_pass_1 = _make_particle_mesh(0.2, Color(0.7, 0.7, 0.7, 0.4))
 	return p
+
+
+func _setup_occluded_silhouette() -> void:
+	# Semi-transparent car shape visible ONLY when behind obstacles.
+	# depth_test_disabled lets ALL fragments reach the shader,
+	# then we discard fragments that are NOT occluded.
+	var silhouette := MeshInstance3D.new()
+	silhouette.name = "OccludedSilhouette"
+	var box := BoxMesh.new()
+	box.size = Vector3(0.9, 0.5, 1.8)
+	silhouette.mesh = box
+	silhouette.position = Vector3(0, 0.1, 0)
+	silhouette.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	var mat := ShaderMaterial.new()
+	var shader := Shader.new()
+	shader.code = """shader_type spatial;
+render_mode unshaded, depth_test_disabled, cull_disabled, shadows_disabled, fog_disabled;
+
+uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
+
+void fragment() {
+	float raw_depth = textureLod(depth_tex, SCREEN_UV, 0.0).r;
+	vec4 upos = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, raw_depth, 1.0);
+	float scene_dist = -upos.z / upos.w;
+	float frag_dist = -VERTEX.z;
+	if (frag_dist < scene_dist + 0.5) {
+		discard;
+	}
+	ALBEDO = vec3(0.3, 0.6, 1.0);
+	ALPHA = 0.4;
+}
+"""
+	mat.shader = shader
+	silhouette.material_override = mat
+	mesh.add_child(silhouette)
 
 
 func _unhandled_input(event: InputEvent) -> void:
