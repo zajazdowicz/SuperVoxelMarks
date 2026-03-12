@@ -1452,6 +1452,23 @@ static func spawn_slope(parent: Node3D, grid_pos: Vector2i, piece_id: int, rotat
 			basis_rot * Vector3(hw, y1, z1),
 			min(y0, y1) - 0.5, basis_rot)
 
+	# Flat extensions at both ends (bridge gaps between pieces)
+	# Low end: extend 1 unit back at entry height
+	_add_col_box(body,
+		basis_rot * Vector3(-hw, ground, -hl - 1.0),
+		basis_rot * Vector3(hw, ground, -hl - 1.0),
+		basis_rot * Vector3(-hw, ground, -hl),
+		basis_rot * Vector3(hw, ground, -hl),
+		ground - 0.5, basis_rot)
+	# High end: extend 1 unit forward at exit height
+	var exit_y: float = ground + rise
+	_add_col_box(body,
+		basis_rot * Vector3(-hw, exit_y, hl),
+		basis_rot * Vector3(hw, exit_y, hl),
+		basis_rot * Vector3(-hw, exit_y, hl + 1.0),
+		basis_rot * Vector3(hw, exit_y, hl + 1.0),
+		exit_y - 0.5, basis_rot)
+
 	# Visual mesh (road surface only, no barriers)
 	body.add_child(_create_slope_visual(segs, hw, hl, ground, run, rise, basis_rot))
 
@@ -1605,6 +1622,22 @@ static func spawn_quarter_pipe(parent: Node3D, grid_pos: Vector2i, piece_id: int
 			basis_rot * Vector3(-hw, y1, z1),
 			basis_rot * Vector3(hw, y1, z1),
 			min(y0, y1) - 0.5, basis_rot)
+
+	# Flat extensions at both ends (bridge gaps between pieces)
+	var entry_y: float = ground if not going_down else ground + h_delta
+	var exit_y2: float = ground + h_delta if not going_down else ground
+	_add_col_box(body,
+		basis_rot * Vector3(-hw, entry_y, -hl - 1.0),
+		basis_rot * Vector3(hw, entry_y, -hl - 1.0),
+		basis_rot * Vector3(-hw, entry_y, -hl),
+		basis_rot * Vector3(hw, entry_y, -hl),
+		entry_y - 0.5, basis_rot)
+	_add_col_box(body,
+		basis_rot * Vector3(-hw, exit_y2, hl),
+		basis_rot * Vector3(hw, exit_y2, hl),
+		basis_rot * Vector3(-hw, exit_y2, hl + 1.0),
+		basis_rot * Vector3(hw, exit_y2, hl + 1.0),
+		exit_y2 - 0.5, basis_rot)
 
 	# Visual mesh (road surface only, no barriers)
 	var vis := _create_qp_visual(segs, hw, hl, ground, h_delta, going_down, basis_rot)
