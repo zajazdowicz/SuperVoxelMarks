@@ -175,6 +175,13 @@ func _create_top_buttons() -> void:
 	test_btn.pressed.connect(_test_track)
 	topbar.add_child(test_btn)
 
+	var cleanup_btn := Button.new()
+	cleanup_btn.text = "WYCZYSC"
+	cleanup_btn.custom_minimum_size = Vector2(80, 30)
+	cleanup_btn.focus_mode = Control.FOCUS_NONE
+	cleanup_btn.pressed.connect(_on_cleanup_pressed)
+	topbar.add_child(cleanup_btn)
+
 
 func _on_save_pressed() -> void:
 	var tname := track_name_edit.text.strip_edges()
@@ -185,6 +192,87 @@ func _on_save_pressed() -> void:
 	TrackData.current_track = tname
 	_refresh_track_list()
 	print("Track saved: %s (%d pieces)" % [tname, placed_pieces.size()])
+
+
+func _on_cleanup_pressed() -> void:
+	# Flood-fill from start piece — remove anything not reachable via port connections
+	var start_idx := -1
+	for i in range(placed_pieces.size()):
+		if placed_pieces[i].piece == 5:
+			start_idx = i
+			break
+	if start_idx == -1:
+		print("Brak klocka startowego — usuwam wszystko poza zasiegiem kursora")
+		# Fallback: remove pieces with bh far from any neighbor
+		var removed := 0
+		var keep: Array[Dictionary] = []
+		for p in placed_pieces:
+			var bh: int = p.get("base_height", 0)
+			var has_neighbor := false
+			for other in placed_pieces:
+				if other == p:
+					continue
+				var dx: int = absi(other.grid.x - p.grid.x)
+				var dz: int = absi(other.grid.y - p.grid.y)
+				if dx + dz <= 1:
+					has_neighbor = true
+					break
+			if has_neighbor:
+				keep.append(p)
+			else:
+				removed += 1
+		placed_pieces = keep
+		print("Usunieto %d odosobnionych klockow" % removed)
+		_rebuild()
+		return
+
+	# Build lookup: grid_key -> piece index
+	var grid_map := {}
+	for i in range(placed_pieces.size()):
+		var p := placed_pieces[i]
+		var key := Vector3i(p.grid.x, p.get("base_height", 0), p.grid.y)
+		grid_map[key] = i
+
+	# BFS from start piece
+	var visited := {}
+	var queue := [start_idx]
+	visited[start_idx] = true
+
+	while not queue.is_empty():
+		var idx: int = queue.pop_front()
+		var p := placed_pieces[idx]
+		var gx: int = p.grid.x
+		var gz: int = p.grid.y
+		var bh: int = p.get("base_height", 0)
+		var ports := TrackPieces.get_ports(p.piece)
+		var rot_ports := TrackPieces.rotate_ports(ports, p.rotation)
+
+		for port in rot_ports:
+			var neighbor_gx: int = gx + port.dir.x
+			var neighbor_gz: int = gz + port.dir.y
+			# Search neighbor at any height
+			for other_i in range(placed_pieces.size()):
+				if visited.has(other_i):
+					continue
+				var other := placed_pieces[other_i]
+				if other.grid.x == neighbor_gx and other.grid.y == neighbor_gz:
+					visited[other_i] = true
+					queue.append(other_i)
+
+	var removed := placed_pieces.size() - visited.size()
+	if removed == 0:
+		print("Trasa czysta — brak odosobnionych klockow")
+		return
+
+	var keep: Array[Dictionary] = []
+	for i in range(placed_pieces.size()):
+		if visited.has(i):
+			keep.append(placed_pieces[i])
+		else:
+			print("Usuwam: piece=%d gx=%d gz=%d bh=%d" % [placed_pieces[i].piece, placed_pieces[i].grid.x, placed_pieces[i].grid.y, placed_pieces[i].get("base_height", 0)])
+	placed_pieces = keep
+	print("Usunieto %d odosobnionych klockow" % removed)
+	_rebuild()
 
 
 func _on_new_pressed() -> void:
