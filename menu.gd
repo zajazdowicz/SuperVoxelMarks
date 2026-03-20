@@ -17,6 +17,9 @@ func _ready() -> void:
 	_create_player_ui()
 	_create_generate_button()
 	_create_delete_button()
+	_create_online_button()
+	# Auto-register player if has name
+	_auto_register_player()
 
 
 func _load_track_list() -> void:
@@ -334,6 +337,236 @@ func _on_play() -> void:
 		return
 	var idx := track_list.get_selected_items()[0]
 	TrackData.current_track = tracks[idx]
+	get_tree().change_scene_to_file("res://race.tscn")
+
+
+func _auto_register_player() -> void:
+	if ApiClient.is_registered():
+		return
+	if PlayerData.player_name.is_empty():
+		return
+	ApiClient.register(PlayerData.player_name, PlayerData.player_flag, func(success: bool):
+		if success:
+			print("Player auto-registered: %s" % PlayerData.player_name)
+	)
+
+
+func _create_online_button() -> void:
+	var buttons: HBoxContainer = $VBox/Buttons
+	var online_btn := Button.new()
+	online_btn.text = "ONLINE"
+	online_btn.custom_minimum_size = Vector2(130, 50)
+	var online_style := StyleBoxFlat.new()
+	online_style.bg_color = Color(0.05, 0.1, 0.3)
+	online_style.border_color = Color(0.3, 0.5, 1.0)
+	online_style.set_border_width_all(2)
+	online_style.set_corner_radius_all(4)
+	online_btn.add_theme_stylebox_override("normal", online_style)
+	online_btn.pressed.connect(_on_online_pressed)
+	buttons.add_child(online_btn)
+
+
+var _online_modal: Control
+
+func _on_online_pressed() -> void:
+	if _online_modal:
+		return
+	_create_online_modal()
+
+
+func _create_online_modal() -> void:
+	_online_modal = Panel.new()
+	_online_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.0, 0.0, 0.0, 0.92)
+	_online_modal.add_theme_stylebox_override("panel", bg)
+	add_child(_online_modal)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_online_modal.add_child(center)
+
+	var content := PanelContainer.new()
+	var box_style := StyleBoxFlat.new()
+	box_style.bg_color = Color(0.06, 0.06, 0.1)
+	box_style.border_color = Color(0.3, 0.5, 1.0)
+	box_style.set_border_width_all(2)
+	box_style.set_corner_radius_all(8)
+	box_style.content_margin_left = 20
+	box_style.content_margin_right = 20
+	box_style.content_margin_top = 15
+	box_style.content_margin_bottom = 15
+	content.add_theme_stylebox_override("panel", box_style)
+	content.custom_minimum_size = Vector2(600, 700)
+	center.add_child(content)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	content.add_child(vbox)
+
+	# Title
+	var title := Label.new()
+	title.text = "TRASY ONLINE"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_color_override("font_color", Color(0.3, 0.5, 1.0))
+	vbox.add_child(title)
+
+	# Status label
+	var status := Label.new()
+	status.name = "StatusLabel"
+	status.text = "Ladowanie..."
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status.add_theme_font_size_override("font_size", 24)
+	status.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+	vbox.add_child(status)
+
+	# Track list
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vbox.add_child(scroll)
+
+	var list_vbox := VBoxContainer.new()
+	list_vbox.name = "TrackListOnline"
+	list_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list_vbox.add_theme_constant_override("separation", 6)
+	scroll.add_child(list_vbox)
+
+	# Close button
+	var close_btn := Button.new()
+	close_btn.text = "ZAMKNIJ"
+	close_btn.custom_minimum_size = Vector2(0, 55)
+	close_btn.add_theme_font_size_override("font_size", 28)
+	var close_style := StyleBoxFlat.new()
+	close_style.bg_color = Color(0.25, 0.05, 0.05)
+	close_style.border_color = Color(1.0, 0.3, 0.3)
+	close_style.set_border_width_all(2)
+	close_style.set_corner_radius_all(4)
+	close_btn.add_theme_stylebox_override("normal", close_style)
+	close_btn.pressed.connect(func(): _online_modal.queue_free(); _online_modal = null)
+	vbox.add_child(close_btn)
+
+	# Fetch tracks from server
+	ApiClient.get_track_list(func(server_tracks: Array):
+		status.text = "%d tras online" % server_tracks.size()
+		_populate_online_tracks(list_vbox, server_tracks)
+	)
+
+
+func _populate_online_tracks(container: VBoxContainer, server_tracks: Array) -> void:
+	for child in container.get_children():
+		child.queue_free()
+
+	for t in server_tracks:
+		var track_id: int = int(t.get("id", 0))
+		var track_name: String = str(t.get("name", "???"))
+		var author: String = str(t.get("author", ""))
+		var author_nat: String = str(t.get("author_nationality", ""))
+		var pieces: int = int(t.get("piece_count", 0))
+		var author_time: int = int(t.get("author_time_ms", 0))
+
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		row.custom_minimum_size = Vector2(0, 60)
+
+		# Track info
+		var info := Label.new()
+		var time_str := "%.1fs" % (author_time / 1000.0) if author_time > 0 else "?"
+		info.text = "%s  (%d kl.)  %s [%s]" % [track_name, pieces, author, author_nat]
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.add_theme_font_size_override("font_size", 22)
+		info.add_theme_color_override("font_color", Color.WHITE)
+		row.add_child(info)
+
+		# Check if already downloaded
+		var is_local: bool = track_name in tracks
+		var btn := Button.new()
+		if is_local:
+			btn.text = "GRAJ"
+			var play_style := StyleBoxFlat.new()
+			play_style.bg_color = Color(0.1, 0.4, 0.1)
+			play_style.set_corner_radius_all(4)
+			btn.add_theme_stylebox_override("normal", play_style)
+			btn.pressed.connect(_play_online_track.bind(track_name, track_id))
+		else:
+			btn.text = "POBIERZ"
+			var dl_style := StyleBoxFlat.new()
+			dl_style.bg_color = Color(0.1, 0.15, 0.4)
+			dl_style.set_corner_radius_all(4)
+			btn.add_theme_stylebox_override("normal", dl_style)
+			btn.pressed.connect(_download_track.bind(track_id, track_name, btn))
+
+		btn.custom_minimum_size = Vector2(120, 45)
+		btn.add_theme_font_size_override("font_size", 20)
+		row.add_child(btn)
+
+		container.add_child(row)
+
+
+func _download_track(track_id: int, track_name: String, btn: Button) -> void:
+	btn.text = "..."
+	btn.disabled = true
+
+	# Fetch full track data from server
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result: int, code: int, headers: PackedStringArray, body: PackedByteArray):
+		if code != 200:
+			btn.text = "BLAD"
+			btn.disabled = false
+			req.queue_free()
+			return
+
+		var json: Variant = JSON.parse_string(body.get_string_from_utf8())
+		if not json or not json.has("track_json"):
+			btn.text = "BLAD"
+			btn.disabled = false
+			req.queue_free()
+			return
+
+		# Save track locally
+		var track_json: Array = json["track_json"]
+		var pieces: Array[Dictionary] = []
+		for entry in track_json:
+			pieces.append({
+				"grid": Vector2i(int(entry.get("gx", 0)), int(entry.get("gz", 0))),
+				"piece": int(entry.get("piece", 0)),
+				"rotation": int(entry.get("rotation", 0)),
+				"base_height": int(entry.get("bh", 0)),
+				"down": bool(entry.get("down", 0)),
+			})
+		TrackData.save_track(track_name, pieces)
+		TrackData.set_server_id(track_name, track_id)
+
+		# Update button
+		btn.text = "GRAJ"
+		btn.disabled = false
+		var play_style := StyleBoxFlat.new()
+		play_style.bg_color = Color(0.1, 0.4, 0.1)
+		play_style.set_corner_radius_all(4)
+		btn.add_theme_stylebox_override("normal", play_style)
+
+		# Reconnect button to play
+		for conn in btn.pressed.get_connections():
+			btn.pressed.disconnect(conn.callable)
+		btn.pressed.connect(_play_online_track.bind(track_name, track_id))
+
+		# Refresh local track list
+		tracks.append(track_name)
+
+		req.queue_free()
+	)
+	req.request(ApiClient.API_BASE + "/tracks/%d" % track_id)
+
+
+func _play_online_track(track_name: String, track_id: int) -> void:
+	TrackData.current_track = track_name
+	TrackData.current_server_id = track_id
+	RaceManager.set_track_id(track_id)
+	if _online_modal:
+		_online_modal.queue_free()
+		_online_modal = null
 	get_tree().change_scene_to_file("res://race.tscn")
 
 
