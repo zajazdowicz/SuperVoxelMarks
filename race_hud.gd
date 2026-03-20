@@ -151,6 +151,12 @@ func _create_ui() -> void:
 	laps_label.label_settings = laps_s
 	add_child(laps_label)
 
+	# --- Touch buttons ---
+	_create_touch_buttons()
+
+	# --- Touch zone indicators (left/right) ---
+	_create_touch_zones()
+
 
 func _process(_delta: float) -> void:
 	countdown_label.text = ""
@@ -196,6 +202,7 @@ func _process(_delta: float) -> void:
 			if RaceManager.best_time < INF:
 				info_label.text += "\nBest: %s" % RaceManager.get_time_string(RaceManager.best_time)
 			info_label.text += "\nR = restart | ESC = menu"
+			info_label.text += "\nDotknij aby kontynuowac"
 		RaceManager.State.FINISHED:
 			var finish_time := RaceManager.get_last_lap_time()
 			timer_label.text = RaceManager.get_time_string(finish_time)
@@ -239,6 +246,9 @@ func _process(_delta: float) -> void:
 	# Laps list
 	_update_laps_list()
 
+	# Touch zone visual feedback
+	_update_touch_indicators()
+
 
 func _update_laps_list() -> void:
 	if RaceManager.laps.is_empty():
@@ -273,3 +283,93 @@ func _show_lap_complete() -> void:
 		if RaceManager.lap_count == current_lap:
 			info_label.text = ""
 	)
+
+
+# --- Touch controls ---
+
+var _touch_left_indicator: ColorRect
+var _touch_right_indicator: ColorRect
+
+
+func _create_touch_buttons() -> void:
+	# RESET button (top right corner, below speed)
+	var reset_btn := Button.new()
+	reset_btn.text = "RESET"
+	reset_btn.anchor_left = 1.0
+	reset_btn.anchor_right = 1.0
+	reset_btn.offset_left = -120.0
+	reset_btn.offset_right = -10.0
+	reset_btn.anchor_top = 0.0
+	reset_btn.offset_top = 50.0
+	reset_btn.offset_bottom = 90.0
+	reset_btn.add_theme_font_size_override("font_size", 22)
+	var reset_sb := StyleBoxFlat.new()
+	reset_sb.bg_color = Color(0.8, 0.2, 0.2, 0.7)
+	reset_sb.corner_radius_top_left = 8
+	reset_sb.corner_radius_top_right = 8
+	reset_sb.corner_radius_bottom_left = 8
+	reset_sb.corner_radius_bottom_right = 8
+	reset_btn.add_theme_stylebox_override("normal", reset_sb)
+	var reset_sb_pressed := reset_sb.duplicate()
+	reset_sb_pressed.bg_color = Color(1.0, 0.3, 0.3, 0.9)
+	reset_btn.add_theme_stylebox_override("pressed", reset_sb_pressed)
+	reset_btn.pressed.connect(_on_reset_pressed)
+	add_child(reset_btn)
+
+	# PAUSE / MENU button (top left corner, below remaining)
+	var pause_btn := Button.new()
+	pause_btn.text = "MENU"
+	pause_btn.offset_left = 10.0
+	pause_btn.offset_top = 50.0
+	pause_btn.offset_right = 110.0
+	pause_btn.offset_bottom = 90.0
+	pause_btn.add_theme_font_size_override("font_size", 22)
+	var pause_sb := StyleBoxFlat.new()
+	pause_sb.bg_color = Color(0.3, 0.3, 0.3, 0.7)
+	pause_sb.corner_radius_top_left = 8
+	pause_sb.corner_radius_top_right = 8
+	pause_sb.corner_radius_bottom_left = 8
+	pause_sb.corner_radius_bottom_right = 8
+	pause_btn.add_theme_stylebox_override("normal", pause_sb)
+	pause_btn.pressed.connect(_on_pause_pressed)
+	add_child(pause_btn)
+
+
+func _create_touch_zones() -> void:
+	# Left touch zone indicator (bottom left, semi-transparent)
+	_touch_left_indicator = ColorRect.new()
+	_touch_left_indicator.anchor_left = 0.0
+	_touch_left_indicator.anchor_right = 0.5
+	_touch_left_indicator.anchor_top = 0.7
+	_touch_left_indicator.anchor_bottom = 1.0
+	_touch_left_indicator.color = Color(0.2, 0.5, 1.0, 0.0)  # invisible by default
+	_touch_left_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_touch_left_indicator)
+
+	# Right touch zone indicator (bottom right)
+	_touch_right_indicator = ColorRect.new()
+	_touch_right_indicator.anchor_left = 0.5
+	_touch_right_indicator.anchor_right = 1.0
+	_touch_right_indicator.anchor_top = 0.7
+	_touch_right_indicator.anchor_bottom = 1.0
+	_touch_right_indicator.color = Color(1.0, 0.3, 0.3, 0.0)  # invisible by default
+	_touch_right_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_touch_right_indicator)
+
+
+func _update_touch_indicators() -> void:
+	if not car:
+		return
+	var left_active: bool = car.get("_touch_left") and car._touch_left
+	var right_active: bool = car.get("_touch_right") and car._touch_right
+	_touch_left_indicator.color.a = 0.12 if left_active else 0.0
+	_touch_right_indicator.color.a = 0.12 if right_active else 0.0
+
+
+func _on_reset_pressed() -> void:
+	RaceManager.reset()
+	get_tree().reload_current_scene()
+
+
+func _on_pause_pressed() -> void:
+	get_tree().change_scene_to_file("res://menu.tscn")

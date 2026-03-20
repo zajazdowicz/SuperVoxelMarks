@@ -24,6 +24,12 @@ const SPAWN_GRACE := 3.0      # seconds of immunity after spawn/respawn
 
 var _grace_timer := SPAWN_GRACE
 
+# Touch controls
+var _touch_left := false      # left side of screen touched
+var _touch_right := false     # right side of screen touched
+var _touch_ids := {}          # touch_index → "left" or "right"
+var _auto_gas := true         # auto-gas enabled (mobile mode)
+
 @onready var mesh: Node3D = $Mesh
 @onready var collision: CollisionShape3D = $CollisionShape3D
 
@@ -291,6 +297,28 @@ void fragment() {
 	mesh.add_child(arrow)
 
 
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		var screen_w := get_viewport().get_visible_rect().size.x
+		var half_w := screen_w * 0.5
+		if event.pressed:
+			var side := "left" if event.position.x < half_w else "right"
+			_touch_ids[event.index] = side
+		else:
+			_touch_ids.erase(event.index)
+		_touch_left = _touch_ids.values().has("left")
+		_touch_right = _touch_ids.values().has("right")
+
+	elif event is InputEventScreenDrag:
+		# Update side if finger drags across midpoint
+		var screen_w := get_viewport().get_visible_rect().size.x
+		var half_w := screen_w * 0.5
+		if _touch_ids.has(event.index):
+			_touch_ids[event.index] = "left" if event.position.x < half_w else "right"
+			_touch_left = _touch_ids.values().has("left")
+			_touch_right = _touch_ids.values().has("right")
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		match event.keycode:
@@ -326,9 +354,35 @@ func _physics_process(delta: float) -> void:
 	# --- Off-track detection ---
 	_check_offtrack(surface, airborne, delta)
 
-	var throttle := Input.get_axis("ui_down", "ui_up")
-	var steer := Input.get_axis("ui_right", "ui_left")
-	var handbrake := Input.is_action_pressed("ui_accept")  # Space
+	# --- Input: keyboard + touch combined ---
+	var kb_throttle := Input.get_axis("ui_down", "ui_up")
+	var kb_steer := Input.get_axis("ui_right", "ui_left")
+	var kb_handbrake := Input.is_action_pressed("ui_accept")  # Space
+
+	# Touch: both sides = drift/brake, one side = steer, auto-gas
+	var touch_throttle := 0.0
+	var touch_steer := 0.0
+	var touch_handbrake := false
+	var touch_active := _touch_left or _touch_right
+
+	if touch_active:
+		if _touch_left and _touch_right:
+			touch_handbrake = true
+			touch_throttle = 0.5  # keep some speed while drifting
+		elif _touch_left:
+			touch_steer = 1.0   # left touch = steer left
+			touch_throttle = 1.0
+		elif _touch_right:
+			touch_steer = -1.0  # right touch = steer right
+			touch_throttle = 1.0
+	elif _auto_gas:
+		touch_throttle = 1.0  # auto-gas when no touch
+
+	# Combine: keyboard takes priority if active, otherwise touch
+	var has_kb := absf(kb_throttle) > 0.01 or absf(kb_steer) > 0.01 or kb_handbrake
+	var throttle := kb_throttle if has_kb else touch_throttle
+	var steer := kb_steer if has_kb else touch_steer
+	var handbrake := kb_handbrake or touch_handbrake
 
 	# --- Surface properties ---
 	var grip: float = surface.grip

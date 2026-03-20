@@ -275,6 +275,89 @@ func _on_cleanup_pressed() -> void:
 	_rebuild()
 
 
+func _rebuild() -> void:
+	# Clear terrain and re-place all pieces from placed_pieces array
+	var tool := terrain.get_voxel_tool()
+	tool.channel = VoxelBuffer.CHANNEL_TYPE
+
+	# Clear all occupied cells to grass
+	for p in placed_pieces:
+		var bh: int = p.get("base_height", 0)
+		var offset := Vector3i(p.grid.x * GRID, 0, p.grid.y * GRID)
+		var half := TrackPieces.HALF
+		for x in range(-half, half + 1):
+			for z in range(-half, half + 1):
+				for y in range(0, bh + 20):
+					if y == 0:
+						tool.set_voxel(offset + Vector3i(x, y, z), TrackPieces.GRASS)
+					else:
+						tool.set_voxel(offset + Vector3i(x, y, z), TrackPieces.AIR)
+
+	# Remove all collision shapes
+	for prefix in ["RampCollision", "WallRide", "Loop", "VLoop", "Slope", "ZeroGZone"]:
+		for p in placed_pieces:
+			var node_name := "%s_%d_%d" % [prefix, p.grid.x, p.grid.y]
+			var existing := get_node_or_null(node_name)
+			if existing:
+				existing.queue_free()
+
+	# Re-place all pieces sorted by height (higher last so their voxels win)
+	var sorted := placed_pieces.duplicate()
+	sorted.sort_custom(func(a, b): return a.get("base_height", 0) < b.get("base_height", 0))
+	for p in sorted:
+		var piece := TrackPieces.get_piece(p.piece)
+		var rotated := TrackPieces.rotate_piece(piece, p.rotation)
+		var bh: int = p.get("base_height", 0)
+		var offset := Vector3i(p.grid.x * GRID, bh, p.grid.y * GRID)
+		for block in rotated:
+			tool.set_voxel(offset + block.pos, block.type)
+		# Spawn collision for special pieces
+		if p.piece in [3, 4, 30, 31]:
+			RampSpawner.spawn_ramp(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece >= 12 and p.piece <= 14:
+			RampSpawner.spawn_wall_ride(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece >= 15 and p.piece <= 18:
+			RampSpawner.spawn_loop(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece == 19:
+			RampSpawner.spawn_vloop(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece == 22 or p.piece == 23:
+			RampSpawner.spawn_transition(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece == 28 or p.piece == 29:
+			RampSpawner.spawn_banked_turn(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece == 34 or p.piece == 35:
+			RampSpawner.spawn_ramp_turn(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece == 39:
+			RampSpawner.spawn_jump_pad(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece >= 42 and p.piece <= 47:
+			RampSpawner.spawn_slope(self, p.grid, p.piece, p.rotation, bh)
+		elif p.piece >= 48 and p.piece <= 53:
+			var qp_down: bool = p.get("down", false)
+			RampSpawner.spawn_quarter_pipe(self, p.grid, p.piece, p.rotation, bh, qp_down)
+		elif p.piece >= 57 and p.piece <= 62:
+			RampSpawner.spawn_slope_turn(self, p.grid, p.piece, p.rotation, bh)
+
+	# Second pass: clear ramp HIGH-end boundary voxels
+	for p in placed_pieces:
+		if p.piece not in [3, 4, 30, 31]:
+			continue
+		var bh2: int = p.get("base_height", 0)
+		var offset2 := Vector3i(p.grid.x * GRID, bh2, p.grid.y * GRID)
+		var is_up: bool = p.piece == 3 or p.piece == 30
+		var high_z: int = TrackPieces.HI if is_up else TrackPieces.LO
+		var rh: int = TrackPieces.RAMP_HEIGHT if (p.piece == 3 or p.piece == 4) else TrackPieces.HALF_RAMP_HEIGHT
+		for x2 in range(-TrackPieces.ROAD_W, TrackPieces.ROAD_W + 1):
+			var rx := x2
+			var rz := high_z
+			for _r in range(p.rotation % 4):
+				var tmp := rx
+				rx = -rz
+				rz = tmp
+			for h2 in range(0, rh + 1):
+				tool.set_voxel(offset2 + Vector3i(rx, h2, rz), TrackPieces.AIR)
+
+	_auto_save()
+
+
 func _on_new_pressed() -> void:
 	# Clear everything and reload scene
 	TrackData.current_track = "_new_"
@@ -1143,8 +1226,8 @@ func _place_piece() -> void:
 	elif current_piece >= 57 and current_piece <= 62:
 		RampSpawner.spawn_slope_turn(self, cursor_grid, current_piece, current_rotation, place_height)
 
-	# Remove existing piece at this grid position
-	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
+	# Remove existing piece at this grid position AND same height
+	placed_pieces = placed_pieces.filter(func(p): return not (p.grid == cursor_grid and p.get("base_height", 0) == place_height))
 	var piece_data := {
 		"grid": cursor_grid,
 		"piece": current_piece,
@@ -1176,20 +1259,28 @@ func _remove_piece() -> void:
 	var tool := terrain.get_voxel_tool()
 	tool.channel = VoxelBuffer.CHANNEL_TYPE
 
-	# Find base_height of piece at cursor
-	var bh := 0
+	# Find piece at cursor matching current_height (closest height if no exact match)
+	var bh := current_height
+	var found := false
 	for p in placed_pieces:
-		if p.grid == cursor_grid:
-			bh = p.get("base_height", 0)
+		if p.grid == cursor_grid and p.get("base_height", 0) == current_height:
+			bh = current_height
+			found = true
 			break
+	if not found:
+		# Fallback: find any piece at this grid
+		for p in placed_pieces:
+			if p.grid == cursor_grid:
+				bh = p.get("base_height", 0)
+				break
 
 	var offset := Vector3i(cursor_grid.x * GRID, 0, cursor_grid.y * GRID)
 	var half := TrackPieces.HALF
 
-	# Clear only this segment's range (LO..HI = -HALF..+HALF), no overflow
+	# Clear only this segment's range at the target height
 	for x in range(-half, half + 1):
 		for z in range(-half, half + 1):
-			for y in range(0, bh + 20):
+			for y in range(bh, bh + 20):
 				if y == 0:
 					tool.set_voxel(offset + Vector3i(x, y, z), TrackPieces.GRASS)
 				else:
@@ -1203,7 +1294,7 @@ func _remove_piece() -> void:
 			existing.queue_free()
 
 	current_height = bh
-	placed_pieces = placed_pieces.filter(func(p): return p.grid != cursor_grid)
+	placed_pieces = placed_pieces.filter(func(p): return not (p.grid == cursor_grid and p.get("base_height", 0) == bh))
 
 	# Re-draw neighbors that share the overlap edge
 	_redraw_neighbors(cursor_grid, tool)
