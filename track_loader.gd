@@ -146,18 +146,22 @@ func _build_track() -> void:
 	# Spawn ghost for personal best
 	_spawn_ghost()
 
-	# Start ghost when countdown ends (GO!) and restart on new lap
+	# Start ghost when countdown ends (GO!)
 	if not RaceManager.race_started.is_connected(_start_ghost):
 		RaceManager.race_started.connect(_start_ghost)
-	if not RaceManager.lap_completed.is_connected(_start_ghost):
-		RaceManager.lap_completed.connect(_start_ghost)
+	# Lap mode only: restart ghost on new lap (sprint restarts via countdown)
+	if not RaceManager.is_sprint:
+		if not RaceManager.lap_completed.is_connected(_start_ghost):
+			RaceManager.lap_completed.connect(_start_ghost)
 
 	# Start countdown
 	RaceManager.start_countdown()
 
 
 func _spawn_ghost() -> void:
+	print("GHOST: best_ghost size=%d best_time=%.2f" % [RaceManager.best_ghost.size(), RaceManager.best_time])
 	if RaceManager.best_ghost.is_empty():
+		print("GHOST: No ghost data — skipping spawn")
 		return
 
 	var ghost_script := preload("res://ghost_player.gd")
