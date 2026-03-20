@@ -38,7 +38,7 @@ func _create_ui() -> void:
 	timer_label.offset_top = 10.0
 	timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var timer_s := LabelSettings.new()
-	timer_s.font_size = 56
+	timer_s.font_size = 68
 	timer_s.font_color = Color.WHITE
 	timer_s.outline_size = 4
 	timer_s.outline_color = Color.BLACK
@@ -54,7 +54,7 @@ func _create_ui() -> void:
 	best_label.offset_top = 52.0
 	best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var best_s := LabelSettings.new()
-	best_s.font_size = 32
+	best_s.font_size = 40
 	best_s.font_color = Color(0.4, 0.8, 1.0)
 	best_s.outline_size = 3
 	best_s.outline_color = Color.BLACK
@@ -70,7 +70,7 @@ func _create_ui() -> void:
 	delta_label.offset_top = 76.0
 	delta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var delta_s := LabelSettings.new()
-	delta_s.font_size = 34
+	delta_s.font_size = 42
 	delta_s.font_color = Color(0.3, 1.0, 0.3)
 	delta_s.outline_size = 3
 	delta_s.outline_color = Color.BLACK
@@ -83,7 +83,7 @@ func _create_ui() -> void:
 	remaining_label.offset_top = 10.0
 	remaining_label.offset_right = 200.0
 	var rem_s := LabelSettings.new()
-	rem_s.font_size = 36
+	rem_s.font_size = 44
 	rem_s.font_color = Color(0.8, 0.8, 0.8)
 	rem_s.outline_size = 3
 	rem_s.outline_color = Color.BLACK
@@ -98,7 +98,7 @@ func _create_ui() -> void:
 	speed_label.offset_top = 10.0
 	speed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	var speed_s := LabelSettings.new()
-	speed_s.font_size = 36
+	speed_s.font_size = 44
 	speed_s.font_color = Color(0.8, 0.8, 0.8)
 	speed_s.outline_size = 3
 	speed_s.outline_color = Color.BLACK
@@ -130,7 +130,7 @@ func _create_ui() -> void:
 	info_label.offset_right = 200.0
 	info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var info_s := LabelSettings.new()
-	info_s.font_size = 44
+	info_s.font_size = 52
 	info_s.font_color = Color(1.0, 0.9, 0.2)
 	info_s.outline_size = 4
 	info_s.outline_color = Color.BLACK
@@ -393,12 +393,12 @@ func _create_touch_buttons() -> void:
 	reset_btn.text = "RESET"
 	reset_btn.anchor_left = 1.0
 	reset_btn.anchor_right = 1.0
-	reset_btn.offset_left = -120.0
+	reset_btn.offset_left = -160.0
 	reset_btn.offset_right = -10.0
 	reset_btn.anchor_top = 0.0
 	reset_btn.offset_top = 50.0
-	reset_btn.offset_bottom = 90.0
-	reset_btn.add_theme_font_size_override("font_size", 22)
+	reset_btn.offset_bottom = 110.0
+	reset_btn.add_theme_font_size_override("font_size", 32)
 	var reset_sb := StyleBoxFlat.new()
 	reset_sb.bg_color = Color(0.8, 0.2, 0.2, 0.7)
 	reset_sb.corner_radius_top_left = 8
@@ -417,9 +417,9 @@ func _create_touch_buttons() -> void:
 	pause_btn.text = "MENU"
 	pause_btn.offset_left = 10.0
 	pause_btn.offset_top = 50.0
-	pause_btn.offset_right = 110.0
-	pause_btn.offset_bottom = 90.0
-	pause_btn.add_theme_font_size_override("font_size", 22)
+	pause_btn.offset_right = 160.0
+	pause_btn.offset_bottom = 110.0
+	pause_btn.add_theme_font_size_override("font_size", 32)
 	var pause_sb := StyleBoxFlat.new()
 	pause_sb.bg_color = Color(0.3, 0.3, 0.3, 0.7)
 	pause_sb.corner_radius_top_left = 8

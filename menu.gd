@@ -22,25 +22,122 @@ func _ready() -> void:
 	_auto_register_player()
 
 
+var _selected_track := -1
+var _track_buttons: Array[Button] = []
+
 func _load_track_list() -> void:
 	tracks.clear()
+	_track_buttons.clear()
 	track_list.clear()
+
 	var dir := DirAccess.open("user://tracks")
 	if dir:
 		dir.list_dir_begin()
 		var file := dir.get_next()
 		while file != "":
 			if file.ends_with(".json"):
-				var tname := file.trim_suffix(".json")
-				tracks.append(tname)
-				track_list.add_item(tname)
+				tracks.append(file.trim_suffix(".json"))
 			file = dir.get_next()
+
+	# Hide old ItemList, use scroll with tiles
+	track_list.visible = false
+
+	# Find or create scroll container
+	var vbox: VBoxContainer = $VBox
+	var scroll := vbox.get_node_or_null("TrackScroll") as ScrollContainer
+	if not scroll:
+		scroll = ScrollContainer.new()
+		scroll.name = "TrackScroll"
+		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.custom_minimum_size = Vector2(0, 350)
+		vbox.add_child(scroll)
+		vbox.move_child(scroll, 3)  # after player row
+
+	# Clear old tiles
+	for child in scroll.get_children():
+		child.queue_free()
+
+	var grid := VBoxContainer.new()
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("separation", 10)
+	scroll.add_child(grid)
 
 	if tracks.is_empty():
 		play_button.disabled = true
 		play_button.text = "GRAJ (brak tras)"
-	else:
-		track_list.select(0)
+		return
+
+	var colors := [
+		Color(0.15, 0.25, 0.4),
+		Color(0.2, 0.15, 0.35),
+		Color(0.1, 0.3, 0.2),
+		Color(0.3, 0.15, 0.15),
+		Color(0.25, 0.2, 0.1),
+	]
+
+	for i in range(tracks.size()):
+		var tname := tracks[i]
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(0, 80)
+		btn.add_theme_font_size_override("font_size", 32)
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+
+		# Check if has server ID
+		var sid: int = TrackData.get_server_id(tname)
+		var online_tag := " [ONLINE]" if sid > 0 else ""
+
+		# Check if has best time
+		var time_tag := ""
+		var best_path := "user://times/%s.json" % tname
+		if FileAccess.file_exists(best_path):
+			var f := FileAccess.open(best_path, FileAccess.READ)
+			var j := JSON.new()
+			j.parse(f.get_as_text())
+			if j.data:
+				var t: float = float(j.data.get("time", 0))
+				if t > 0:
+					time_tag = "  %.2fs" % t
+
+		btn.text = "  %s%s%s" % [tname, time_tag, online_tag]
+
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = colors[i % colors.size()]
+		sb.corner_radius_top_left = 8
+		sb.corner_radius_top_right = 8
+		sb.corner_radius_bottom_left = 8
+		sb.corner_radius_bottom_right = 8
+		sb.content_margin_left = 15
+		btn.add_theme_stylebox_override("normal", sb)
+
+		var sb_sel := sb.duplicate() as StyleBoxFlat
+		sb_sel.border_color = Color(1.0, 0.9, 0.2)
+		sb_sel.set_border_width_all(3)
+		btn.add_theme_stylebox_override("focus", sb_sel)
+		btn.add_theme_stylebox_override("pressed", sb_sel)
+
+		var idx := i
+		btn.pressed.connect(func(): _select_track(idx))
+		grid.add_child(btn)
+		_track_buttons.append(btn)
+
+	_select_track(0)
+
+
+func _select_track(idx: int) -> void:
+	_selected_track = idx
+	play_button.disabled = false
+	play_button.text = "GRAJ"
+
+	# Highlight selected
+	for i in range(_track_buttons.size()):
+		var btn := _track_buttons[i]
+		var sb := btn.get_theme_stylebox("normal") as StyleBoxFlat
+		if i == idx:
+			sb.border_color = Color(1.0, 0.9, 0.2)
+			sb.set_border_width_all(3)
+		else:
+			sb.set_border_width_all(0)
 
 
 func _create_player_ui() -> void:
@@ -57,7 +154,7 @@ func _create_player_ui() -> void:
 	var name_label := Label.new()
 	name_label.text = "NICK:"
 	var name_settings := LabelSettings.new()
-	name_settings.font_size = 36
+	name_settings.font_size = 44
 	name_settings.font_color = Color.WHITE
 	name_label.label_settings = name_settings
 	player_row.add_child(name_label)
@@ -66,8 +163,8 @@ func _create_player_ui() -> void:
 	name_input.text = PlayerData.player_name
 	name_input.placeholder_text = "Wpisz nick"
 	name_input.max_length = 15
-	name_input.custom_minimum_size = Vector2(350, 60)
-	name_input.add_theme_font_size_override("font_size", 32)
+	name_input.custom_minimum_size = Vector2(400, 80)
+	name_input.add_theme_font_size_override("font_size", 40)
 	var input_style := StyleBoxFlat.new()
 	input_style.bg_color = Color(0.12, 0.12, 0.18)
 	input_style.border_color = Color(0.3, 0.7, 1.0)
@@ -79,8 +176,8 @@ func _create_player_ui() -> void:
 
 	# Flag button
 	flag_button = Button.new()
-	flag_button.custom_minimum_size = Vector2(80, 60)
-	flag_button.add_theme_font_size_override("font_size", 32)
+	flag_button.custom_minimum_size = Vector2(100, 80)
+	flag_button.add_theme_font_size_override("font_size", 40)
 	var flag_style := StyleBoxFlat.new()
 	flag_style.bg_color = Color(0.12, 0.12, 0.18)
 	flag_style.border_color = Color(0.3, 0.7, 1.0)
@@ -284,7 +381,9 @@ func _create_generate_button() -> void:
 	var buttons: HBoxContainer = $VBox/Buttons
 	var gen_btn := Button.new()
 	gen_btn.text = "GENERUJ"
-	gen_btn.custom_minimum_size = Vector2(130, 50)
+	gen_btn.custom_minimum_size = Vector2(0, 90)
+	gen_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gen_btn.add_theme_font_size_override("font_size", 36)
 	var gen_style := StyleBoxFlat.new()
 	gen_style.bg_color = Color(0.05, 0.2, 0.05)
 	gen_style.border_color = Color(0.2, 0.8, 0.3)
@@ -310,7 +409,9 @@ func _create_delete_button() -> void:
 	var buttons: HBoxContainer = $VBox/Buttons
 	var del_btn := Button.new()
 	del_btn.text = "USUN"
-	del_btn.custom_minimum_size = Vector2(100, 50)
+	del_btn.custom_minimum_size = Vector2(0, 90)
+	del_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	del_btn.add_theme_font_size_override("font_size", 36)
 	var del_style := StyleBoxFlat.new()
 	del_style.bg_color = Color(0.3, 0.05, 0.05)
 	del_style.border_color = Color(0.8, 0.2, 0.2)
@@ -321,10 +422,9 @@ func _create_delete_button() -> void:
 
 
 func _on_delete() -> void:
-	if track_list.get_selected_items().is_empty():
+	if _selected_track < 0 or _selected_track >= tracks.size():
 		return
-	var idx := track_list.get_selected_items()[0]
-	var tname := tracks[idx]
+	var tname := tracks[_selected_track]
 	TrackData.delete_track(tname)
 	# Also delete best time
 	if FileAccess.file_exists("user://times/%s.json" % tname):
@@ -333,10 +433,9 @@ func _on_delete() -> void:
 
 
 func _on_play() -> void:
-	if track_list.get_selected_items().is_empty():
+	if _selected_track < 0 or _selected_track >= tracks.size():
 		return
-	var idx := track_list.get_selected_items()[0]
-	TrackData.current_track = tracks[idx]
+	TrackData.current_track = tracks[_selected_track]
 	get_tree().change_scene_to_file("res://race.tscn")
 
 
@@ -355,7 +454,9 @@ func _create_online_button() -> void:
 	var buttons: HBoxContainer = $VBox/Buttons
 	var online_btn := Button.new()
 	online_btn.text = "ONLINE"
-	online_btn.custom_minimum_size = Vector2(130, 50)
+	online_btn.custom_minimum_size = Vector2(0, 90)
+	online_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	online_btn.add_theme_font_size_override("font_size", 36)
 	var online_style := StyleBoxFlat.new()
 	online_style.bg_color = Color(0.05, 0.1, 0.3)
 	online_style.border_color = Color(0.3, 0.5, 1.0)
@@ -397,18 +498,18 @@ func _create_online_modal() -> void:
 	box_style.content_margin_top = 15
 	box_style.content_margin_bottom = 15
 	content.add_theme_stylebox_override("panel", box_style)
-	content.custom_minimum_size = Vector2(600, 700)
+	content.custom_minimum_size = Vector2(700, 800)
 	center.add_child(content)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
+	vbox.add_theme_constant_override("separation", 10)
 	content.add_child(vbox)
 
 	# Title
 	var title := Label.new()
 	title.text = "TRASY ONLINE"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_font_size_override("font_size", 52)
 	title.add_theme_color_override("font_color", Color(0.3, 0.5, 1.0))
 	vbox.add_child(title)
 
@@ -417,7 +518,7 @@ func _create_online_modal() -> void:
 	status.name = "StatusLabel"
 	status.text = "Ladowanie..."
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	status.add_theme_font_size_override("font_size", 24)
+	status.add_theme_font_size_override("font_size", 32)
 	status.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	vbox.add_child(status)
 
@@ -472,10 +573,9 @@ func _populate_online_tracks(container: VBoxContainer, server_tracks: Array) -> 
 
 		# Track info
 		var info := Label.new()
-		var time_str := "%.1fs" % (author_time / 1000.0) if author_time > 0 else "?"
-		info.text = "%s  (%d kl.)  %s [%s]" % [track_name, pieces, author, author_nat]
+		info.text = "%s\n%d kl. | %s [%s]" % [track_name, pieces, author, author_nat]
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		info.add_theme_font_size_override("font_size", 22)
+		info.add_theme_font_size_override("font_size", 30)
 		info.add_theme_color_override("font_color", Color.WHITE)
 		row.add_child(info)
 
@@ -486,19 +586,19 @@ func _populate_online_tracks(container: VBoxContainer, server_tracks: Array) -> 
 			btn.text = "GRAJ"
 			var play_style := StyleBoxFlat.new()
 			play_style.bg_color = Color(0.1, 0.4, 0.1)
-			play_style.set_corner_radius_all(4)
+			play_style.set_corner_radius_all(6)
 			btn.add_theme_stylebox_override("normal", play_style)
 			btn.pressed.connect(_play_online_track.bind(track_name, track_id))
 		else:
 			btn.text = "POBIERZ"
 			var dl_style := StyleBoxFlat.new()
 			dl_style.bg_color = Color(0.1, 0.15, 0.4)
-			dl_style.set_corner_radius_all(4)
+			dl_style.set_corner_radius_all(6)
 			btn.add_theme_stylebox_override("normal", dl_style)
 			btn.pressed.connect(_download_track.bind(track_id, track_name, btn))
 
-		btn.custom_minimum_size = Vector2(120, 45)
-		btn.add_theme_font_size_override("font_size", 20)
+		btn.custom_minimum_size = Vector2(180, 70)
+		btn.add_theme_font_size_override("font_size", 32)
 		row.add_child(btn)
 
 		container.add_child(row)
@@ -571,10 +671,8 @@ func _play_online_track(track_name: String, track_id: int) -> void:
 
 
 func _on_editor() -> void:
-	# If a track is selected, edit it. Otherwise create new.
-	if not track_list.get_selected_items().is_empty():
-		var idx := track_list.get_selected_items()[0]
-		TrackData.current_track = tracks[idx]
+	if _selected_track >= 0 and _selected_track < tracks.size():
+		TrackData.current_track = tracks[_selected_track]
 	else:
 		TrackData.current_track = "_new_"
 	get_tree().change_scene_to_file("res://editor.tscn")

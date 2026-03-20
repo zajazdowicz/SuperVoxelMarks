@@ -3,13 +3,13 @@
 [ext_resource type="Script" path="res://menu.gd" id="Script_menu"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_title"]
-font_size = 72
+font_size = 82
 font_color = Color(1, 0.9, 0.2, 1)
-outline_size = 5
+outline_size = 6
 outline_color = Color(0.1, 0.1, 0.1, 1)
 
 [sub_resource type="LabelSettings" id="LabelSettings_sub"]
-font_size = 32
+font_size = 38
 font_color = Color(0.7, 0.7, 0.7, 1)
 
 [node name="Menu" type="Control"]
@@ -24,22 +24,20 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.08, 0.08, 0.12, 1)
+color = Color(0.06, 0.06, 0.1, 1)
 
 [node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -400.0
-offset_top = -450.0
-offset_right = 400.0
-offset_bottom = 450.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 20
+anchors_preset = 15
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+offset_top = 40.0
+offset_right = -30.0
+offset_bottom = -30.0
+theme_override_constants/separation = 15
 
 [node name="Title" type="Label" parent="VBox"]
 layout_mode = 2
@@ -55,19 +53,24 @@ horizontal_alignment = 1
 
 [node name="TrackList" type="ItemList" parent="VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 200)
+custom_minimum_size = Vector2(0, 10)
+visible = false
 
 [node name="Buttons" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
 alignment = 1
-theme_override_constants/separation = 20
+theme_override_constants/separation = 15
 
 [node name="PlayButton" type="Button" parent="VBox/Buttons"]
 layout_mode = 2
-custom_minimum_size = Vector2(300, 80)
+custom_minimum_size = Vector2(0, 100)
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 42
 text = "GRAJ"
 
 [node name="EditorButton" type="Button" parent="VBox/Buttons"]
 layout_mode = 2
-custom_minimum_size = Vector2(300, 80)
-text = "EDYTUJ / NOWA"
+custom_minimum_size = Vector2(0, 100)
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 42
+text = "EDYTOR"
