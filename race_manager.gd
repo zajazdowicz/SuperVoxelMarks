@@ -134,11 +134,9 @@ func _finish_lap() -> void:
 	lap_count += 1
 
 	# Check for best lap
-	print("GHOST: _finish_lap lap_time=%.3f best_time=%.3f _lap_ghost.size=%d" % [lap_time, best_time, _lap_ghost.size()])
 	if lap_time < best_time:
 		best_time = lap_time
 		best_ghost = _lap_ghost.duplicate()
-		print("GHOST: New PB! best_ghost.size=%d" % best_ghost.size())
 		_save_best_time()
 		# Upload to server
 		_upload_score(lap_time)

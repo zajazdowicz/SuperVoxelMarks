@@ -159,9 +159,7 @@ func _build_track() -> void:
 
 
 func _spawn_ghost() -> void:
-	print("GHOST: best_ghost size=%d best_time=%.2f" % [RaceManager.best_ghost.size(), RaceManager.best_time])
 	if RaceManager.best_ghost.is_empty():
-		print("GHOST: No ghost data — skipping spawn")
 		return
 
 	var ghost_script := preload("res://ghost_player.gd")
