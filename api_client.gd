@@ -57,7 +57,7 @@ func register(p_name: String, p_nationality: String, callback: Callable) -> void
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.request_completed.connect(func(result, code, headers, body_bytes):
-		var success := code == 200
+		var success: bool = code == 200
 		if success:
 			print("API: Player registered: %s" % player_name)
 		else:
@@ -100,8 +100,8 @@ func submit_score(track_id: int, lap_time_ms: int, ghost_frames: Array, callback
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.request_completed.connect(func(result, code, headers, body_bytes):
-		var success := code == 200
-		var data := {}
+		var success: bool = code == 200
+		var data: Dictionary = {}
 		if success:
 			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json:
@@ -156,7 +156,7 @@ func get_leaderboard(track_id: int, callback: Callable) -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.request_completed.connect(func(result, code, headers, body_bytes):
-		var data := {}
+		var data: Dictionary = {}
 		if code == 200:
 			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json:
@@ -177,7 +177,7 @@ func get_ghosts(track_id: int, callback: Callable) -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.request_completed.connect(func(result, code, headers, body_bytes):
-		var ghosts := []
+		var ghosts: Array = []
 		if code == 200:
 			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json and json.has("ghosts"):
@@ -217,8 +217,8 @@ func publish_track(track_name: String, track_json: Array, author_time_ms: int, c
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.request_completed.connect(func(result, code, headers, body_bytes):
-		var success := code == 201
-		var data := {}
+		var success: bool = code == 201
+		var data: Dictionary = {}
 		if success:
 			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json:
@@ -234,7 +234,7 @@ func get_track_list(callback: Callable) -> void:
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.request_completed.connect(func(result, code, headers, body_bytes):
-		var tracks := []
+		var tracks: Array = []
 		if code == 200:
 			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json is Array:
