@@ -388,18 +388,19 @@ func _physics_process(delta: float) -> void:
 	var touch_handbrake := false
 	var touch_active := _touch_left or _touch_right or _touch_brake
 
+	# Steering (always works, even while braking)
+	if _touch_left and _touch_right:
+		touch_handbrake = true
+	elif _touch_left:
+		touch_steer = 1.0
+	elif _touch_right:
+		touch_steer = -1.0
+
+	# Throttle
 	if _touch_brake:
 		touch_throttle = -1.0  # brake / reverse
 	elif touch_active:
-		if _touch_left and _touch_right:
-			touch_handbrake = true
-			touch_throttle = 0.5  # keep some speed while drifting
-		elif _touch_left:
-			touch_steer = 1.0   # left touch = steer left
-			touch_throttle = 1.0
-		elif _touch_right:
-			touch_steer = -1.0  # right touch = steer right
-			touch_throttle = 1.0
+		touch_throttle = 1.0 if not touch_handbrake else 0.5
 	elif _auto_gas:
 		touch_throttle = 1.0  # auto-gas when no touch
 
