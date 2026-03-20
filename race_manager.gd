@@ -43,6 +43,11 @@ func reset() -> void:
 	_record_timer = 0.0
 	respawn_pos = Vector3.ZERO
 	respawn_rot = 0.0
+	# Disconnect stale signals from destroyed scene nodes
+	for conn in race_started.get_connections():
+		race_started.disconnect(conn.callable)
+	for conn in lap_completed.get_connections():
+		lap_completed.disconnect(conn.callable)
 
 
 func start_countdown() -> void:
