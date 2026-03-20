@@ -182,7 +182,8 @@ func _respawn_at_start() -> void:
 
 func _start_ghost() -> void:
 	if _ghost_best and _ghost_best.has_method("start_playback"):
-		_ghost_best.start_playback()
+		var loop: bool = not RaceManager.is_sprint
+		_ghost_best.start_playback(loop)
 
 
 func toggle_ghost() -> void:

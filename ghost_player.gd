@@ -6,6 +6,7 @@ var _mesh: MeshInstance3D
 var _time := 0.0
 var _playing := false
 var visible_ghost := true
+var _looping := false  # true for lap mode (restart ghost after last frame)
 
 
 func setup(data: Array, color: Color = Color(0.2, 0.5, 1.0, 0.35)) -> void:
@@ -31,12 +32,18 @@ func setup(data: Array, color: Color = Color(0.2, 0.5, 1.0, 0.35)) -> void:
 	visible = false
 
 
-func start_playback() -> void:
+func start_playback(loop: bool = false) -> void:
 	if ghost_data.is_empty():
 		return
 	_time = 0.0
 	_playing = true
+	_looping = loop
 	visible = visible_ghost
+
+	# Snap to first frame position immediately
+	var first := ghost_data[0]
+	global_position = Vector3(first["px"], first["py"], first["pz"])
+	rotation.y = first["ry"]
 
 
 func stop_playback() -> void:
@@ -56,23 +63,28 @@ func _process(delta: float) -> void:
 
 	_time += delta
 
-	# Find the two frames to interpolate between
-	var last_frame := ghost_data[0]
-	var next_frame := ghost_data[0]
+	var last_t: float = ghost_data[-1]["t"]
 
-	for i in range(ghost_data.size()):
-		if ghost_data[i]["t"] > _time:
-			next_frame = ghost_data[i]
-			if i > 0:
-				last_frame = ghost_data[i - 1]
-			break
-		last_frame = ghost_data[i]
-		next_frame = ghost_data[i]
+	# Past the end
+	if _time > last_t:
+		if _looping:
+			_time = fmod(_time, last_t + 0.05)
+		else:
+			stop_playback()
+			return
 
-	# Past the end — stop
-	if _time > ghost_data[-1]["t"]:
-		stop_playback()
-		return
+	# Binary search for frame bracket (much faster than linear scan)
+	var lo := 0
+	var hi: int = ghost_data.size() - 1
+	while lo < hi - 1:
+		var mid: int = (lo + hi) / 2
+		if ghost_data[mid]["t"] <= _time:
+			lo = mid
+		else:
+			hi = mid
+
+	var last_frame: Dictionary = ghost_data[lo]
+	var next_frame: Dictionary = ghost_data[hi]
 
 	# Interpolate
 	var dt: float = next_frame["t"] - last_frame["t"]
