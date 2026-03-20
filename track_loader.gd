@@ -141,6 +141,12 @@ func _build_track() -> void:
 	# Spawn ghost for personal best
 	_spawn_ghost()
 
+	# Start ghost when countdown ends (GO!) and restart on new lap
+	if not RaceManager.race_started.is_connected(_start_ghost):
+		RaceManager.race_started.connect(_start_ghost)
+	if not RaceManager.lap_completed.is_connected(_start_ghost):
+		RaceManager.lap_completed.connect(_start_ghost)
+
 	# Start countdown
 	RaceManager.start_countdown()
 
@@ -213,20 +219,14 @@ func _on_trigger_entered(body: Node3D, trigger_name: String) -> void:
 			if RaceManager.state == RaceManager.State.FINISHED:
 				RaceManager.reset()
 				RaceManager.start_countdown()
-				_start_ghost()
 			elif RaceManager.state == RaceManager.State.IDLE:
 				RaceManager.cross_start()
-				_start_ghost()
 		else:
 			if RaceManager.state == RaceManager.State.TIME_UP or RaceManager.state == RaceManager.State.FINISHED:
 				RaceManager.reset()
 				RaceManager.start_countdown()
-				_start_ghost()
 			else:
-				var prev_lap := RaceManager.lap_count
 				RaceManager.cross_start_finish()
-				if RaceManager.state == RaceManager.State.RACING and RaceManager.lap_count != prev_lap:
-					_start_ghost()
 
 	elif trigger_name == "finish":
 		RaceManager.cross_finish()

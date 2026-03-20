@@ -60,10 +60,14 @@ func start_countdown() -> void:
 	_record_timer = 0.0
 
 
+signal race_started    # emitted when countdown ends and GO! begins
+signal lap_completed   # emitted when a lap finishes (for ghost restart)
+
 func start_race() -> void:
 	state = State.RACING
 	race_time = 0.0
 	lap_time = 0.0
+	race_started.emit()
 
 
 func hit_checkpoint(index: int) -> void:
@@ -136,6 +140,7 @@ func _finish_lap() -> void:
 	checkpoints_hit = 0
 	lap_time = 0.0
 	_lap_ghost.clear()
+	lap_completed.emit()
 
 
 func record_frame(pos: Vector3, rot_y: float) -> void:
