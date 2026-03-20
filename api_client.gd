@@ -1,0 +1,245 @@
+extends Node
+## API client for SuperVoxelMarks backend.
+## Autoload singleton — handles player registration, score submission, leaderboard, ghosts.
+
+const API_BASE := "https://srv101355.seohost.com.pl/api/svmarks"
+
+var player_id := ""
+var player_name := ""
+var player_nationality := "PL"
+
+var _http: HTTPRequest
+
+
+func _ready() -> void:
+	_http = HTTPRequest.new()
+	_http.timeout = 10.0
+	add_child(_http)
+	_load_player()
+
+
+# === PLAYER ===
+
+func _load_player() -> void:
+	var path := "user://player.cfg"
+	if FileAccess.file_exists(path):
+		var cfg := ConfigFile.new()
+		cfg.load(path)
+		player_id = cfg.get_value("player", "id", "")
+		player_name = cfg.get_value("player", "name", "")
+		player_nationality = cfg.get_value("player", "nationality", "PL")
+
+
+func _save_player() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("player", "id", player_id)
+	cfg.set_value("player", "name", player_name)
+	cfg.set_value("player", "nationality", player_nationality)
+	cfg.save("user://player.cfg")
+
+
+func is_registered() -> bool:
+	return player_id != ""
+
+
+func register(p_name: String, p_nationality: String, callback: Callable) -> void:
+	player_id = _generate_id()
+	player_name = p_name
+	player_nationality = p_nationality
+	_save_player()
+
+	var body := JSON.stringify({
+		"player_id": player_id,
+		"name": player_name,
+		"nationality": player_nationality,
+	})
+
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result, code, headers, body_bytes):
+		var success := code == 200
+		if success:
+			print("API: Player registered: %s" % player_name)
+		else:
+			print("API: Registration failed: %d" % code)
+		callback.call(success)
+		req.queue_free()
+	)
+	req.request(API_BASE + "/player", ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+
+
+func _generate_id() -> String:
+	var chars := "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	var id := ""
+	for i in range(8):
+		id += chars[randi() % chars.length()]
+	return id
+
+
+# === SCORES ===
+
+func submit_score(track_id: int, lap_time_ms: int, ghost_frames: Array, callback: Callable) -> void:
+	if not is_registered():
+		callback.call(false, {})
+		return
+
+	# Compress ghost to base64
+	var ghost_b64 := ""
+	if not ghost_frames.is_empty():
+		var ghost_bytes := _pack_ghost(ghost_frames)
+		var compressed := ghost_bytes.compress(FileAccess.COMPRESSION_GZIP)
+		ghost_b64 = Marshalls.raw_to_base64(compressed)
+
+	var body := JSON.stringify({
+		"player_id": player_id,
+		"track_id": track_id,
+		"lap_time_ms": lap_time_ms,
+		"ghost_data": ghost_b64,
+	})
+
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result, code, headers, body_bytes):
+		var success := code == 200
+		var data := {}
+		if success:
+			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
+			if json:
+				data = json
+			print("API: Score submitted — rank #%s" % str(data.get("rank", "?")))
+		else:
+			print("API: Score submit failed: %d" % code)
+		callback.call(success, data)
+		req.queue_free()
+	)
+	req.request(API_BASE + "/score", ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+
+
+func _pack_ghost(frames: Array) -> PackedByteArray:
+	# Pack ghost frames into binary: [frame_count:u16, then per frame: px,py,pz,rx,ry,rz as float32]
+	var buf := PackedByteArray()
+	buf.resize(2 + frames.size() * 24)  # 2 bytes header + 6 floats * 4 bytes
+	buf.encode_u16(0, frames.size())
+	var offset := 2
+	for f in frames:
+		var pos: Vector3 = f.get("pos", Vector3.ZERO)
+		var rot: Vector3 = f.get("rot", Vector3.ZERO)
+		buf.encode_float(offset, pos.x); offset += 4
+		buf.encode_float(offset + 0, pos.y); offset += 4
+		buf.encode_float(offset + 0, pos.z); offset += 4
+		buf.encode_float(offset + 0, rot.x); offset += 4
+		buf.encode_float(offset + 0, rot.y); offset += 4
+		buf.encode_float(offset + 0, rot.z); offset += 4
+	return buf
+
+
+func _unpack_ghost(data: PackedByteArray) -> Array:
+	if data.size() < 2:
+		return []
+	var count: int = data.decode_u16(0)
+	var frames := []
+	var offset := 2
+	for i in range(count):
+		if offset + 24 > data.size():
+			break
+		frames.append({
+			"pos": Vector3(data.decode_float(offset), data.decode_float(offset + 4), data.decode_float(offset + 8)),
+			"rot": Vector3(data.decode_float(offset + 12), data.decode_float(offset + 16), data.decode_float(offset + 20)),
+		})
+		offset += 24
+	return frames
+
+
+# === LEADERBOARD ===
+
+func get_leaderboard(track_id: int, callback: Callable) -> void:
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result, code, headers, body_bytes):
+		var data := {}
+		if code == 200:
+			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
+			if json:
+				data = json
+		callback.call(data)
+		req.queue_free()
+	)
+	req.request(API_BASE + "/leaderboard/%d" % track_id)
+
+
+# === GHOSTS ===
+
+func get_ghosts(track_id: int, callback: Callable) -> void:
+	var url := API_BASE + "/ghosts/%d" % track_id
+	if is_registered():
+		url += "?player_id=%s" % player_id
+
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result, code, headers, body_bytes):
+		var ghosts := []
+		if code == 200:
+			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
+			if json and json.has("ghosts"):
+				for g in json.ghosts:
+					var ghost_b64: String = g.get("ghost_data", "")
+					if ghost_b64 != "":
+						var compressed := Marshalls.base64_to_raw(ghost_b64)
+						var decompressed := compressed.decompress_dynamic(-1, FileAccess.COMPRESSION_GZIP)
+						var frames := _unpack_ghost(decompressed)
+						ghosts.append({
+							"type": g.get("type", ""),
+							"player_name": g.get("player_name", ""),
+							"player_nationality": g.get("player_nationality", ""),
+							"lap_time_ms": g.get("lap_time_ms", 0),
+							"frames": frames,
+						})
+		callback.call(ghosts)
+		req.queue_free()
+	)
+	req.request(url)
+
+
+# === TRACKS ===
+
+func publish_track(track_name: String, track_json: Array, author_time_ms: int, callback: Callable) -> void:
+	if not is_registered():
+		callback.call(false, {})
+		return
+
+	var body := JSON.stringify({
+		"player_id": player_id,
+		"name": track_name,
+		"track_json": track_json,
+		"author_time_ms": author_time_ms,
+	})
+
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result, code, headers, body_bytes):
+		var success := code == 201
+		var data := {}
+		if success:
+			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
+			if json:
+				data = json
+			print("API: Track published: %s (id=%s)" % [track_name, str(data.get("id", "?"))])
+		callback.call(success, data)
+		req.queue_free()
+	)
+	req.request(API_BASE + "/tracks", ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+
+
+func get_track_list(callback: Callable) -> void:
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result, code, headers, body_bytes):
+		var tracks := []
+		if code == 200:
+			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
+			if json is Array:
+				tracks = json
+		callback.call(tracks)
+		req.queue_free()
+	)
+	req.request(API_BASE + "/tracks")

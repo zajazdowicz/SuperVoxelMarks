@@ -23,6 +23,7 @@ config/features=PackedStringArray("4.6")
 TrackData="*res://track_data.gd"
 RaceManager="*res://race_manager.gd"
 PlayerData="*res://player_data.gd"
+ApiClient="*res://api_client.gd"
 
 [display]
 

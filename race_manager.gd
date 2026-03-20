@@ -129,6 +129,8 @@ func _finish_lap() -> void:
 		best_time = lap_time
 		best_ghost = _lap_ghost.duplicate()
 		_save_best_time()
+		# Upload to server
+		_upload_score(lap_time)
 
 	# Reset for next lap
 	checkpoints_hit = 0
@@ -208,6 +210,26 @@ func _save_best_time() -> void:
 		"time": best_time,
 		"ghost": best_ghost,
 	}))
+
+
+func _upload_score(lap_time: float) -> void:
+	if not ApiClient.is_registered():
+		return
+	# track_id is stored when loading from server, 0 = local track
+	if _current_track_id <= 0:
+		return
+	var lap_ms: int = int(lap_time * 1000.0)
+	var ghost_copy := best_ghost.duplicate()
+	ApiClient.submit_score(_current_track_id, lap_ms, ghost_copy, func(success, data):
+		if success:
+			print("Score uploaded! Rank #%s" % str(data.get("rank", "?")))
+	)
+
+
+var _current_track_id := 0
+
+func set_track_id(id: int) -> void:
+	_current_track_id = id
 
 
 func load_best(track_name: String) -> void:
