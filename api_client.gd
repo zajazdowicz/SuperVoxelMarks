@@ -103,7 +103,7 @@ func submit_score(track_id: int, lap_time_ms: int, ghost_frames: Array, callback
 		var success: bool = code == 200
 		var data: Dictionary = {}
 		if success:
-			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
+			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json:
 				data = json
 			print("API: Score submitted — rank #%s" % str(data.get("rank", "?")))
@@ -158,7 +158,7 @@ func get_leaderboard(track_id: int, callback: Callable) -> void:
 	req.request_completed.connect(func(result, code, headers, body_bytes):
 		var data: Dictionary = {}
 		if code == 200:
-			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
+			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json:
 				data = json
 		callback.call(data)
@@ -179,7 +179,7 @@ func get_ghosts(track_id: int, callback: Callable) -> void:
 	req.request_completed.connect(func(result, code, headers, body_bytes):
 		var ghosts: Array = []
 		if code == 200:
-			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
+			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json and json.has("ghosts"):
 				for g in json.ghosts:
 					var ghost_b64: String = g.get("ghost_data", "")
@@ -220,7 +220,7 @@ func publish_track(track_name: String, track_json: Array, author_time_ms: int, c
 		var success: bool = code == 201
 		var data: Dictionary = {}
 		if success:
-			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
+			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json:
 				data = json
 			print("API: Track published: %s (id=%s)" % [track_name, str(data.get("id", "?"))])
@@ -236,7 +236,7 @@ func get_track_list(callback: Callable) -> void:
 	req.request_completed.connect(func(result, code, headers, body_bytes):
 		var tracks: Array = []
 		if code == 200:
-			var json := JSON.parse_string(body_bytes.get_string_from_utf8())
+			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json is Array:
 				tracks = json
 		callback.call(tracks)
