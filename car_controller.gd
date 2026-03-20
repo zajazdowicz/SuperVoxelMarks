@@ -29,6 +29,10 @@ var _touch_left := false      # left side of screen touched
 var _touch_right := false     # right side of screen touched
 var _touch_ids := {}          # touch_index → "left" or "right"
 var _auto_gas := true         # auto-gas enabled (mobile mode)
+var _touch_brake := false     # bottom of screen touched = brake
+var _swipe_start := {}        # touch_index → start position (for swipe detection)
+const SWIPE_DOWN_THRESHOLD := 150.0  # pixels to trigger reset swipe
+const BRAKE_ZONE := 0.8      # bottom 20% of screen = brake zone
 
 @onready var mesh: Node3D = $Mesh
 @onready var collision: CollisionShape3D = $CollisionShape3D
@@ -300,23 +304,42 @@ void fragment() {
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		var screen_w := get_viewport().get_visible_rect().size.x
+		var screen_h := get_viewport().get_visible_rect().size.y
 		var half_w := screen_w * 0.5
 		if event.pressed:
-			var side := "left" if event.position.x < half_w else "right"
-			_touch_ids[event.index] = side
+			if event.position.y > screen_h * BRAKE_ZONE:
+				# Bottom zone = brake
+				_touch_ids[event.index] = "brake"
+			else:
+				var side := "left" if event.position.x < half_w else "right"
+				_touch_ids[event.index] = side
+			_swipe_start[event.index] = event.position
 		else:
+			# Check for swipe down on release
+			if _swipe_start.has(event.index):
+				var delta_y: float = event.position.y - _swipe_start[event.index].y
+				if delta_y > SWIPE_DOWN_THRESHOLD:
+					RaceManager.reset()
+					get_tree().reload_current_scene()
+					return
+				_swipe_start.erase(event.index)
 			_touch_ids.erase(event.index)
 		_touch_left = _touch_ids.values().has("left")
 		_touch_right = _touch_ids.values().has("right")
+		_touch_brake = _touch_ids.values().has("brake")
 
 	elif event is InputEventScreenDrag:
-		# Update side if finger drags across midpoint
 		var screen_w := get_viewport().get_visible_rect().size.x
+		var screen_h := get_viewport().get_visible_rect().size.y
 		var half_w := screen_w * 0.5
 		if _touch_ids.has(event.index):
-			_touch_ids[event.index] = "left" if event.position.x < half_w else "right"
+			if event.position.y > screen_h * BRAKE_ZONE:
+				_touch_ids[event.index] = "brake"
+			else:
+				_touch_ids[event.index] = "left" if event.position.x < half_w else "right"
 			_touch_left = _touch_ids.values().has("left")
 			_touch_right = _touch_ids.values().has("right")
+			_touch_brake = _touch_ids.values().has("brake")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -359,13 +382,15 @@ func _physics_process(delta: float) -> void:
 	var kb_steer := Input.get_axis("ui_right", "ui_left")
 	var kb_handbrake := Input.is_action_pressed("ui_accept")  # Space
 
-	# Touch: both sides = drift/brake, one side = steer, auto-gas
+	# Touch: L/R = steer, both = drift, bottom = brake, auto-gas
 	var touch_throttle := 0.0
 	var touch_steer := 0.0
 	var touch_handbrake := false
-	var touch_active := _touch_left or _touch_right
+	var touch_active := _touch_left or _touch_right or _touch_brake
 
-	if touch_active:
+	if _touch_brake:
+		touch_throttle = -1.0  # brake / reverse
+	elif touch_active:
 		if _touch_left and _touch_right:
 			touch_handbrake = true
 			touch_throttle = 0.5  # keep some speed while drifting

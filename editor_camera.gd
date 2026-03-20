@@ -17,6 +17,12 @@ var _max_pitch := -0.15              # almost horizontal
 var _target_pos := Vector3.ZERO
 var _orbiting := false
 
+# Touch gesture state
+var _touch_points := {}  # index → position
+var _prev_pinch_dist := 0.0
+var _prev_touch_mid := Vector2.ZERO
+var _gesture_active := false  # true when 2+ fingers detected
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -31,6 +37,38 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and _orbiting:
 		_yaw -= event.relative.x * orbit_speed
 		_pitch = clampf(_pitch - event.relative.y * orbit_speed, _min_pitch, _max_pitch)
+
+	# Touch: pinch zoom + 2-finger orbit
+	elif event is InputEventScreenTouch:
+		if event.pressed:
+			_touch_points[event.index] = event.position
+		else:
+			_touch_points.erase(event.index)
+			_gesture_active = false
+		if _touch_points.size() == 2:
+			var pts := _touch_points.values()
+			_prev_pinch_dist = pts[0].distance_to(pts[1])
+			_prev_touch_mid = (pts[0] + pts[1]) * 0.5
+			_gesture_active = true
+
+	elif event is InputEventScreenDrag and _touch_points.has(event.index):
+		_touch_points[event.index] = event.position
+		if _touch_points.size() >= 2 and _gesture_active:
+			var pts := _touch_points.values()
+			var cur_dist: float = pts[0].distance_to(pts[1])
+			var cur_mid: Vector2 = (pts[0] + pts[1]) * 0.5
+
+			# Pinch zoom
+			var dist_delta: float = cur_dist - _prev_pinch_dist
+			distance = clampf(distance - dist_delta * 0.1, min_distance, max_distance)
+
+			# 2-finger drag = orbit
+			var mid_delta: Vector2 = cur_mid - _prev_touch_mid
+			_yaw -= mid_delta.x * orbit_speed * 0.5
+			_pitch = clampf(_pitch - mid_delta.y * orbit_speed * 0.5, _min_pitch, _max_pitch)
+
+			_prev_pinch_dist = cur_dist
+			_prev_touch_mid = cur_mid
 
 
 func _process(delta: float) -> void:

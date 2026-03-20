@@ -10,6 +10,8 @@ var countdown_label: Label
 var laps_label: Label
 var delta_label: Label
 var car: CharacterBody3D
+var drift_bar: ProgressBar
+var drift_label: Label
 
 var _last_lap_count := 0
 var _last_countdown := -1
@@ -151,6 +153,9 @@ func _create_ui() -> void:
 	laps_label.label_settings = laps_s
 	add_child(laps_label)
 
+	# --- Drift progress bar (bottom center) ---
+	_create_drift_bar()
+
 	# --- Touch buttons ---
 	_create_touch_buttons()
 
@@ -246,6 +251,9 @@ func _process(_delta: float) -> void:
 	# Laps list
 	_update_laps_list()
 
+	# Drift bar
+	_update_drift_bar()
+
 	# Touch zone visual feedback
 	_update_touch_indicators()
 
@@ -289,6 +297,94 @@ func _show_lap_complete() -> void:
 
 var _touch_left_indicator: ColorRect
 var _touch_right_indicator: ColorRect
+
+
+func _create_drift_bar() -> void:
+	# Container at bottom center
+	var container := Control.new()
+	container.anchor_left = 0.5
+	container.anchor_right = 0.5
+	container.anchor_top = 1.0
+	container.anchor_bottom = 1.0
+	container.offset_left = -80.0
+	container.offset_right = 80.0
+	container.offset_top = -60.0
+	container.offset_bottom = -35.0
+	add_child(container)
+
+	# Progress bar
+	drift_bar = ProgressBar.new()
+	drift_bar.min_value = 0.0
+	drift_bar.max_value = 1.0
+	drift_bar.value = 0.0
+	drift_bar.show_percentage = false
+	drift_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var bar_bg := StyleBoxFlat.new()
+	bar_bg.bg_color = Color(0.15, 0.15, 0.15, 0.6)
+	bar_bg.corner_radius_top_left = 4
+	bar_bg.corner_radius_top_right = 4
+	bar_bg.corner_radius_bottom_left = 4
+	bar_bg.corner_radius_bottom_right = 4
+	drift_bar.add_theme_stylebox_override("background", bar_bg)
+	var bar_fill := StyleBoxFlat.new()
+	bar_fill.bg_color = Color(1.0, 0.5, 0.0, 0.9)
+	bar_fill.corner_radius_top_left = 4
+	bar_fill.corner_radius_top_right = 4
+	bar_fill.corner_radius_bottom_left = 4
+	bar_fill.corner_radius_bottom_right = 4
+	drift_bar.add_theme_stylebox_override("fill", bar_fill)
+	container.add_child(drift_bar)
+
+	# Label above bar
+	drift_label = Label.new()
+	drift_label.anchor_left = 0.5
+	drift_label.anchor_right = 0.5
+	drift_label.anchor_top = 1.0
+	drift_label.anchor_bottom = 1.0
+	drift_label.offset_left = -50.0
+	drift_label.offset_right = 50.0
+	drift_label.offset_top = -80.0
+	drift_label.offset_bottom = -60.0
+	drift_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var dl_s := LabelSettings.new()
+	dl_s.font_size = 20
+	dl_s.font_color = Color(1.0, 0.5, 0.0)
+	dl_s.outline_size = 2
+	dl_s.outline_color = Color.BLACK
+	drift_label.label_settings = dl_s
+	add_child(drift_label)
+
+	drift_bar.visible = false
+	drift_label.visible = false
+
+
+func _update_drift_bar() -> void:
+	if not car or not car.get("_drifting"):
+		drift_bar.visible = false
+		drift_label.visible = false
+		return
+
+	if car._drifting:
+		drift_bar.visible = true
+		drift_label.visible = true
+		var progress: float = clampf(car._drift_timer / car.DRIFT_BOOST_TIME, 0.0, 1.0)
+		drift_bar.value = progress
+		if progress >= 1.0:
+			drift_label.text = "BOOST!"
+			drift_label.label_settings.font_color = Color(0.2, 1.0, 0.2)
+			# Change bar color to green
+			var fill := drift_bar.get_theme_stylebox("fill") as StyleBoxFlat
+			if fill:
+				fill.bg_color = Color(0.2, 1.0, 0.2, 0.9)
+		else:
+			drift_label.text = "DRIFT"
+			drift_label.label_settings.font_color = Color(1.0, 0.5, 0.0)
+			var fill := drift_bar.get_theme_stylebox("fill") as StyleBoxFlat
+			if fill:
+				fill.bg_color = Color(1.0, 0.5, 0.0, 0.9)
+	else:
+		drift_bar.visible = false
+		drift_label.visible = false
 
 
 func _create_touch_buttons() -> void:

@@ -68,6 +68,58 @@ func _ready() -> void:
 	_generate_all_thumbnails()
 
 
+# Touch editor state
+var _touch_start_pos := Vector2.ZERO
+var _touch_start_grid := Vector2i.ZERO
+var _touch_dragging := false
+const TOUCH_TAP_THRESHOLD := 20.0    # max pixels for a tap (vs drag)
+const TOUCH_DRAG_GRID := 80.0        # pixels per grid cell when swiping
+
+
+func _input(event: InputEvent) -> void:
+	if track_name_edit.has_focus():
+		return
+
+	if event is InputEventScreenTouch:
+		# Ignore touches on UI (bottom 30% = toolbar)
+		var screen_h := get_viewport().get_visible_rect().size.y
+		if event.position.y > screen_h * 0.7:
+			return
+		# Also ignore top 10% (buttons)
+		if event.position.y < screen_h * 0.1:
+			return
+
+		if event.pressed:
+			_touch_start_pos = event.position
+			_touch_start_grid = cursor_grid
+			_touch_dragging = false
+		else:
+			# Release: tap = place/erase, drag was handled in ScreenDrag
+			if not _touch_dragging:
+				# Tap = place or erase
+				if _eraser_mode:
+					_remove_piece()
+				else:
+					_place_piece()
+
+	elif event is InputEventScreenDrag:
+		var screen_h := get_viewport().get_visible_rect().size.y
+		if event.position.y > screen_h * 0.7 or event.position.y < screen_h * 0.1:
+			return
+		# Only single-finger drag moves cursor (2-finger = camera orbit in editor_camera)
+		var delta: Vector2 = event.position - _touch_start_pos
+		if delta.length() > TOUCH_TAP_THRESHOLD:
+			_touch_dragging = true
+			# Map drag to grid movement
+			var grid_dx: int = int(delta.x / TOUCH_DRAG_GRID)
+			var grid_dy: int = int(delta.y / TOUCH_DRAG_GRID)
+			var new_grid := Vector2i(_touch_start_grid.x + grid_dx, _touch_start_grid.y + grid_dy)
+			if new_grid != cursor_grid:
+				cursor_grid = new_grid
+				_update_cursor()
+				_update_preview()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	# Don't capture keys when typing track name
 	if track_name_edit.has_focus():
