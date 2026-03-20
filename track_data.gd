@@ -2,6 +2,25 @@ extends Node
 ## Autoload singleton for track save/load and sharing data between scenes.
 
 var current_track := ""
+var current_server_id := 0  # server track ID (0 = local only)
+
+
+func set_server_id(track_name: String, server_id: int) -> void:
+	var cfg := ConfigFile.new()
+	var path := "user://track_ids.cfg"
+	if FileAccess.file_exists(path):
+		cfg.load(path)
+	cfg.set_value("ids", track_name, server_id)
+	cfg.save(path)
+
+
+func get_server_id(track_name: String) -> int:
+	var cfg := ConfigFile.new()
+	var path := "user://track_ids.cfg"
+	if FileAccess.file_exists(path):
+		cfg.load(path)
+		return cfg.get_value("ids", track_name, 0)
+	return 0
 
 
 func save_track(track_name: String, pieces: Array[Dictionary]) -> void:

@@ -26,6 +26,11 @@ func _build_track() -> void:
 	if pieces.is_empty():
 		return
 
+	# Set server track ID for score upload
+	var sid: int = TrackData.get_server_id(TrackData.current_track)
+	TrackData.current_server_id = sid
+	RaceManager.set_track_id(sid)
+
 	if car:
 		car.set_physics_process(false)
 

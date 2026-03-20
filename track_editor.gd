@@ -234,6 +234,81 @@ func _create_top_buttons() -> void:
 	cleanup_btn.pressed.connect(_on_cleanup_pressed)
 	topbar.add_child(cleanup_btn)
 
+	var publish_btn := Button.new()
+	publish_btn.text = "PUBLIKUJ"
+	publish_btn.custom_minimum_size = Vector2(90, 30)
+	publish_btn.focus_mode = Control.FOCUS_NONE
+	var pub_sb := StyleBoxFlat.new()
+	pub_sb.bg_color = Color(0.1, 0.6, 0.2, 0.8)
+	pub_sb.corner_radius_top_left = 4
+	pub_sb.corner_radius_top_right = 4
+	pub_sb.corner_radius_bottom_left = 4
+	pub_sb.corner_radius_bottom_right = 4
+	publish_btn.add_theme_stylebox_override("normal", pub_sb)
+	publish_btn.pressed.connect(_on_publish_pressed)
+	topbar.add_child(publish_btn)
+
+
+func _on_publish_pressed() -> void:
+	if not ApiClient.is_registered():
+		piece_label.text = "Najpierw zarejestruj sie! (menu)"
+		return
+
+	var tname := track_name_edit.text.strip_edges()
+	if tname == "":
+		piece_label.text = "Podaj nazwe trasy!"
+		return
+
+	if placed_pieces.is_empty():
+		piece_label.text = "Trasa jest pusta!"
+		return
+
+	# Check for start piece
+	var has_start := false
+	for p in placed_pieces:
+		if p.piece == 5:
+			has_start = true
+			break
+	if not has_start:
+		piece_label.text = "Brak klocka Start/Meta!"
+		return
+
+	# Check for author time (must test-drive first)
+	var best_path := "user://times/%s.json" % tname
+	var author_time_ms := 0
+	if FileAccess.file_exists(best_path):
+		var file := FileAccess.open(best_path, FileAccess.READ)
+		var json := JSON.new()
+		json.parse(file.get_as_text())
+		if json.data:
+			var t: float = float(json.data.get("time", 0.0))
+			author_time_ms = int(t * 1000.0)
+
+	if author_time_ms <= 0:
+		piece_label.text = "Najpierw przetestuj trase (T) i ukoncz okrazenie!"
+		return
+
+	# Build track_json in server format
+	var track_json: Array = []
+	for p in placed_pieces:
+		track_json.append({
+			"gx": p.grid.x,
+			"gz": p.grid.y,
+			"piece": p.piece,
+			"rotation": p.rotation,
+			"bh": p.get("base_height", 0),
+		})
+
+	piece_label.text = "Wysylanie trasy..."
+	ApiClient.publish_track(tname, track_json, author_time_ms, func(success: bool, data: Dictionary):
+		if success:
+			var sid: int = int(data.get("id", 0))
+			TrackData.set_server_id(tname, sid)
+			piece_label.text = "Opublikowano! ID: %d" % sid
+		else:
+			piece_label.text = "Blad publikacji!"
+	)
+
 
 func _on_save_pressed() -> void:
 	var tname := track_name_edit.text.strip_edges()
