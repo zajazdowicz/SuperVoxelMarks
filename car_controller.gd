@@ -756,6 +756,11 @@ func _init_skid_mesh() -> void:
 
 
 func _check_offtrack(surface: Dictionary, airborne: bool, delta: float) -> void:
+	# No offtrack after finishing (sprint: grass after finish line)
+	if RaceManager.state == RaceManager.State.FINISHED or RaceManager.state == RaceManager.State.TIME_UP:
+		_offtrack_timer = 0.0
+		return
+
 	# Grace period after spawn/respawn
 	if _grace_timer > 0:
 		_grace_timer -= delta
