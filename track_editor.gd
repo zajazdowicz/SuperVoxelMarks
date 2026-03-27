@@ -25,6 +25,9 @@ var _pieces_grid: GridContainer
 var _active_category := 0
 var _cat_buttons: Array[Button] = []
 var _thumbnail_cache: Dictionary = {}  # piece_id -> ImageTexture
+var _dpad_node: Control  # floating D-pad for mobile
+var _info_bar: Label  # current piece info above toolbar
+var _place_btn: Button  # place button reference for highlight
 
 var _preview_colors := {
 	TrackPieces.ASPHALT: Color(0.25, 0.25, 0.28, 0.6),
@@ -54,7 +57,7 @@ func _ready() -> void:
 	_update_cursor()
 	_update_ui()
 	_refresh_track_list()
-	help_label.text = "Strzalki=rusz | Q/E=klocek | R=obroc | ENTER=postaw | X=gumka | T=testuj | PgUp/Dn=wys"
+	help_label.text = "Swipe=rusz | Tap=postaw | D-pad=kursor"
 
 	# Load track only if coming back from test (not from menu)
 	if TrackData.current_track != "" and TrackData.current_track != "_new_":
@@ -81,12 +84,14 @@ func _input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventScreenTouch:
-		# Ignore touches on UI (bottom 30% = toolbar)
+		# Ignore touches on UI areas
 		var screen_h := get_viewport().get_visible_rect().size.y
-		if event.position.y > screen_h * 0.7:
+		if event.position.y > screen_h * 0.78:  # bottom toolbar (~220px)
 			return
-		# Also ignore top 10% (buttons)
-		if event.position.y < screen_h * 0.1:
+		if event.position.y < screen_h * 0.08:  # top bar
+			return
+		# Ignore D-pad area (left 160px, above toolbar)
+		if event.position.x < 160.0 and event.position.y > screen_h * 0.55:
 			return
 
 		if event.pressed:
@@ -104,7 +109,9 @@ func _input(event: InputEvent) -> void:
 
 	elif event is InputEventScreenDrag:
 		var screen_h := get_viewport().get_visible_rect().size.y
-		if event.position.y > screen_h * 0.7 or event.position.y < screen_h * 0.1:
+		if event.position.y > screen_h * 0.78 or event.position.y < screen_h * 0.08:
+			return
+		if event.position.x < 160.0 and event.position.y > screen_h * 0.55:
 			return
 		# Only single-finger drag moves cursor (2-finger = camera orbit in editor_camera)
 		var delta: Vector2 = event.position - _touch_start_pos
@@ -205,48 +212,52 @@ func _update_ui() -> void:
 
 func _create_top_buttons() -> void:
 	var topbar: HBoxContainer = $"../UI/TopBar"
+	topbar.add_theme_constant_override("separation", 4)
 
-	var save_btn := Button.new()
-	save_btn.text = "ZAPISZ"
-	save_btn.custom_minimum_size = Vector2(80, 30)
-	save_btn.focus_mode = Control.FOCUS_NONE
+	var btn_h := 44  # min touch target size
+
+	var save_btn := _make_top_button("ZAPISZ", Color(0.2, 0.35, 0.5), btn_h)
 	save_btn.pressed.connect(_on_save_pressed)
 	topbar.add_child(save_btn)
 
-	var new_btn := Button.new()
-	new_btn.text = "NOWA"
-	new_btn.custom_minimum_size = Vector2(70, 30)
-	new_btn.focus_mode = Control.FOCUS_NONE
+	var new_btn := _make_top_button("NOWA", Color(0.25, 0.25, 0.3), btn_h)
 	new_btn.pressed.connect(_on_new_pressed)
 	topbar.add_child(new_btn)
 
-	var test_btn := Button.new()
-	test_btn.text = "TESTUJ (T)"
-	test_btn.custom_minimum_size = Vector2(90, 30)
-	test_btn.focus_mode = Control.FOCUS_NONE
+	var test_btn := _make_top_button("TESTUJ", Color(0.4, 0.5, 0.15), btn_h)
 	test_btn.pressed.connect(_test_track)
 	topbar.add_child(test_btn)
 
-	var cleanup_btn := Button.new()
-	cleanup_btn.text = "WYCZYSC"
-	cleanup_btn.custom_minimum_size = Vector2(80, 30)
-	cleanup_btn.focus_mode = Control.FOCUS_NONE
+	var cleanup_btn := _make_top_button("WYCZYSC", Color(0.35, 0.25, 0.15), btn_h)
 	cleanup_btn.pressed.connect(_on_cleanup_pressed)
 	topbar.add_child(cleanup_btn)
 
-	var publish_btn := Button.new()
-	publish_btn.text = "PUBLIKUJ"
-	publish_btn.custom_minimum_size = Vector2(90, 30)
-	publish_btn.focus_mode = Control.FOCUS_NONE
-	var pub_sb := StyleBoxFlat.new()
-	pub_sb.bg_color = Color(0.1, 0.6, 0.2, 0.8)
-	pub_sb.corner_radius_top_left = 4
-	pub_sb.corner_radius_top_right = 4
-	pub_sb.corner_radius_bottom_left = 4
-	pub_sb.corner_radius_bottom_right = 4
-	publish_btn.add_theme_stylebox_override("normal", pub_sb)
+	var publish_btn := _make_top_button("PUBLIKUJ", Color(0.1, 0.55, 0.25), btn_h)
 	publish_btn.pressed.connect(_on_publish_pressed)
 	topbar.add_child(publish_btn)
+
+
+func _make_top_button(label: String, color: Color, height: int) -> Button:
+	var btn := Button.new()
+	btn.text = label
+	btn.custom_minimum_size = Vector2(0, height)
+	btn.add_theme_font_size_override("font_size", 18)
+	btn.focus_mode = Control.FOCUS_NONE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = color
+	sb.corner_radius_top_left = 6
+	sb.corner_radius_top_right = 6
+	sb.corner_radius_bottom_left = 6
+	sb.corner_radius_bottom_right = 6
+	sb.content_margin_left = 8.0
+	sb.content_margin_right = 8.0
+	sb.content_margin_top = 2.0
+	sb.content_margin_bottom = 2.0
+	btn.add_theme_stylebox_override("normal", sb)
+	var sb_hover := sb.duplicate()
+	sb_hover.bg_color = color.lightened(0.15)
+	btn.add_theme_stylebox_override("hover", sb_hover)
+	return btn
 
 
 func _on_publish_pressed() -> void:
@@ -438,50 +449,9 @@ func _rebuild() -> void:
 		var offset := Vector3i(p.grid.x * GRID, bh, p.grid.y * GRID)
 		for block in rotated:
 			tool.set_voxel(offset + block.pos, block.type)
-		# Spawn collision for special pieces
-		if p.piece in [3, 4, 30, 31]:
-			RampSpawner.spawn_ramp(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece >= 12 and p.piece <= 14:
-			RampSpawner.spawn_wall_ride(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece >= 15 and p.piece <= 18:
-			RampSpawner.spawn_loop(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece == 19:
-			RampSpawner.spawn_vloop(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece == 22 or p.piece == 23:
-			RampSpawner.spawn_transition(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece == 28 or p.piece == 29:
-			RampSpawner.spawn_banked_turn(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece == 34 or p.piece == 35:
-			RampSpawner.spawn_ramp_turn(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece == 39:
-			RampSpawner.spawn_jump_pad(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece >= 42 and p.piece <= 47:
-			RampSpawner.spawn_slope(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece >= 48 and p.piece <= 53:
-			var qp_down: bool = p.get("down", false)
-			RampSpawner.spawn_quarter_pipe(self, p.grid, p.piece, p.rotation, bh, qp_down)
-		elif p.piece >= 57 and p.piece <= 62:
-			RampSpawner.spawn_slope_turn(self, p.grid, p.piece, p.rotation, bh)
-
+		RampSpawner.spawn_piece_collision(self, p.piece, p.grid, p.rotation, bh, p.get("down", false))
 	# Second pass: clear ramp HIGH-end boundary voxels
-	for p in placed_pieces:
-		if p.piece not in [3, 4, 30, 31]:
-			continue
-		var bh2: int = p.get("base_height", 0)
-		var offset2 := Vector3i(p.grid.x * GRID, bh2, p.grid.y * GRID)
-		var is_up: bool = p.piece == 3 or p.piece == 30
-		var high_z: int = TrackPieces.HI if is_up else TrackPieces.LO
-		var rh: int = TrackPieces.RAMP_HEIGHT if (p.piece == 3 or p.piece == 4) else TrackPieces.HALF_RAMP_HEIGHT
-		for x2 in range(-TrackPieces.ROAD_W, TrackPieces.ROAD_W + 1):
-			var rx := x2
-			var rz := high_z
-			for _r in range(p.rotation % 4):
-				var tmp := rx
-				rx = -rz
-				rz = tmp
-			for h2 in range(0, rh + 1):
-				tool.set_voxel(offset2 + Vector3i(rx, h2, rz), TrackPieces.AIR)
-
+	RampSpawner.clear_ramp_boundaries(tool, placed_pieces)
 	_auto_save()
 
 
@@ -509,79 +479,240 @@ const PIECE_CATEGORIES := {
 func _create_piece_toolbar() -> void:
 	var ui: CanvasLayer = $"../UI"
 
-	# Bottom panel
+	# --- Bottom panel ---
 	var panel := PanelContainer.new()
 	panel.name = "PieceToolbar"
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.1, 0.12, 0.92)
-	style.content_margin_left = 6.0
-	style.content_margin_right = 6.0
-	style.content_margin_top = 4.0
-	style.content_margin_bottom = 6.0
+	style.bg_color = Color(0.08, 0.08, 0.1, 0.95)
+	style.content_margin_left = 4.0
+	style.content_margin_right = 4.0
+	style.content_margin_top = 3.0
+	style.content_margin_bottom = 4.0
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
 	panel.add_theme_stylebox_override("panel", style)
 
-	# Anchor to bottom
 	panel.anchor_left = 0.0
 	panel.anchor_right = 1.0
 	panel.anchor_top = 1.0
 	panel.anchor_bottom = 1.0
-	panel.offset_top = -280.0
+	panel.offset_top = -220.0
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	ui.add_child(panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
+	vbox.add_theme_constant_override("separation", 3)
 	panel.add_child(vbox)
 
-	# Category tabs in ScrollContainer
-	var tab_scroll := ScrollContainer.new()
-	tab_scroll.custom_minimum_size = Vector2(0, 56)
-	tab_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	tab_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
-	vbox.add_child(tab_scroll)
+	# --- Row 1: Category pills (compact) ---
+	var cat_scroll := ScrollContainer.new()
+	cat_scroll.custom_minimum_size = Vector2(0, 40)
+	cat_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	cat_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	vbox.add_child(cat_scroll)
 
-	var tab_row := HBoxContainer.new()
-	tab_row.add_theme_constant_override("separation", 4)
-	tab_scroll.add_child(tab_row)
+	var cat_row := HBoxContainer.new()
+	cat_row.add_theme_constant_override("separation", 3)
+	cat_scroll.add_child(cat_row)
 
 	var cat_keys := PIECE_CATEGORIES.keys()
 	for ci in range(cat_keys.size()):
 		var cat_name: String = cat_keys[ci]
 		var cat_btn := Button.new()
 		cat_btn.text = cat_name
-		cat_btn.custom_minimum_size = Vector2(0, 50)
-		cat_btn.add_theme_font_size_override("font_size", 24)
+		cat_btn.custom_minimum_size = Vector2(0, 36)
+		cat_btn.add_theme_font_size_override("font_size", 18)
 		cat_btn.focus_mode = Control.FOCUS_NONE
+		var pill_style := StyleBoxFlat.new()
+		pill_style.bg_color = Color(0.18, 0.18, 0.22, 0.9)
+		pill_style.corner_radius_top_left = 16
+		pill_style.corner_radius_top_right = 16
+		pill_style.corner_radius_bottom_left = 16
+		pill_style.corner_radius_bottom_right = 16
+		pill_style.content_margin_left = 10.0
+		pill_style.content_margin_right = 10.0
+		pill_style.content_margin_top = 2.0
+		pill_style.content_margin_bottom = 2.0
+		cat_btn.add_theme_stylebox_override("normal", pill_style)
 		var idx: int = ci
 		cat_btn.pressed.connect(func(): _show_category(idx))
-		tab_row.add_child(cat_btn)
+		cat_row.add_child(cat_btn)
 		_cat_buttons.append(cat_btn)
 
-	# Eraser button in tabs row
-	_eraser_button = Button.new()
-	_eraser_button.text = "X Gumka"
-	_eraser_button.custom_minimum_size = Vector2(0, 50)
-	_eraser_button.add_theme_font_size_override("font_size", 24)
-	_eraser_button.focus_mode = Control.FOCUS_NONE
-	_eraser_button.pressed.connect(func(): _eraser_mode = true; _update_ui(); _update_preview())
-	tab_row.add_child(_eraser_button)
-
-	# Piece grid in ScrollContainer
+	# --- Row 2: Piece strip (horizontal scroll, compact thumbnails) ---
 	var piece_scroll := ScrollContainer.new()
-	piece_scroll.custom_minimum_size = Vector2(0, 180)
+	piece_scroll.custom_minimum_size = Vector2(0, 110)
 	piece_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	piece_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	piece_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	vbox.add_child(piece_scroll)
 
 	_pieces_grid = GridContainer.new()
 	_pieces_grid.name = "PiecesGrid"
-	_pieces_grid.columns = 20  # enough for any category, wraps won't happen
-	_pieces_grid.add_theme_constant_override("h_separation", 4)
-	_pieces_grid.add_theme_constant_override("v_separation", 2)
+	_pieces_grid.columns = 50
+	_pieces_grid.add_theme_constant_override("h_separation", 3)
+	_pieces_grid.add_theme_constant_override("v_separation", 0)
 	piece_scroll.add_child(_pieces_grid)
+
+	# --- Row 3: Action bar (always visible, big touch targets) ---
+	var action_bar := HBoxContainer.new()
+	action_bar.add_theme_constant_override("separation", 4)
+	action_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(action_bar)
+
+	# POSTAW button (green, prominent)
+	_place_btn = _make_action_button("POSTAW", Color(0.15, 0.55, 0.2), func():
+		if _eraser_mode:
+			_remove_piece()
+		else:
+			_place_piece()
+	)
+	action_bar.add_child(_place_btn)
+
+	# OBROC button (blue)
+	var rotate_btn := _make_action_button("OBROC", Color(0.2, 0.35, 0.6), func():
+		current_rotation = (current_rotation + 1) % 4
+		_update_ui()
+		_update_preview()
+	)
+	action_bar.add_child(rotate_btn)
+
+	# GUMKA button (red)
+	_eraser_button = _make_action_button("GUMKA", Color(0.55, 0.15, 0.12), func():
+		_eraser_mode = not _eraser_mode
+		_update_ui()
+		_update_preview()
+	)
+	action_bar.add_child(_eraser_button)
+
+	# H+ button
+	var h_up := _make_action_button("H+", Color(0.3, 0.3, 0.35), func():
+		current_height += 1
+		_update_cursor()
+		_update_ui()
+	)
+	action_bar.add_child(h_up)
+
+	# H- button
+	var h_down := _make_action_button("H-", Color(0.3, 0.3, 0.35), func():
+		current_height = maxi(0, current_height - 1)
+		_update_cursor()
+		_update_ui()
+	)
+	action_bar.add_child(h_down)
+
+	# FLIP button (QP direction)
+	var flip_btn := _make_action_button("FLIP", Color(0.4, 0.3, 0.15), func():
+		_qp_down = not _qp_down
+		_update_ui()
+		_update_preview()
+	)
+	action_bar.add_child(flip_btn)
 
 	# Show first category by default
 	_show_category(0)
+
+	# --- D-Pad overlay for cursor movement ---
+	_create_dpad(ui)
+
+
+func _make_action_button(label: String, color: Color, callback: Callable) -> Button:
+	var btn := Button.new()
+	btn.text = label
+	btn.custom_minimum_size = Vector2(72, 50)
+	btn.add_theme_font_size_override("font_size", 18)
+	btn.focus_mode = Control.FOCUS_NONE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = color
+	sb.corner_radius_top_left = 8
+	sb.corner_radius_top_right = 8
+	sb.corner_radius_bottom_left = 8
+	sb.corner_radius_bottom_right = 8
+	sb.content_margin_left = 6.0
+	sb.content_margin_right = 6.0
+	sb.content_margin_top = 4.0
+	sb.content_margin_bottom = 4.0
+	btn.add_theme_stylebox_override("normal", sb)
+	var sb_hover := sb.duplicate()
+	sb_hover.bg_color = color.lightened(0.15)
+	btn.add_theme_stylebox_override("hover", sb_hover)
+	var sb_pressed := sb.duplicate()
+	sb_pressed.bg_color = color.lightened(0.3)
+	btn.add_theme_stylebox_override("pressed", sb_pressed)
+	btn.pressed.connect(callback)
+	return btn
+
+
+func _create_dpad(ui: CanvasLayer) -> void:
+	var dpad := Control.new()
+	dpad.name = "DPad"
+	# Position: left side, above toolbar
+	dpad.anchor_left = 0.0
+	dpad.anchor_top = 1.0
+	dpad.anchor_bottom = 1.0
+	dpad.offset_left = 8.0
+	dpad.offset_top = -340.0
+	dpad.offset_right = 148.0
+	dpad.offset_bottom = -228.0
+	ui.add_child(dpad)
+	_dpad_node = dpad
+
+	# D-pad layout: 3x3 grid, buttons at N/S/E/W
+	var dpad_size := 44
+	var dpad_gap := 2
+	var center_x := 48
+	var center_y := 24
+
+	# UP
+	var up_btn := _make_dpad_button("^", Vector2(center_x, center_y - dpad_size - dpad_gap), dpad_size)
+	up_btn.pressed.connect(func():
+		cursor_grid.y -= 1
+		_update_cursor()
+	)
+	dpad.add_child(up_btn)
+
+	# DOWN
+	var down_btn := _make_dpad_button("v", Vector2(center_x, center_y + dpad_size + dpad_gap), dpad_size)
+	down_btn.pressed.connect(func():
+		cursor_grid.y += 1
+		_update_cursor()
+	)
+	dpad.add_child(down_btn)
+
+	# LEFT
+	var left_btn := _make_dpad_button("<", Vector2(center_x - dpad_size - dpad_gap, center_y), dpad_size)
+	left_btn.pressed.connect(func():
+		cursor_grid.x -= 1
+		_update_cursor()
+	)
+	dpad.add_child(left_btn)
+
+	# RIGHT
+	var right_btn := _make_dpad_button(">", Vector2(center_x + dpad_size + dpad_gap, center_y), dpad_size)
+	right_btn.pressed.connect(func():
+		cursor_grid.x += 1
+		_update_cursor()
+	)
+	dpad.add_child(right_btn)
+
+
+func _make_dpad_button(label: String, pos: Vector2, btn_size: int) -> Button:
+	var btn := Button.new()
+	btn.text = label
+	btn.position = pos
+	btn.size = Vector2(btn_size, btn_size)
+	btn.add_theme_font_size_override("font_size", 20)
+	btn.focus_mode = Control.FOCUS_NONE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.2, 0.2, 0.25, 0.75)
+	sb.corner_radius_top_left = 6
+	sb.corner_radius_top_right = 6
+	sb.corner_radius_bottom_left = 6
+	sb.corner_radius_bottom_right = 6
+	btn.add_theme_stylebox_override("normal", sb)
+	var sb_pressed := sb.duplicate()
+	sb_pressed.bg_color = Color(0.3, 0.4, 0.6, 0.9)
+	btn.add_theme_stylebox_override("pressed", sb_pressed)
+	return btn
 
 
 func _show_category(cat_index: int) -> void:
@@ -619,10 +750,23 @@ func _show_category(cat_index: int) -> void:
 
 func _create_thumbnail_button(piece_id: int) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(120, 150)
+	btn.custom_minimum_size = Vector2(80, 100)
 	btn.focus_mode = Control.FOCUS_NONE
 	var piece_idx: int = piece_id
 	btn.pressed.connect(func(): _select_piece(piece_idx))
+
+	# Rounded style
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.15, 0.15, 0.18, 0.9)
+	sb.corner_radius_top_left = 6
+	sb.corner_radius_top_right = 6
+	sb.corner_radius_bottom_left = 6
+	sb.corner_radius_bottom_right = 6
+	sb.content_margin_left = 2.0
+	sb.content_margin_right = 2.0
+	sb.content_margin_top = 2.0
+	sb.content_margin_bottom = 2.0
+	btn.add_theme_stylebox_override("normal", sb)
 
 	var vb := VBoxContainer.new()
 	vb.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -632,7 +776,7 @@ func _create_thumbnail_button(piece_id: int) -> Button:
 
 	# Thumbnail image
 	var tex_rect := TextureRect.new()
-	tex_rect.custom_minimum_size = Vector2(100, 100)
+	tex_rect.custom_minimum_size = Vector2(64, 64)
 	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if _thumbnail_cache.has(piece_id):
@@ -643,7 +787,7 @@ func _create_thumbnail_button(piece_id: int) -> Button:
 	var lbl := Label.new()
 	lbl.text = _short_name(piece_id)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.add_theme_font_size_override("font_size", 14)
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(lbl)
 
@@ -678,23 +822,36 @@ func _short_name(piece_id: int) -> String:
 
 
 func _highlight_cat_tabs() -> void:
-	var active_tab_style := StyleBoxFlat.new()
-	active_tab_style.bg_color = Color(0.2, 0.25, 0.4, 0.9)
-	active_tab_style.border_color = Color(0.4, 0.6, 1.0)
-	active_tab_style.border_width_bottom = 2
-	active_tab_style.content_margin_left = 6.0
-	active_tab_style.content_margin_right = 6.0
-	active_tab_style.content_margin_top = 4.0
-	active_tab_style.content_margin_bottom = 4.0
+	var active_pill := StyleBoxFlat.new()
+	active_pill.bg_color = Color(0.25, 0.35, 0.55, 0.95)
+	active_pill.corner_radius_top_left = 16
+	active_pill.corner_radius_top_right = 16
+	active_pill.corner_radius_bottom_left = 16
+	active_pill.corner_radius_bottom_right = 16
+	active_pill.content_margin_left = 10.0
+	active_pill.content_margin_right = 10.0
+	active_pill.content_margin_top = 2.0
+	active_pill.content_margin_bottom = 2.0
+
+	var inactive_pill := StyleBoxFlat.new()
+	inactive_pill.bg_color = Color(0.18, 0.18, 0.22, 0.9)
+	inactive_pill.corner_radius_top_left = 16
+	inactive_pill.corner_radius_top_right = 16
+	inactive_pill.corner_radius_bottom_left = 16
+	inactive_pill.corner_radius_bottom_right = 16
+	inactive_pill.content_margin_left = 10.0
+	inactive_pill.content_margin_right = 10.0
+	inactive_pill.content_margin_top = 2.0
+	inactive_pill.content_margin_bottom = 2.0
 
 	for i in range(_cat_buttons.size()):
 		if i == _active_category:
-			_cat_buttons[i].add_theme_stylebox_override("normal", active_tab_style)
-			_cat_buttons[i].add_theme_stylebox_override("hover", active_tab_style)
-			_cat_buttons[i].add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+			_cat_buttons[i].add_theme_stylebox_override("normal", active_pill)
+			_cat_buttons[i].add_theme_stylebox_override("hover", active_pill)
+			_cat_buttons[i].add_theme_color_override("font_color", Color(0.8, 0.9, 1.0))
 		else:
-			_cat_buttons[i].remove_theme_stylebox_override("normal")
-			_cat_buttons[i].remove_theme_stylebox_override("hover")
+			_cat_buttons[i].add_theme_stylebox_override("normal", inactive_pill)
+			_cat_buttons[i].add_theme_stylebox_override("hover", inactive_pill)
 			_cat_buttons[i].remove_theme_color_override("font_color")
 
 
@@ -857,22 +1014,28 @@ func _make_placeholder_thumbnail(piece_id: int) -> ImageTexture:
 
 func _highlight_piece_button() -> void:
 	var active_style := StyleBoxFlat.new()
-	active_style.bg_color = Color(0.25, 0.25, 0.1, 0.9)
-	active_style.border_color = Color(1.0, 0.8, 0.0)
+	active_style.bg_color = Color(0.2, 0.25, 0.1, 0.95)
+	active_style.border_color = Color(1.0, 0.85, 0.0)
 	active_style.set_border_width_all(2)
-	active_style.content_margin_left = 4.0
-	active_style.content_margin_right = 4.0
+	active_style.corner_radius_top_left = 6
+	active_style.corner_radius_top_right = 6
+	active_style.corner_radius_bottom_left = 6
+	active_style.corner_radius_bottom_right = 6
+	active_style.content_margin_left = 2.0
+	active_style.content_margin_right = 2.0
 	active_style.content_margin_top = 2.0
 	active_style.content_margin_bottom = 2.0
 
-	var eraser_style := StyleBoxFlat.new()
-	eraser_style.bg_color = Color(0.4, 0.1, 0.1, 0.8)
-	eraser_style.border_color = Color(1.0, 0.2, 0.2)
-	eraser_style.set_border_width_all(2)
-	eraser_style.content_margin_left = 6.0
-	eraser_style.content_margin_right = 6.0
-	eraser_style.content_margin_top = 4.0
-	eraser_style.content_margin_bottom = 4.0
+	var default_style := StyleBoxFlat.new()
+	default_style.bg_color = Color(0.15, 0.15, 0.18, 0.9)
+	default_style.corner_radius_top_left = 6
+	default_style.corner_radius_top_right = 6
+	default_style.corner_radius_bottom_left = 6
+	default_style.corner_radius_bottom_right = 6
+	default_style.content_margin_left = 2.0
+	default_style.content_margin_right = 2.0
+	default_style.content_margin_top = 2.0
+	default_style.content_margin_bottom = 2.0
 
 	for i in range(_piece_buttons.size()):
 		var btn := _piece_buttons[i]
@@ -881,18 +1044,65 @@ func _highlight_piece_button() -> void:
 			btn.add_theme_stylebox_override("normal", active_style)
 			btn.add_theme_stylebox_override("hover", active_style)
 		else:
-			btn.remove_theme_stylebox_override("normal")
-			btn.remove_theme_stylebox_override("hover")
+			btn.add_theme_stylebox_override("normal", default_style)
+			btn.add_theme_stylebox_override("hover", default_style)
 
-	# Eraser button highlight
+	# Eraser button in action bar — highlight when active
 	if _eraser_mode:
-		_eraser_button.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-		_eraser_button.add_theme_stylebox_override("normal", eraser_style)
-		_eraser_button.add_theme_stylebox_override("hover", eraser_style)
+		var eraser_active := StyleBoxFlat.new()
+		eraser_active.bg_color = Color(0.7, 0.15, 0.1)
+		eraser_active.corner_radius_top_left = 8
+		eraser_active.corner_radius_top_right = 8
+		eraser_active.corner_radius_bottom_left = 8
+		eraser_active.corner_radius_bottom_right = 8
+		eraser_active.content_margin_left = 6.0
+		eraser_active.content_margin_right = 6.0
+		eraser_active.content_margin_top = 4.0
+		eraser_active.content_margin_bottom = 4.0
+		_eraser_button.add_theme_stylebox_override("normal", eraser_active)
+		_eraser_button.add_theme_stylebox_override("hover", eraser_active)
+		_eraser_button.text = "GUMKA *"
+		# Place button turns red too
+		if _place_btn:
+			var place_erase := StyleBoxFlat.new()
+			place_erase.bg_color = Color(0.6, 0.15, 0.1)
+			place_erase.corner_radius_top_left = 8
+			place_erase.corner_radius_top_right = 8
+			place_erase.corner_radius_bottom_left = 8
+			place_erase.corner_radius_bottom_right = 8
+			place_erase.content_margin_left = 6.0
+			place_erase.content_margin_right = 6.0
+			place_erase.content_margin_top = 4.0
+			place_erase.content_margin_bottom = 4.0
+			_place_btn.add_theme_stylebox_override("normal", place_erase)
+			_place_btn.text = "USUN"
 	else:
-		_eraser_button.remove_theme_color_override("font_color")
-		_eraser_button.remove_theme_stylebox_override("normal")
-		_eraser_button.remove_theme_stylebox_override("hover")
+		var eraser_normal := StyleBoxFlat.new()
+		eraser_normal.bg_color = Color(0.55, 0.15, 0.12)
+		eraser_normal.corner_radius_top_left = 8
+		eraser_normal.corner_radius_top_right = 8
+		eraser_normal.corner_radius_bottom_left = 8
+		eraser_normal.corner_radius_bottom_right = 8
+		eraser_normal.content_margin_left = 6.0
+		eraser_normal.content_margin_right = 6.0
+		eraser_normal.content_margin_top = 4.0
+		eraser_normal.content_margin_bottom = 4.0
+		_eraser_button.add_theme_stylebox_override("normal", eraser_normal)
+		_eraser_button.add_theme_stylebox_override("hover", eraser_normal)
+		_eraser_button.text = "GUMKA"
+		if _place_btn:
+			var place_normal := StyleBoxFlat.new()
+			place_normal.bg_color = Color(0.15, 0.55, 0.2)
+			place_normal.corner_radius_top_left = 8
+			place_normal.corner_radius_top_right = 8
+			place_normal.corner_radius_bottom_left = 8
+			place_normal.corner_radius_bottom_right = 8
+			place_normal.content_margin_left = 6.0
+			place_normal.content_margin_right = 6.0
+			place_normal.content_margin_top = 4.0
+			place_normal.content_margin_bottom = 4.0
+			_place_btn.add_theme_stylebox_override("normal", place_normal)
+			_place_btn.text = "POSTAW"
 
 
 func _select_piece(index: int) -> void:
@@ -1317,41 +1527,11 @@ func _place_piece() -> void:
 		tool.set_voxel(offset + block.pos, block.type)
 
 	# Spawn collision shapes for special pieces
+	RampSpawner.spawn_piece_collision(self, current_piece, cursor_grid, current_rotation, place_height, _qp_down)
+	# Clear ramp boundary voxels for this single piece
 	if current_piece in [3, 4, 30, 31]:
-		RampSpawner.spawn_ramp(self, cursor_grid, current_piece, current_rotation, place_height)
-		# Clear HIGH-end boundary voxels (neighbor may have placed ASPHALT there)
-		var is_up2: bool = current_piece == 3 or current_piece == 30
-		var high_z2: int = TrackPieces.HI if is_up2 else TrackPieces.LO
-		var rh2: int = TrackPieces.RAMP_HEIGHT if (current_piece == 3 or current_piece == 4) else TrackPieces.HALF_RAMP_HEIGHT
-		for x2 in range(-TrackPieces.ROAD_W, TrackPieces.ROAD_W + 1):
-			var rx2 := x2
-			var rz2 := high_z2
-			for _r in range(current_rotation % 4):
-				var tmp2 := rx2
-				rx2 = -rz2
-				rz2 = tmp2
-			for h2 in range(0, rh2 + 1):
-				tool.set_voxel(offset + Vector3i(rx2, h2, rz2), TrackPieces.AIR)
-	elif current_piece >= 12 and current_piece <= 14:
-		RampSpawner.spawn_wall_ride(self, cursor_grid, current_piece, current_rotation, place_height)
-	elif current_piece >= 15 and current_piece <= 18:
-		RampSpawner.spawn_loop(self, cursor_grid, current_piece, current_rotation, place_height)
-	elif current_piece == 19:
-		RampSpawner.spawn_vloop(self, cursor_grid, current_piece, current_rotation, place_height)
-	elif current_piece == 22 or current_piece == 23:
-		RampSpawner.spawn_transition(self, cursor_grid, current_piece, current_rotation, place_height)
-	elif current_piece == 28 or current_piece == 29:
-		RampSpawner.spawn_banked_turn(self, cursor_grid, current_piece, current_rotation, place_height)
-	elif current_piece == 34 or current_piece == 35:
-		RampSpawner.spawn_ramp_turn(self, cursor_grid, current_piece, current_rotation, place_height)
-	elif current_piece == 39:
-		RampSpawner.spawn_jump_pad(self, cursor_grid, current_piece, current_rotation, place_height)
-	elif current_piece >= 42 and current_piece <= 47:
-		RampSpawner.spawn_slope(self, cursor_grid, current_piece, current_rotation, place_height)
-	elif current_piece >= 48 and current_piece <= 53:
-		RampSpawner.spawn_quarter_pipe(self, cursor_grid, current_piece, current_rotation, place_height, _qp_down)
-	elif current_piece >= 57 and current_piece <= 62:
-		RampSpawner.spawn_slope_turn(self, cursor_grid, current_piece, current_rotation, place_height)
+		var tmp_pieces: Array[Dictionary] = [{"grid": cursor_grid, "piece": current_piece, "rotation": current_rotation, "base_height": place_height}]
+		RampSpawner.clear_ramp_boundaries(tool, tmp_pieces)
 
 	# Remove existing piece at this grid position AND same height
 	placed_pieces = placed_pieces.filter(func(p): return not (p.grid == cursor_grid and p.get("base_height", 0) == place_height))
@@ -1478,48 +1658,9 @@ func _load_track(track_name: String) -> void:
 		var offset := Vector3i(p.grid.x * GRID, bh, p.grid.y * GRID)
 		for block in rotated:
 			tool.set_voxel(offset + block.pos, block.type)
-		# Spawn collision for special pieces
-		if p.piece in [3, 4, 30, 31]:
-			RampSpawner.spawn_ramp(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece >= 12 and p.piece <= 14:
-			RampSpawner.spawn_wall_ride(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece >= 15 and p.piece <= 18:
-			RampSpawner.spawn_loop(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece == 19:
-			RampSpawner.spawn_vloop(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece == 22 or p.piece == 23:
-			RampSpawner.spawn_transition(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece == 28 or p.piece == 29:
-			RampSpawner.spawn_banked_turn(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece == 34 or p.piece == 35:
-			RampSpawner.spawn_ramp_turn(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece == 39:
-			RampSpawner.spawn_jump_pad(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece >= 42 and p.piece <= 47:
-			RampSpawner.spawn_slope(self, p.grid, p.piece, p.rotation, bh)
-		elif p.piece >= 48 and p.piece <= 53:
-			var qp_down: bool = p.get("down", false)
-			RampSpawner.spawn_quarter_pipe(self, p.grid, p.piece, p.rotation, bh, qp_down)
-		elif p.piece >= 57 and p.piece <= 62:
-			RampSpawner.spawn_slope_turn(self, p.grid, p.piece, p.rotation, bh)
-	# Second pass: clear boundary voxels at ramp HIGH end
-	for p in placed_pieces:
-		if p.piece not in [3, 4, 30, 31]:
-			continue
-		var bh2: int = p.get("base_height", 0)
-		var offset2 := Vector3i(p.grid.x * GRID, bh2, p.grid.y * GRID)
-		var is_up3: bool = p.piece == 3 or p.piece == 30
-		var high_z: int = TrackPieces.HI if is_up3 else TrackPieces.LO
-		var rh3: int = TrackPieces.RAMP_HEIGHT if (p.piece == 3 or p.piece == 4) else TrackPieces.HALF_RAMP_HEIGHT
-		for x2 in range(-TrackPieces.ROAD_W, TrackPieces.ROAD_W + 1):
-			var rx := x2
-			var rz := high_z
-			for _r in range(p.rotation % 4):
-				var tmp := rx
-				rx = -rz
-				rz = tmp
-			for h2 in range(0, rh3 + 1):
-				tool.set_voxel(offset2 + Vector3i(rx, h2, rz), TrackPieces.AIR)
+		RampSpawner.spawn_piece_collision(self, p.piece, p.grid, p.rotation, bh, p.get("down", false))
+	# Second pass: clear ramp HIGH-end boundary voxels
+	RampSpawner.clear_ramp_boundaries(tool, placed_pieces)
 
 
 func _refresh_track_list() -> void:

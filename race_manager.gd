@@ -48,6 +48,8 @@ func reset() -> void:
 		race_started.disconnect(conn.callable)
 	for conn in lap_completed.get_connections():
 		lap_completed.disconnect(conn.callable)
+	for conn in new_best_set.get_connections():
+		new_best_set.disconnect(conn.callable)
 
 
 func start_countdown() -> void:
@@ -67,6 +69,7 @@ func start_countdown() -> void:
 
 signal race_started    # emitted when countdown ends and GO! begins
 signal lap_completed   # emitted when a lap finishes (for ghost restart)
+signal new_best_set    # emitted when a new best lap time + ghost is recorded
 
 func start_race() -> void:
 	state = State.RACING
@@ -103,6 +106,10 @@ func cross_start_finish() -> void:
 	if lap_count == 0 and lap_time < 1.0:
 		return
 
+	# Minimum lap time to prevent ghost saves from tiny loops or accidental crossings
+	if lap_time < 5.0:
+		return
+
 	# Must hit all checkpoints
 	if total_checkpoints > 0 and checkpoints_hit < total_checkpoints:
 		return
@@ -123,6 +130,9 @@ func cross_finish() -> void:
 	## Sprint mode: crossing finish line ends the run.
 	if state != State.RACING:
 		return
+	# Minimum time to prevent accidental finishes
+	if lap_time < 5.0:
+		return
 	if total_checkpoints > 0 and checkpoints_hit < total_checkpoints:
 		return
 	_finish_lap()
@@ -138,6 +148,7 @@ func _finish_lap() -> void:
 		best_time = lap_time
 		best_ghost = _lap_ghost.duplicate()
 		_save_best_time()
+		new_best_set.emit()
 		# Upload to server
 		_upload_score(lap_time)
 

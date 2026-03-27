@@ -1644,3 +1644,54 @@ static func spawn_quarter_pipe(parent: Node3D, grid_pos: Vector2i, piece_id: int
 
 	body.position = Vector3(grid_pos.x * GRID, base_height, grid_pos.y * GRID)
 	parent.add_child(body)
+
+
+# =============================================================================
+# SHARED: spawn collision for any piece (eliminates duplication across files)
+# =============================================================================
+
+static func spawn_piece_collision(parent: Node3D, piece_id: int, grid: Vector2i, rotation: int, base_height: int, qp_down: bool = false) -> void:
+	## Spawns the correct collision shape for a given piece.
+	if piece_id in [3, 4, 30, 31]:
+		spawn_ramp(parent, grid, piece_id, rotation, base_height)
+	elif piece_id >= 12 and piece_id <= 14:
+		spawn_wall_ride(parent, grid, piece_id, rotation, base_height)
+	elif piece_id >= 15 and piece_id <= 18:
+		spawn_loop(parent, grid, piece_id, rotation, base_height)
+	elif piece_id == 19:
+		spawn_vloop(parent, grid, piece_id, rotation, base_height)
+	elif piece_id == 22 or piece_id == 23:
+		spawn_transition(parent, grid, piece_id, rotation, base_height)
+	elif piece_id == 28 or piece_id == 29:
+		spawn_banked_turn(parent, grid, piece_id, rotation, base_height)
+	elif piece_id == 34 or piece_id == 35:
+		spawn_ramp_turn(parent, grid, piece_id, rotation, base_height)
+	elif piece_id == 39:
+		spawn_jump_pad(parent, grid, piece_id, rotation, base_height)
+	elif piece_id >= 42 and piece_id <= 47:
+		spawn_slope(parent, grid, piece_id, rotation, base_height)
+	elif piece_id >= 48 and piece_id <= 53:
+		spawn_quarter_pipe(parent, grid, piece_id, rotation, base_height, qp_down)
+	elif piece_id >= 57 and piece_id <= 62:
+		spawn_slope_turn(parent, grid, piece_id, rotation, base_height)
+
+
+static func clear_ramp_boundaries(tool: VoxelTool, pieces: Array[Dictionary]) -> void:
+	## Clear boundary voxels at ramp HIGH end after all pieces are placed.
+	for p in pieces:
+		if p.piece not in [3, 4, 30, 31]:
+			continue
+		var bh: int = p.get("base_height", 0)
+		var offset := Vector3i(p.grid.x * GRID, bh, p.grid.y * GRID)
+		var is_ramp_up: bool = p.piece == 3 or p.piece == 30
+		var boundary_z: int = TrackPieces.HI if is_ramp_up else TrackPieces.LO
+		var ramp_height: int = TrackPieces.RAMP_HEIGHT if (p.piece == 3 or p.piece == 4) else TrackPieces.HALF_RAMP_HEIGHT
+		for x in range(-TrackPieces.ROAD_W, TrackPieces.ROAD_W + 1):
+			var rx := x
+			var rz := boundary_z
+			for _r in range(p.rotation % 4):
+				var tmp := rx
+				rx = -rz
+				rz = tmp
+			for h in range(0, ramp_height + 1):
+				tool.set_voxel(offset + Vector3i(rx, h, rz), TrackPieces.AIR)

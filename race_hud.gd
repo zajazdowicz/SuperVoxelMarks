@@ -431,26 +431,101 @@ func _create_touch_buttons() -> void:
 	add_child(pause_btn)
 
 
+var _touch_brake_indicator: ColorRect
+var _left_label: Label
+var _right_label: Label
+var _brake_label: Label
+
 func _create_touch_zones() -> void:
-	# Left touch zone indicator (bottom left, semi-transparent)
+	# Left steer zone (top 80%, left half)
 	_touch_left_indicator = ColorRect.new()
 	_touch_left_indicator.anchor_left = 0.0
 	_touch_left_indicator.anchor_right = 0.5
-	_touch_left_indicator.anchor_top = 0.7
-	_touch_left_indicator.anchor_bottom = 1.0
-	_touch_left_indicator.color = Color(0.2, 0.5, 1.0, 0.0)  # invisible by default
+	_touch_left_indicator.anchor_top = 0.0
+	_touch_left_indicator.anchor_bottom = 0.8
+	_touch_left_indicator.color = Color(0.2, 0.5, 1.0, 0.04)
 	_touch_left_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_touch_left_indicator)
 
-	# Right touch zone indicator (bottom right)
+	# Right steer zone (top 80%, right half)
 	_touch_right_indicator = ColorRect.new()
 	_touch_right_indicator.anchor_left = 0.5
 	_touch_right_indicator.anchor_right = 1.0
-	_touch_right_indicator.anchor_top = 0.7
-	_touch_right_indicator.anchor_bottom = 1.0
-	_touch_right_indicator.color = Color(1.0, 0.3, 0.3, 0.0)  # invisible by default
+	_touch_right_indicator.anchor_top = 0.0
+	_touch_right_indicator.anchor_bottom = 0.8
+	_touch_right_indicator.color = Color(1.0, 0.3, 0.3, 0.04)
 	_touch_right_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_touch_right_indicator)
+
+	# Brake zone (bottom 20%)
+	_touch_brake_indicator = ColorRect.new()
+	_touch_brake_indicator.anchor_left = 0.0
+	_touch_brake_indicator.anchor_right = 1.0
+	_touch_brake_indicator.anchor_top = 0.8
+	_touch_brake_indicator.anchor_bottom = 1.0
+	_touch_brake_indicator.color = Color(1.0, 0.6, 0.0, 0.04)
+	_touch_brake_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_touch_brake_indicator)
+
+	# Divider line between left/right (center vertical)
+	var divider := ColorRect.new()
+	divider.anchor_left = 0.5
+	divider.anchor_right = 0.5
+	divider.anchor_top = 0.3
+	divider.anchor_bottom = 0.75
+	divider.offset_left = -1.0
+	divider.offset_right = 1.0
+	divider.color = Color(1.0, 1.0, 1.0, 0.08)
+	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(divider)
+
+	# Divider line between steer/brake (horizontal)
+	var brake_line := ColorRect.new()
+	brake_line.anchor_left = 0.0
+	brake_line.anchor_right = 1.0
+	brake_line.anchor_top = 0.8
+	brake_line.anchor_bottom = 0.8
+	brake_line.offset_top = -1.0
+	brake_line.offset_bottom = 1.0
+	brake_line.color = Color(1.0, 0.6, 0.0, 0.12)
+	brake_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(brake_line)
+
+	# Zone labels (persistent, subtle)
+	var label_settings := LabelSettings.new()
+	label_settings.font_size = 28
+	label_settings.font_color = Color(1.0, 1.0, 1.0, 0.12)
+	label_settings.outline_size = 0
+
+	_left_label = Label.new()
+	_left_label.text = "< LEWO"
+	_left_label.label_settings = label_settings
+	_left_label.anchor_left = 0.0
+	_left_label.anchor_top = 0.5
+	_left_label.offset_left = 20.0
+	_left_label.offset_top = -14.0
+	_left_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_left_label)
+
+	_right_label = Label.new()
+	_right_label.text = "PRAWO >"
+	_right_label.label_settings = label_settings
+	_right_label.anchor_left = 1.0
+	_right_label.anchor_top = 0.5
+	_right_label.offset_left = -140.0
+	_right_label.offset_top = -14.0
+	_right_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_right_label)
+
+	_brake_label = Label.new()
+	_brake_label.text = "HAMULEC"
+	_brake_label.label_settings = label_settings
+	_brake_label.anchor_left = 0.5
+	_brake_label.anchor_top = 0.8
+	_brake_label.offset_left = -50.0
+	_brake_label.offset_top = 8.0
+	_brake_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_brake_label)
 
 
 func _update_touch_indicators() -> void:
@@ -458,8 +533,17 @@ func _update_touch_indicators() -> void:
 		return
 	var left_active: bool = car.get("_touch_left") and car._touch_left
 	var right_active: bool = car.get("_touch_right") and car._touch_right
-	_touch_left_indicator.color.a = 0.12 if left_active else 0.0
-	_touch_right_indicator.color.a = 0.12 if right_active else 0.0
+	var brake_active: bool = car.get("_touch_brake") and car._touch_brake
+
+	# Zones light up when active, subtle when idle
+	_touch_left_indicator.color.a = 0.15 if left_active else 0.04
+	_touch_right_indicator.color.a = 0.15 if right_active else 0.04
+	_touch_brake_indicator.color.a = 0.15 if brake_active else 0.04
+
+	# Labels become more visible when active
+	_left_label.label_settings.font_color.a = 0.5 if left_active else 0.12
+	_right_label.label_settings.font_color.a = 0.5 if right_active else 0.12
+	_brake_label.label_settings.font_color.a = 0.5 if brake_active else 0.12
 
 
 func _on_reset_pressed() -> void:

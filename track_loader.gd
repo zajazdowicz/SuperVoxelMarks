@@ -57,39 +57,7 @@ func _build_track() -> void:
 		var world_pos := Vector3(p.grid.x * GRID, float(bh), p.grid.y * GRID)
 		var rot_y: float = -float(p.rotation) * PI / 2.0
 
-		if p.piece in [3, 4, 30, 31]:
-			RampSpawner.spawn_ramp(self, p.grid, p.piece, p.rotation, bh)
-
-		if p.piece >= 12 and p.piece <= 14:
-			RampSpawner.spawn_wall_ride(self, p.grid, p.piece, p.rotation, bh)
-
-		if p.piece >= 15 and p.piece <= 18:
-			RampSpawner.spawn_loop(self, p.grid, p.piece, p.rotation, bh)
-
-		if p.piece == 19:
-			RampSpawner.spawn_vloop(self, p.grid, p.piece, p.rotation, bh)
-
-		if p.piece == 22 or p.piece == 23:
-			RampSpawner.spawn_transition(self, p.grid, p.piece, p.rotation, bh)
-
-		if p.piece == 28 or p.piece == 29:
-			RampSpawner.spawn_banked_turn(self, p.grid, p.piece, p.rotation, bh)
-
-		if p.piece == 34 or p.piece == 35:
-			RampSpawner.spawn_ramp_turn(self, p.grid, p.piece, p.rotation, bh)
-
-		if p.piece == 39:
-			RampSpawner.spawn_jump_pad(self, p.grid, p.piece, p.rotation, bh)
-
-		if p.piece >= 42 and p.piece <= 47:
-			RampSpawner.spawn_slope(self, p.grid, p.piece, p.rotation, bh)
-
-		if p.piece >= 48 and p.piece <= 53:
-			var qp_down: bool = p.get("down", false)
-			RampSpawner.spawn_quarter_pipe(self, p.grid, p.piece, p.rotation, bh, qp_down)
-
-		if p.piece >= 57 and p.piece <= 62:
-			RampSpawner.spawn_slope_turn(self, p.grid, p.piece, p.rotation, bh)
+		RampSpawner.spawn_piece_collision(self, p.piece, p.grid, p.rotation, bh, p.get("down", false))
 
 		if p.piece == 5:
 			_spawn_pos = Vector3(p.grid.x * GRID, bh + 3, p.grid.y * GRID)
@@ -108,27 +76,8 @@ func _build_track() -> void:
 			_spawn_trigger(world_pos + Vector3(0, 2, 0), rot_y, "checkpoint_%d" % _checkpoint_count)
 			_checkpoint_count += 1
 
-	# Second pass: clear boundary voxels at ramp HIGH end.
-	# Neighbor pieces may have re-filled these with ASPHALT, creating a
-	# side face that blocks the car when ascending. Clearing to AIR lets
-	# the ramp's ConvexPolygon be the sole collision at the boundary.
-	for p in pieces:
-		if p.piece not in [3, 4, 30, 31]:
-			continue
-		var bh2: int = p.get("base_height", 0)
-		var offset2 := Vector3i(p.grid.x * GRID, bh2, p.grid.y * GRID)
-		var is_up4: bool = p.piece == 3 or p.piece == 30
-		var high_z: int = TrackPieces.HI if is_up4 else TrackPieces.LO
-		var rh4: int = TrackPieces.RAMP_HEIGHT if (p.piece == 3 or p.piece == 4) else TrackPieces.HALF_RAMP_HEIGHT
-		for x2 in range(-TrackPieces.ROAD_W, TrackPieces.ROAD_W + 1):
-			var rx := x2
-			var rz := high_z
-			for _r in range(p.rotation % 4):
-				var tmp := rx
-				rx = -rz
-				rz = tmp
-			for h2 in range(0, rh4 + 1):
-				tool.set_voxel(offset2 + Vector3i(rx, h2, rz), TrackPieces.AIR)
+	# Second pass: clear boundary voxels at ramp HIGH end
+	RampSpawner.clear_ramp_boundaries(tool, pieces)
 
 	RaceManager.total_checkpoints = _checkpoint_count
 	RaceManager.is_sprint = has_finish
@@ -153,6 +102,9 @@ func _build_track() -> void:
 	if not RaceManager.is_sprint:
 		if not RaceManager.lap_completed.is_connected(_start_ghost):
 			RaceManager.lap_completed.connect(_start_ghost)
+	# Update ghost when new best is set mid-race
+	if not RaceManager.new_best_set.is_connected(_update_ghost_data):
+		RaceManager.new_best_set.connect(_update_ghost_data)
 
 	# Start countdown
 	RaceManager.start_countdown()
@@ -186,6 +138,16 @@ func _start_ghost() -> void:
 	if _ghost_best and _ghost_best.has_method("start_playback"):
 		var loop: bool = not RaceManager.is_sprint
 		_ghost_best.start_playback(loop)
+
+
+func _update_ghost_data() -> void:
+	# New best was set — update the ghost player with fresh data
+	if RaceManager.best_ghost.is_empty():
+		return
+	if _ghost_best and _ghost_best.has_method("setup"):
+		_ghost_best.setup(RaceManager.best_ghost, Color(0.2, 0.5, 1.0, 0.35))
+	elif not _ghost_best:
+		_spawn_ghost()
 
 
 func toggle_ghost() -> void:
