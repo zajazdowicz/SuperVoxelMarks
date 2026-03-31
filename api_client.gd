@@ -3,10 +3,12 @@ extends Node
 ## Autoload singleton — handles player registration, score submission, leaderboard, ghosts.
 
 const API_BASE := "https://srv101355.seohost.com.pl/api/svmarks"
+const AUTH_BASE := "https://srv101355.seohost.com.pl/api/auth"
 
 var player_id := ""
 var player_name := ""
 var player_nationality := "PL"
+var auth_token := ""
 
 var _http: HTTPRequest
 
@@ -28,6 +30,7 @@ func _load_player() -> void:
 		player_id = cfg.get_value("player", "id", "")
 		player_name = cfg.get_value("player", "name", "")
 		player_nationality = cfg.get_value("player", "nationality", "PL")
+		auth_token = cfg.get_value("player", "auth_token", "")
 
 
 func _save_player() -> void:
@@ -35,6 +38,7 @@ func _save_player() -> void:
 	cfg.set_value("player", "id", player_id)
 	cfg.set_value("player", "name", player_name)
 	cfg.set_value("player", "nationality", player_nationality)
+	cfg.set_value("player", "auth_token", auth_token)
 	cfg.save("user://player.cfg")
 
 
@@ -243,3 +247,84 @@ func get_track_list(callback: Callable) -> void:
 		req.queue_free()
 	)
 	req.request(API_BASE + "/tracks")
+
+
+# === AUTH / LINK CODE ===
+
+func has_auth() -> bool:
+	return auth_token != ""
+
+
+func ensure_auth(callback: Callable) -> void:
+	if has_auth():
+		callback.call(true)
+		return
+	# Auto-register with password based on player_id
+	var password := player_id  # simple: use player_id as password
+	var body := JSON.stringify({
+		"player_id": player_id,
+		"name": player_name,
+		"password": password,
+		"nationality": player_nationality,
+	})
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result, code, headers, body_bytes):
+		if code == 201 or code == 200:
+			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
+			if json and json.has("token"):
+				auth_token = json["token"]
+				_save_player()
+				callback.call(true)
+				req.queue_free()
+				return
+		# If register fails (already registered), try login
+		if code == 409:
+			_login_for_token(password, callback)
+			req.queue_free()
+			return
+		callback.call(false)
+		req.queue_free()
+	)
+	req.request(AUTH_BASE + "/register", ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+
+
+func _login_for_token(password: String, callback: Callable) -> void:
+	var body := JSON.stringify({
+		"player_id": player_id,
+		"password": password,
+	})
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result, code, headers, body_bytes):
+		if code == 200:
+			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
+			if json and json.has("token"):
+				auth_token = json["token"]
+				_save_player()
+				callback.call(true)
+				req.queue_free()
+				return
+		callback.call(false)
+		req.queue_free()
+	)
+	req.request(AUTH_BASE + "/login", ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+
+
+func generate_link_code(callback: Callable) -> void:
+	if not has_auth():
+		callback.call(false, "")
+		return
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result, code, headers, body_bytes):
+		if code == 200:
+			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
+			if json and json.has("code"):
+				callback.call(true, json["code"])
+				req.queue_free()
+				return
+		callback.call(false, "")
+		req.queue_free()
+	)
+	req.request(AUTH_BASE + "/link-code", ["Content-Type: application/json", "Authorization: Bearer " + auth_token], HTTPClient.METHOD_POST, "{}")

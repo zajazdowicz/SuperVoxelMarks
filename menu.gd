@@ -184,9 +184,9 @@ func _build_tiles() -> MarginContainer:
 		_on_generate_and_play
 	))
 	grid.add_child(_make_tile(
-		"LOSOWA\nTRASA +", "Generuj i edytuj",
-		Color(0.15, 0.2, 0.1), Color(0.5, 0.7, 0.3),
-		_on_generate_and_edit
+		"POLACZ\nZ WEB", "Edytor w przegladarce",
+		Color(0.15, 0.1, 0.3), Color(0.6, 0.4, 1.0),
+		_on_link_web
 	))
 
 	return margin
@@ -476,11 +476,25 @@ func _on_generate_and_play() -> void:
 	get_tree().change_scene_to_file("res://race.tscn")
 
 
-func _on_generate_and_edit() -> void:
-	var length: int = randi_range(15, 30)
-	var gen_name := "gen_%d" % (randi() % 9999)
-	TrackGenerator.generate(length, gen_name, randi())
-	get_tree().change_scene_to_file("res://editor.tscn")
+func _on_link_web() -> void:
+	if not ApiClient.is_registered():
+		_set_status("Najpierw wpisz nick!")
+		return
+
+	# Ensure we have auth token, then generate link code
+	_set_status("Laczenie...")
+	ApiClient.ensure_auth(func(success: bool):
+		if not success:
+			_set_status("Blad autoryzacji")
+			return
+		ApiClient.generate_link_code(func(ok: bool, code: String):
+			if ok:
+				_show_link_code_modal(code)
+				_set_status("")
+			else:
+				_set_status("Blad generowania kodu")
+		)
+	)
 
 
 # =============================================================================
@@ -930,3 +944,98 @@ func _auto_register_player() -> void:
 		if success:
 			print("Player auto-registered: %s" % PlayerData.player_name)
 	)
+
+
+func _set_status(text: String) -> void:
+	if _status_label:
+		if text.is_empty():
+			_update_status()
+		else:
+			_status_label.text = text
+
+
+# =============================================================================
+# LINK TO WEB
+# =============================================================================
+
+var _link_modal: Control
+
+func _show_link_code_modal(code: String) -> void:
+	if _link_modal:
+		_link_modal.queue_free()
+
+	_link_modal = Panel.new()
+	_link_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.0, 0.0, 0.0, 0.92)
+	_link_modal.add_theme_stylebox_override("panel", bg)
+	add_child(_link_modal)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_link_modal.add_child(center)
+
+	var content := PanelContainer.new()
+	var box_sb := StyleBoxFlat.new()
+	box_sb.bg_color = Color(0.05, 0.05, 0.08)
+	box_sb.border_color = Color(0.6, 0.4, 1.0)
+	box_sb.set_border_width_all(2)
+	box_sb.set_corner_radius_all(12)
+	box_sb.content_margin_left = 32
+	box_sb.content_margin_right = 32
+	box_sb.content_margin_top = 24
+	box_sb.content_margin_bottom = 24
+	content.add_theme_stylebox_override("panel", box_sb)
+	content.custom_minimum_size = Vector2(500, 400)
+	center.add_child(content)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "POLACZ Z WEB"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_color_override("font_color", Color(0.6, 0.4, 1.0))
+	vbox.add_child(title)
+
+	var desc := Label.new()
+	desc.text = "Wpisz ten kod w edytorze\nw przegladarce:"
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.add_theme_font_size_override("font_size", 26)
+	desc.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
+	vbox.add_child(desc)
+
+	var code_label := Label.new()
+	code_label.text = code
+	code_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var code_s := LabelSettings.new()
+	code_s.font_size = 72
+	code_s.font_color = Color(1.0, 0.9, 0.2)
+	code_s.outline_size = 4
+	code_s.outline_color = Color(0.2, 0.15, 0.0)
+	code_label.label_settings = code_s
+	vbox.add_child(code_label)
+
+	var timer_label := Label.new()
+	timer_label.text = "Wazny 5 minut"
+	timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	timer_label.add_theme_font_size_override("font_size", 22)
+	timer_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
+	vbox.add_child(timer_label)
+
+	var close_btn := Button.new()
+	close_btn.text = "ZAMKNIJ"
+	close_btn.custom_minimum_size = Vector2(0, 56)
+	close_btn.add_theme_font_size_override("font_size", 26)
+	close_btn.focus_mode = Control.FOCUS_NONE
+	var close_sb := StyleBoxFlat.new()
+	close_sb.bg_color = Color(0.2, 0.05, 0.05)
+	close_sb.border_color = Color(0.8, 0.2, 0.2)
+	close_sb.set_border_width_all(1)
+	close_sb.set_corner_radius_all(6)
+	close_btn.add_theme_stylebox_override("normal", close_sb)
+	close_btn.pressed.connect(func(): _link_modal.queue_free(); _link_modal = null)
+	vbox.add_child(close_btn)
