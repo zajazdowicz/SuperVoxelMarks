@@ -5,6 +5,17 @@ var current_track := ""
 var current_server_id := 0  # server track ID (0 = local only)
 
 
+static func sanitize_name(name: String) -> String:
+	## Remove characters unsafe for filenames. Keep letters, digits, underscore, hyphen, space.
+	var clean := ""
+	for c in name:
+		if c == " " or c == "_" or c == "-" or c.unicode_at(0) >= 48 and c.unicode_at(0) <= 57 or c.unicode_at(0) >= 65 and c.unicode_at(0) <= 90 or c.unicode_at(0) >= 97 and c.unicode_at(0) <= 122:
+			clean += c
+	if clean == "":
+		clean = "trasa"
+	return clean
+
+
 func set_server_id(track_name: String, server_id: int) -> void:
 	var cfg := ConfigFile.new()
 	var path := "user://track_ids.cfg"

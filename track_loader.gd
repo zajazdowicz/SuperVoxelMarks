@@ -62,8 +62,8 @@ func _build_track() -> void:
 		if p.piece == 5:
 			_spawn_pos = Vector3(p.grid.x * GRID, bh + 3, p.grid.y * GRID)
 			# Car faces the exit direction of the start piece
-			var ports := TrackPieces.get_ports(p.piece)
-			var rot_ports := TrackPieces.rotate_ports(ports, p.rotation)
+			var ports := PieceRegistry.get_ports(p.piece)
+			var rot_ports := PieceRegistry.rotate_ports(ports, p.rotation)
 			var exit_dir: Vector2i = rot_ports[1].dir
 			_spawn_rot = atan2(-float(exit_dir.x), -float(exit_dir.y))
 			_spawn_trigger(world_pos + Vector3(0, 2, 0), rot_y, "start")

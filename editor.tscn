@@ -75,9 +75,9 @@ environment = SubResource("Environment_1")
 [node name="TopBar" type="HBoxContainer" parent="UI"]
 offset_left = 10.0
 offset_top = 10.0
-offset_right = 600.0
-offset_bottom = 45.0
-theme_override_constants/separation = 10
+offset_right = 1060.0
+offset_bottom = 70.0
+theme_override_constants/separation = 12
 
 [node name="NameLabel" type="Label" parent="UI/TopBar"]
 layout_mode = 2
@@ -86,20 +86,21 @@ text = "Trasa:"
 
 [node name="TrackName" type="LineEdit" parent="UI/TopBar"]
 layout_mode = 2
-custom_minimum_size = Vector2(200, 0)
+custom_minimum_size = Vector2(300, 56)
+theme_override_font_sizes/font_size = 32
 text = "moja_trasa"
 placeholder_text = "nazwa trasy"
 
-[node name="TrackList" type="ItemList" parent="UI/TopBar"]
+[node name="TrackList" type="OptionButton" parent="UI/TopBar"]
 layout_mode = 2
-custom_minimum_size = Vector2(200, 30)
-max_text_lines = 1
+custom_minimum_size = Vector2(300, 56)
+theme_override_font_sizes/font_size = 28
 
 [node name="PieceLabel" type="Label" parent="UI"]
 offset_left = 10.0
-offset_top = 55.0
-offset_right = 500.0
-offset_bottom = 85.0
+offset_top = 75.0
+offset_right = 1060.0
+offset_bottom = 120.0
 label_settings = SubResource("LabelSettings_1")
 text = "Prosta | Rot: N"
 
@@ -119,3 +120,4 @@ horizontal_alignment = 1
 text = "..."
 
 [connection signal="item_selected" from="UI/TopBar/TrackList" to="TrackEditor" method="_on_track_list_item_selected"]
+

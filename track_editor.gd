@@ -8,7 +8,7 @@ const GRID := TrackPieces.SEGMENT_SIZE
 @onready var piece_label: Label = $"../UI/PieceLabel"
 @onready var help_label: Label = $"../UI/HelpLabel"
 @onready var track_name_edit: LineEdit = $"../UI/TopBar/TrackName"
-@onready var track_list: ItemList = $"../UI/TopBar/TrackList"
+@onready var track_list: OptionButton = $"../UI/TopBar/TrackList"
 
 var cursor_grid := Vector2i(0, 0)
 var current_piece := 0
@@ -86,7 +86,7 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		# Ignore touches on UI areas
 		var screen_h := get_viewport().get_visible_rect().size.y
-		if event.position.y > screen_h * 0.78:  # bottom toolbar (~220px)
+		if event.position.y > screen_h * 0.68:  # bottom toolbar (~320px)
 			return
 		if event.position.y < screen_h * 0.08:  # top bar
 			return
@@ -149,11 +149,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			cursor_grid.x += 1
 			_update_cursor()
 		KEY_Q:
-			current_piece = (current_piece - 1 + TrackPieces.PIECE_NAMES.size()) % TrackPieces.PIECE_NAMES.size()
+			current_piece = (current_piece - 1 + PieceRegistry.get_piece_count()) % PieceRegistry.get_piece_count()
 			_update_ui()
 			_update_preview()
 		KEY_E:
-			current_piece = (current_piece + 1) % TrackPieces.PIECE_NAMES.size()
+			current_piece = (current_piece + 1) % PieceRegistry.get_piece_count()
 			_update_ui()
 			_update_preview()
 		KEY_R:
@@ -179,7 +179,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_test_track()
 		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9:
 			var num: int = event.keycode - KEY_1
-			if num < TrackPieces.PIECE_NAMES.size():
+			if num < PieceRegistry.get_piece_count():
 				current_piece = num
 				_update_ui()
 				_update_preview()
@@ -206,7 +206,7 @@ func _update_ui() -> void:
 		piece_label.text = "GUMKA (X=wylacz) | H: %d" % current_height
 	else:
 		var down_label := " | DOWN" if _qp_down else ""
-		piece_label.text = "%s | Rot: %s | H: %d%s" % [TrackPieces.PIECE_NAMES[current_piece], rot_label, current_height, down_label]
+		piece_label.text = "%s | Rot: %s | H: %d%s" % [PieceRegistry.get_piece_name(current_piece), rot_label, current_height, down_label]
 	_highlight_piece_button()
 
 
@@ -214,7 +214,7 @@ func _create_top_buttons() -> void:
 	var topbar: HBoxContainer = $"../UI/TopBar"
 	topbar.add_theme_constant_override("separation", 4)
 
-	var btn_h := 44  # min touch target size
+	var btn_h := 56  # min touch target size
 
 	var save_btn := _make_top_button("ZAPISZ", Color(0.2, 0.35, 0.5), btn_h)
 	save_btn.pressed.connect(_on_save_pressed)
@@ -241,7 +241,7 @@ func _make_top_button(label: String, color: Color, height: int) -> Button:
 	var btn := Button.new()
 	btn.text = label
 	btn.custom_minimum_size = Vector2(0, height)
-	btn.add_theme_font_size_override("font_size", 18)
+	btn.add_theme_font_size_override("font_size", 28)
 	btn.focus_mode = Control.FOCUS_NONE
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = color
@@ -265,7 +265,8 @@ func _on_publish_pressed() -> void:
 		piece_label.text = "Najpierw zarejestruj sie! (menu)"
 		return
 
-	var tname := track_name_edit.text.strip_edges()
+	var tname := TrackData.sanitize_name(track_name_edit.text.strip_edges())
+	track_name_edit.text = tname
 	if tname == "":
 		piece_label.text = "Podaj nazwe trasy!"
 		return
@@ -294,6 +295,9 @@ func _on_publish_pressed() -> void:
 		if json.data:
 			var t: float = float(json.data.get("time", 0.0))
 			author_time_ms = int(t * 1000.0)
+	elif RaceManager.best_time < INF:
+		# Fallback: use best_time from current session
+		author_time_ms = int(RaceManager.best_time * 1000.0)
 
 	if author_time_ms <= 0:
 		piece_label.text = "Najpierw przetestuj trase (T) i ukoncz okrazenie!"
@@ -322,10 +326,10 @@ func _on_publish_pressed() -> void:
 
 
 func _on_save_pressed() -> void:
-	var tname := track_name_edit.text.strip_edges()
+	var tname := TrackData.sanitize_name(track_name_edit.text.strip_edges())
 	if tname == "":
-		track_name_edit.text = "nowa_trasa"
 		tname = "nowa_trasa"
+	track_name_edit.text = tname
 	TrackData.save_track(tname, placed_pieces)
 	TrackData.current_track = tname
 	_refresh_track_list()
@@ -382,8 +386,8 @@ func _on_cleanup_pressed() -> void:
 		var gx: int = p.grid.x
 		var gz: int = p.grid.y
 		var bh: int = p.get("base_height", 0)
-		var ports := TrackPieces.get_ports(p.piece)
-		var rot_ports := TrackPieces.rotate_ports(ports, p.rotation)
+		var ports := PieceRegistry.get_ports(p.piece)
+		var rot_ports := PieceRegistry.rotate_ports(ports, p.rotation)
 
 		for port in rot_ports:
 			var neighbor_gx: int = gx + port.dir.x
@@ -461,20 +465,7 @@ func _on_new_pressed() -> void:
 	get_tree().reload_current_scene()
 
 
-const PIECE_CATEGORIES := {
-	"Podstawowe": [0, 1, 2, 24, 25, 26, 27, 5, 8, 11],
-	"Specjalne": [6, 7, 9, 10, 39, 40, 41],
-	"Nawierzchnie": [36, 37, 38],
-	"Rampy": [3, 4, 30, 31, 34, 35, 21, 32, 33, 22, 23],
-	"Banked": [28, 29],
-	"Wall Ride": [12, 13, 14],
-	#"Loop": [15, 16, 17, 18],      # DISABLED — barrel roll broken
-	"Petla": [19],
-	"Slopes": [42, 43, 44, 45, 46, 47],
-	"QP": [48, 49, 50, 51, 52, 53],
-	"Przeszkody": [54, 55, 56],
-	"Slope Turn": [61, 62, 57, 58, 59, 60],
-}
+## Categories loaded from PieceRegistry (pieces.json)
 
 func _create_piece_toolbar() -> void:
 	var ui: CanvasLayer = $"../UI"
@@ -496,7 +487,7 @@ func _create_piece_toolbar() -> void:
 	panel.anchor_right = 1.0
 	panel.anchor_top = 1.0
 	panel.anchor_bottom = 1.0
-	panel.offset_top = -220.0
+	panel.offset_top = -320.0
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	ui.add_child(panel)
 
@@ -515,13 +506,13 @@ func _create_piece_toolbar() -> void:
 	cat_row.add_theme_constant_override("separation", 3)
 	cat_scroll.add_child(cat_row)
 
-	var cat_keys := PIECE_CATEGORIES.keys()
-	for ci in range(cat_keys.size()):
-		var cat_name: String = cat_keys[ci]
+	var cats: Array = PieceRegistry.get_categories()
+	for ci in range(cats.size()):
+		var cat_name: String = cats[ci].get("name", "")
 		var cat_btn := Button.new()
 		cat_btn.text = cat_name
-		cat_btn.custom_minimum_size = Vector2(0, 36)
-		cat_btn.add_theme_font_size_override("font_size", 18)
+		cat_btn.custom_minimum_size = Vector2(0, 48)
+		cat_btn.add_theme_font_size_override("font_size", 26)
 		cat_btn.focus_mode = Control.FOCUS_NONE
 		var pill_style := StyleBoxFlat.new()
 		pill_style.bg_color = Color(0.18, 0.18, 0.22, 0.9)
@@ -541,7 +532,7 @@ func _create_piece_toolbar() -> void:
 
 	# --- Row 2: Piece strip (horizontal scroll, compact thumbnails) ---
 	var piece_scroll := ScrollContainer.new()
-	piece_scroll.custom_minimum_size = Vector2(0, 110)
+	piece_scroll.custom_minimum_size = Vector2(0, 150)
 	piece_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	piece_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	vbox.add_child(piece_scroll)
@@ -618,8 +609,8 @@ func _create_piece_toolbar() -> void:
 func _make_action_button(label: String, color: Color, callback: Callable) -> Button:
 	var btn := Button.new()
 	btn.text = label
-	btn.custom_minimum_size = Vector2(72, 50)
-	btn.add_theme_font_size_override("font_size", 18)
+	btn.custom_minimum_size = Vector2(90, 60)
+	btn.add_theme_font_size_override("font_size", 28)
 	btn.focus_mode = Control.FOCUS_NONE
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = color
@@ -649,18 +640,18 @@ func _create_dpad(ui: CanvasLayer) -> void:
 	dpad.anchor_left = 0.0
 	dpad.anchor_top = 1.0
 	dpad.anchor_bottom = 1.0
-	dpad.offset_left = 8.0
-	dpad.offset_top = -340.0
-	dpad.offset_right = 148.0
-	dpad.offset_bottom = -228.0
+	dpad.offset_left = 10.0
+	dpad.offset_top = -500.0
+	dpad.offset_right = 220.0
+	dpad.offset_bottom = -330.0
 	ui.add_child(dpad)
 	_dpad_node = dpad
 
 	# D-pad layout: 3x3 grid, buttons at N/S/E/W
-	var dpad_size := 44
-	var dpad_gap := 2
-	var center_x := 48
-	var center_y := 24
+	var dpad_size := 56
+	var dpad_gap := 4
+	var center_x := 60
+	var center_y := 30
 
 	# UP
 	var up_btn := _make_dpad_button("^", Vector2(center_x, center_y - dpad_size - dpad_gap), dpad_size)
@@ -700,7 +691,7 @@ func _make_dpad_button(label: String, pos: Vector2, btn_size: int) -> Button:
 	btn.text = label
 	btn.position = pos
 	btn.size = Vector2(btn_size, btn_size)
-	btn.add_theme_font_size_override("font_size", 20)
+	btn.add_theme_font_size_override("font_size", 28)
 	btn.focus_mode = Control.FOCUS_NONE
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.2, 0.2, 0.25, 0.75)
@@ -716,8 +707,8 @@ func _make_dpad_button(label: String, pos: Vector2, btn_size: int) -> Button:
 
 
 func _show_category(cat_index: int) -> void:
-	var cat_keys := PIECE_CATEGORIES.keys()
-	if cat_index < 0 or cat_index >= cat_keys.size():
+	var cats: Array = PieceRegistry.get_categories()
+	if cat_index < 0 or cat_index >= cats.size():
 		return
 	if not _pieces_grid:
 		return
@@ -735,8 +726,7 @@ func _show_category(cat_index: int) -> void:
 	# Highlight active category tab
 	_highlight_cat_tabs()
 
-	var cat_name: String = cat_keys[cat_index]
-	var piece_ids: Array = PIECE_CATEGORIES[cat_name]
+	var piece_ids: Array = cats[cat_index].get("pieces", [])
 
 	for pid in piece_ids:
 		var btn := _create_thumbnail_button(pid)
@@ -750,7 +740,7 @@ func _show_category(cat_index: int) -> void:
 
 func _create_thumbnail_button(piece_id: int) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(80, 100)
+	btn.custom_minimum_size = Vector2(110, 140)
 	btn.focus_mode = Control.FOCUS_NONE
 	var piece_idx: int = piece_id
 	btn.pressed.connect(func(): _select_piece(piece_idx))
@@ -776,7 +766,7 @@ func _create_thumbnail_button(piece_id: int) -> Button:
 
 	# Thumbnail image
 	var tex_rect := TextureRect.new()
-	tex_rect.custom_minimum_size = Vector2(64, 64)
+	tex_rect.custom_minimum_size = Vector2(96, 96)
 	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if _thumbnail_cache.has(piece_id):
@@ -787,7 +777,7 @@ func _create_thumbnail_button(piece_id: int) -> Button:
 	var lbl := Label.new()
 	lbl.text = _short_name(piece_id)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 14)
+	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(lbl)
 
@@ -796,7 +786,7 @@ func _create_thumbnail_button(piece_id: int) -> Button:
 
 func _short_name(piece_id: int) -> String:
 	# Shortened names for toolbar display
-	var full: String = TrackPieces.PIECE_NAMES[piece_id]
+	var full: String = PieceRegistry.get_piece_name(piece_id)
 	var shorts := {
 		0: "Prosta", 1: "Zakret P", 2: "Zakret L",
 		3: "Rampa+", 4: "Rampa-", 5: "Start",
@@ -857,7 +847,7 @@ func _highlight_cat_tabs() -> void:
 
 # --- Thumbnail generation (2D pixel rendering — no SubViewport) ---
 
-const THUMB_SIZE := 64
+const THUMB_SIZE := 96
 const THUMB_BG := Color(0.15, 0.15, 0.18, 1.0)
 const THUMB_VOXEL_COLORS := {
 	TrackPieces.ASPHALT: Color(0.35, 0.35, 0.4),
@@ -881,7 +871,7 @@ const THUMB_VOXEL_COLORS := {
 }
 
 func _generate_all_thumbnails() -> void:
-	for pid in range(TrackPieces.PIECE_NAMES.size()):
+	for pid in range(PieceRegistry.get_piece_count()):
 		if pid == 20:
 			continue
 		if pid >= 15 and pid <= 18:
@@ -1121,9 +1111,8 @@ func _update_preview() -> void:
 		return
 
 	# Special pieces (wall ride, loop, transition) — show shape preview
-	# Voxel-only pieces (platforma, gentle turns) use normal voxel preview
-	var shape_pieces := [12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 28, 29, 34, 35, 39, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 57, 58, 59, 60, 61, 62]
-	if current_piece in shape_pieces:
+	# Shape-based pieces use custom 3D mesh preview
+	if PieceRegistry.get_preview_type(current_piece) == "shape":
 		_update_shape_preview()
 		return
 
@@ -1509,18 +1498,11 @@ func _place_piece() -> void:
 	var tool := terrain.get_voxel_tool()
 	tool.channel = VoxelBuffer.CHANNEL_TYPE
 
-	# Ramp/transition down: place at lower height so top matches current road level
+	# Down pieces: place at lower height so top matches current road level
 	var place_height := current_height
-	if current_piece == 4:  # ramp down
-		place_height = maxi(0, current_height - TrackPieces.RAMP_HEIGHT)
-	elif current_piece == 31:  # half ramp down
-		place_height = maxi(0, current_height - TrackPieces.HALF_RAMP_HEIGHT)
-	elif current_piece == 23:  # transition down
-		place_height = maxi(0, current_height - TrackPieces.TRANSITION_HEIGHT)
-	elif _qp_down and current_piece >= 48 and current_piece <= 53:
-		# DOWN QP: base_height at the LOW end, car enters from HIGH (current_height)
-		var qp_delta: int = TrackPieces.QP_DELTAS[current_piece]
-		place_height = maxi(0, current_height - qp_delta)
+	var place_delta: int = PieceRegistry.get_height_delta(current_piece, _qp_down)
+	if place_delta < 0:
+		place_height = maxi(0, current_height + place_delta)
 
 	var offset := Vector3i(cursor_grid.x * GRID, place_height, cursor_grid.y * GRID)
 	for block in rotated:
@@ -1547,8 +1529,8 @@ func _place_piece() -> void:
 
 	# Full loop (piece 19) occupies 2 cells — register the second cell
 	if current_piece == 19:
-		var ports := TrackPieces.get_ports(current_piece)
-		var rp := TrackPieces.rotate_ports(ports, current_rotation)
+		var ports := PieceRegistry.get_ports(current_piece)
+		var rp := PieceRegistry.rotate_ports(ports, current_rotation)
 		var cell2: Vector2i = cursor_grid + Vector2i(rp[1].dir)
 		placed_pieces = placed_pieces.filter(func(p): return p.grid != cell2)
 		placed_pieces.append({
@@ -1633,10 +1615,10 @@ func _auto_save() -> void:
 
 
 func _test_track() -> void:
-	var name := track_name_edit.text.strip_edges()
+	var name := TrackData.sanitize_name(track_name_edit.text.strip_edges())
 	if name == "":
-		track_name_edit.text = "test"
 		name = "test"
+	track_name_edit.text = name
 	TrackData.save_track(name, placed_pieces)
 	TrackData.current_track = name
 	get_tree().change_scene_to_file("res://race.tscn")
@@ -1665,14 +1647,17 @@ func _load_track(track_name: String) -> void:
 
 func _refresh_track_list() -> void:
 	track_list.clear()
-	for name in TrackData.get_track_names():
-		track_list.add_item(name)
+	track_list.add_item("-- wybierz trase --")
+	for tname in TrackData.get_track_names():
+		track_list.add_item(tname)
 
 
 func _on_track_list_item_selected(index: int) -> void:
-	var name := track_list.get_item_text(index)
-	track_name_edit.text = name
-	TrackData.current_track = name
+	if index <= 0:
+		return
+	var tname := track_list.get_item_text(index)
+	track_name_edit.text = tname
+	TrackData.current_track = tname
 	get_tree().change_scene_to_file("res://editor.tscn")
 
 
@@ -1680,46 +1665,22 @@ func _snap_to_next_port() -> void:
 	# After placing a piece, move cursor to the "forward" port
 	# so user can seamlessly continue building the track
 
-	# Adjust height based on piece type
-	# Ramp up: next piece starts at higher level
-	# Ramp down: place_height already adjusted in _place_piece, no change needed here
-	if current_piece == 3:  # ramp up
-		current_height += TrackPieces.RAMP_HEIGHT
-	elif current_piece == 30:  # half ramp up
-		current_height += TrackPieces.HALF_RAMP_HEIGHT
-	elif current_piece == 34 or current_piece == 35:  # ramp turn up
-		current_height += TrackPieces.RAMP_HEIGHT
-	elif current_piece == 4:  # ramp down
-		current_height = maxi(0, current_height - TrackPieces.RAMP_HEIGHT)
-	elif current_piece == 31:  # half ramp down
-		current_height = maxi(0, current_height - TrackPieces.HALF_RAMP_HEIGHT)
-	elif current_piece == 22:  # transition up
-		current_height += TrackPieces.TRANSITION_HEIGHT
-	elif current_piece == 23:  # transition down
-		current_height = maxi(0, current_height - TrackPieces.TRANSITION_HEIGHT)
-	elif current_piece >= 42 and current_piece <= 47:  # slopes
-		var angle_rad := deg_to_rad(TrackPieces.SLOPE_ANGLES[current_piece])
-		var rise: int = roundi(sin(angle_rad) * float(TrackPieces.SEGMENT_SIZE))
-		current_height += rise
-	elif current_piece >= 48 and current_piece <= 53:  # quarter-pipes
-		var delta: int = TrackPieces.QP_DELTAS[current_piece]
-		if _qp_down:
-			current_height = maxi(0, current_height - delta)
-		else:
-			current_height += delta
-	elif current_piece >= 57 and current_piece <= 62:  # slope turns
-		var st_delta: int = RampSpawner.SLOPE_TURN_DELTAS.get(current_piece, 2)
-		current_height += st_delta
+	# Adjust height based on piece type (data-driven from pieces.json)
+	var h_delta: int = PieceRegistry.get_height_delta(current_piece, _qp_down)
+	if h_delta > 0:
+		current_height += h_delta
+	elif h_delta < 0:
+		current_height = maxi(0, current_height + h_delta)
 
-	var ports := TrackPieces.get_ports(current_piece)
-	var rotated_ports := TrackPieces.rotate_ports(ports, current_rotation)
+	var ports := PieceRegistry.get_ports(current_piece)
+	var rotated_ports := PieceRegistry.rotate_ports(ports, current_rotation)
 
 	if rotated_ports.size() < 2:
 		return
 
 	# Second port is the "exit" (first is entry)
 	var exit_port: Dictionary = rotated_ports[1]
-	var step: int = 2 if current_piece == 19 else 1  # loop spans 2 cells
+	var step: int = PieceRegistry.get_spans_cells(current_piece)
 	var next_grid: Vector2i = cursor_grid + Vector2i(exit_port.dir) * step
 
 	# Check if there's already a piece at the next position
