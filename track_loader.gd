@@ -61,7 +61,7 @@ func _build_track() -> void:
 	sorted.sort_custom(func(a, b): return a.get("base_height", 0) < b.get("base_height", 0))
 
 	for p in sorted:
-		var centered_grid := p.grid - _center_offset
+		var centered_grid: Vector2i = p.grid - _center_offset
 		var piece := TrackPieces.get_piece(p.piece)
 		var rotated := TrackPieces.rotate_piece(piece, p.rotation)
 		var bh: int = p.get("base_height", 0)
