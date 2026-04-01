@@ -45,10 +45,10 @@ func _build_track() -> void:
 	# Center track around origin so it always fits in VoxelTerrain range
 	var _center_offset := Vector2i.ZERO
 	if not pieces.is_empty():
-		var min_gx := pieces[0].grid.x
-		var max_gx := pieces[0].grid.x
-		var min_gz := pieces[0].grid.y
-		var max_gz := pieces[0].grid.y
+		var min_gx: int = pieces[0].grid.x
+		var max_gx: int = pieces[0].grid.x
+		var min_gz: int = pieces[0].grid.y
+		var max_gz: int = pieces[0].grid.y
 		for p in pieces:
 			min_gx = mini(min_gx, p.grid.x)
 			max_gx = maxi(max_gx, p.grid.x)
