@@ -35,12 +35,19 @@ func setup(data: Array, color: Color = Color(0.2, 0.5, 1.0, 0.35)) -> void:
 func start_playback(loop: bool = false) -> void:
 	if ghost_data.is_empty():
 		return
+
+	# Normalize frame times: subtract first frame's time so ghost starts at t=0
+	var t_offset: float = ghost_data[0].get("t", 0.0)
+	if t_offset > 0.01:
+		for frame in ghost_data:
+			frame["t"] = frame.get("t", 0.0) - t_offset
+
 	_time = 0.0
 	_playing = true
 	_looping = loop
 	visible = visible_ghost
 
-	# Snap to first frame position immediately
+	# Snap to first frame position
 	var first := ghost_data[0]
 	global_position = Vector3(first["px"], first["py"], first["pz"])
 	rotation.y = first["ry"]
