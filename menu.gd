@@ -1024,7 +1024,7 @@ func _prompt_admin_password() -> void:
 			if success:
 				print("Admin login OK: %s (%s)" % [ApiClient.player_name, ApiClient.player_id])
 				PlayerData.player_name = ApiClient.player_name
-				PlayerData.save_data()
+				PlayerData.save()
 				_set_status("Zalogowano jako admin!")
 			else:
 				_set_status("Bledne haslo!")
