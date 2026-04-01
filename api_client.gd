@@ -1,5 +1,5 @@
 extends Node
-## API client for SuperVoxelMarks backend.
+## API client for RC Trick Mania X backend.
 ## Autoload singleton — handles player registration, score submission, leaderboard, ghosts.
 
 const API_BASE := "https://srv101355.seohost.com.pl/api/svmarks"
