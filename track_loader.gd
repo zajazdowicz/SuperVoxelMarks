@@ -42,25 +42,40 @@ func _build_track() -> void:
 	_checkpoint_count = 0
 	var has_finish := false
 
+	# Center track around origin so it always fits in VoxelTerrain range
+	var _center_offset := Vector2i.ZERO
+	if not pieces.is_empty():
+		var min_gx := pieces[0].grid.x
+		var max_gx := pieces[0].grid.x
+		var min_gz := pieces[0].grid.y
+		var max_gz := pieces[0].grid.y
+		for p in pieces:
+			min_gx = mini(min_gx, p.grid.x)
+			max_gx = maxi(max_gx, p.grid.x)
+			min_gz = mini(min_gz, p.grid.y)
+			max_gz = maxi(max_gz, p.grid.y)
+		_center_offset = Vector2i((min_gx + max_gx) / 2, (min_gz + max_gz) / 2)
+
 	# Sort by base_height — higher pieces built last so their voxels win
 	var sorted := pieces.duplicate()
 	sorted.sort_custom(func(a, b): return a.get("base_height", 0) < b.get("base_height", 0))
 
 	for p in sorted:
+		var centered_grid := p.grid - _center_offset
 		var piece := TrackPieces.get_piece(p.piece)
 		var rotated := TrackPieces.rotate_piece(piece, p.rotation)
 		var bh: int = p.get("base_height", 0)
-		var offset := Vector3i(p.grid.x * GRID, bh, p.grid.y * GRID)
+		var offset := Vector3i(centered_grid.x * GRID, bh, centered_grid.y * GRID)
 		for block in rotated:
 			tool.set_voxel(offset + block.pos, block.type)
 
-		var world_pos := Vector3(p.grid.x * GRID, float(bh), p.grid.y * GRID)
+		var world_pos := Vector3(centered_grid.x * GRID, float(bh), centered_grid.y * GRID)
 		var rot_y: float = -float(p.rotation) * PI / 2.0
 
-		RampSpawner.spawn_piece_collision(self, p.piece, p.grid, p.rotation, bh, p.get("down", false))
+		RampSpawner.spawn_piece_collision(self, p.piece, centered_grid, p.rotation, bh, p.get("down", false))
 
 		if p.piece == 5:
-			_spawn_pos = Vector3(p.grid.x * GRID, bh + 3, p.grid.y * GRID)
+			_spawn_pos = Vector3(centered_grid.x * GRID, bh + 3, centered_grid.y * GRID)
 			# Car faces the exit direction of the start piece
 			var ports := PieceRegistry.get_ports(p.piece)
 			var rot_ports := PieceRegistry.rotate_ports(ports, p.rotation)
@@ -76,26 +91,20 @@ func _build_track() -> void:
 			_spawn_trigger(world_pos + Vector3(0, 2, 0), rot_y, "checkpoint_%d" % _checkpoint_count)
 			_checkpoint_count += 1
 
-	# Second pass: clear boundary voxels at ramp HIGH end
-	RampSpawner.clear_ramp_boundaries(tool, pieces)
+	# Build centered pieces array for ramp boundary clearing
+	var centered_pieces: Array[Dictionary] = []
+	for p in pieces:
+		var cp := p.duplicate()
+		cp.grid = p.grid - _center_offset
+		centered_pieces.append(cp)
 
-	# Move StaticViewer to track center so all chunks load
-	if not pieces.is_empty():
-		var min_x := INF
-		var max_x := -INF
-		var min_z := INF
-		var max_z := -INF
-		for p in pieces:
-			var wx: float = p.grid.x * GRID
-			var wz: float = p.grid.y * GRID
-			min_x = minf(min_x, wx)
-			max_x = maxf(max_x, wx)
-			min_z = minf(min_z, wz)
-			max_z = maxf(max_z, wz)
-		var center := Vector3((min_x + max_x) / 2.0, 0, (min_z + max_z) / 2.0)
-		var static_viewer := get_node_or_null("../StaticViewer")
-		if static_viewer:
-			static_viewer.global_position = center
+	# Second pass: clear boundary voxels at ramp HIGH end
+	RampSpawner.clear_ramp_boundaries(tool, centered_pieces)
+
+	# StaticViewer at origin (track is centered)
+	var static_viewer := get_node_or_null("../StaticViewer")
+	if static_viewer:
+		static_viewer.global_position = Vector3.ZERO
 
 	RaceManager.total_checkpoints = _checkpoint_count
 	RaceManager.is_sprint = has_finish
