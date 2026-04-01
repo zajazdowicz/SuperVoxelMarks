@@ -966,10 +966,44 @@ func _auto_register_player() -> void:
 		return
 	if PlayerData.player_name.is_empty():
 		return
-	ApiClient.register(PlayerData.player_name, PlayerData.player_flag, func(success: bool):
+	ApiClient.register(PlayerData.player_name, PlayerData.player_flag, func(success, reason = ""):
 		if success:
 			print("Player auto-registered: %s" % PlayerData.player_name)
+		elif reason == "reserved":
+			print("Name reserved — prompting for password")
+			_prompt_admin_password()
 	)
+
+func _prompt_admin_password() -> void:
+	# Show password dialog for reserved name login
+	var dialog := AcceptDialog.new()
+	dialog.title = "Zarezerwowany nick"
+	dialog.dialog_text = "Nick '%s' jest zarezerwowany.\nPodaj haslo admina:" % PlayerData.player_name
+	var line := LineEdit.new()
+	line.placeholder_text = "haslo"
+	line.secret = true
+	line.custom_minimum_size = Vector2(300, 50)
+	line.add_theme_font_size_override("font_size", 28)
+	dialog.add_child(line)
+	dialog.confirmed.connect(func():
+		var pw: String = line.text.strip_edges()
+		if pw.is_empty():
+			dialog.queue_free()
+			return
+		ApiClient.register(PlayerData.player_name, PlayerData.player_flag, func(success, reason = ""):
+			if success:
+				print("Admin login OK: %s (%s)" % [ApiClient.player_name, ApiClient.player_id])
+				PlayerData.player_name = ApiClient.player_name
+				PlayerData.save_data()
+				_set_status("Zalogowano jako admin!")
+			else:
+				_set_status("Bledne haslo!")
+			dialog.queue_free()
+		, pw)
+	)
+	dialog.canceled.connect(func(): dialog.queue_free())
+	add_child(dialog)
+	dialog.popup_centered()
 
 
 func _set_status(text: String) -> void:

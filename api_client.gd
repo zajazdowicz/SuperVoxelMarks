@@ -46,27 +46,52 @@ func is_registered() -> bool:
 	return player_id != ""
 
 
-func register(p_name: String, p_nationality: String, callback: Callable) -> void:
-	player_id = _generate_id()
+func register(p_name: String, p_nationality: String, callback: Callable, p_password: String = "") -> void:
+	if player_id == "":
+		player_id = _generate_id()
 	player_name = p_name
 	player_nationality = p_nationality
 	_save_player()
 
-	var body := JSON.stringify({
+	var data := {
 		"player_id": player_id,
 		"name": player_name,
 		"nationality": player_nationality,
-	})
+	}
+	if p_password != "":
+		data["password"] = p_password
+
+	var body := JSON.stringify(data)
 
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.request_completed.connect(func(result, code, headers, body_bytes):
-		var success: bool = code == 200
-		if success:
-			print("API: Player registered: %s" % player_name)
+		if code == 200:
+			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
+			if json and json.get("login", false):
+				# Reserved name login — switch to existing account
+				player_id = str(json["id"])
+				player_name = str(json["name"])
+				auth_token = str(json.get("token", ""))
+				if json.has("nationality"):
+					player_nationality = str(json["nationality"])
+				_save_player()
+				print("API: Logged in as admin: %s (%s)" % [player_name, player_id])
+			else:
+				print("API: Player registered: %s" % player_name)
+			callback.call(true)
+		elif code == 403:
+			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
+			if json and json.get("error", "") == "reserved_name":
+				# Name is reserved — need password
+				print("API: Name reserved, password required")
+				callback.call(false, "reserved")
+			else:
+				print("API: Registration forbidden: %d" % code)
+				callback.call(false)
 		else:
 			print("API: Registration failed: %d" % code)
-		callback.call(success)
+			callback.call(false)
 		req.queue_free()
 	)
 	req.request(API_BASE + "/player", ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
