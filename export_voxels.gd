@@ -5,7 +5,7 @@ extends Node
 func _ready() -> void:
 	var result := {}
 
-	for id in range(63):
+	for id in range(200):
 		if id == 20:
 			continue
 		var blocks: Array[Dictionary] = TrackPieces.get_piece(id)

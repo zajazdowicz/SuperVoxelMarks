@@ -720,7 +720,7 @@ func _download_track(track_id: int, track_name: String, btn: Button) -> void:
 
 		for conn in btn.pressed.get_connections():
 			btn.pressed.disconnect(conn.callable)
-		btn.pressed.connect(_play_online_track.bind(track_name, track_id))
+		btn.pressed.connect(_download_and_play.bind(track_id, track_name, btn))
 
 		tracks.append(track_name)
 		_update_status()
