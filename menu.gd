@@ -118,7 +118,8 @@ func _build_header() -> PanelContainer:
 	input_sb.content_margin_left = 8.0
 	input_sb.content_margin_right = 8.0
 	name_input.add_theme_stylebox_override("normal", input_sb)
-	name_input.text_submitted.connect(_on_nick_submitted)
+	name_input.text_changed.connect(func(t: String): PlayerData.player_name = t; PlayerData.save())
+	name_input.text_submitted.connect(func(_t): _on_nick_submitted(name_input.text))
 	name_input.focus_exited.connect(func(): _on_nick_submitted(name_input.text))
 	player_row.add_child(name_input)
 
@@ -981,16 +982,17 @@ func _on_nick_submitted(new_name: String) -> void:
 
 
 func _auto_register_player() -> void:
-	if ApiClient.is_registered():
-		return
 	if PlayerData.player_name.is_empty():
 		return
+	# Always register — updates name on server if changed
 	ApiClient.register(PlayerData.player_name, PlayerData.player_flag, func(success, reason = ""):
 		if success:
-			print("Player auto-registered: %s" % PlayerData.player_name)
-		elif reason == "reserved":
+			print("Player registered/updated: %s (id: %s)" % [ApiClient.player_name, ApiClient.player_id])
+		elif str(reason) == "reserved":
 			print("Name reserved — prompting for password")
-			_prompt_admin_password()
+			call_deferred("_prompt_admin_password")
+		else:
+			print("Registration result: success=%s reason=%s" % [success, reason])
 	)
 
 func _prompt_admin_password() -> void:
