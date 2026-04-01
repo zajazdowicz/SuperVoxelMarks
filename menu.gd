@@ -119,9 +119,18 @@ func _build_header() -> PanelContainer:
 	input_sb.content_margin_right = 8.0
 	name_input.add_theme_stylebox_override("normal", input_sb)
 	name_input.text_changed.connect(func(t: String): PlayerData.player_name = t; PlayerData.save())
-	name_input.text_submitted.connect(func(_t): _on_nick_submitted(name_input.text))
-	name_input.focus_exited.connect(func(): _on_nick_submitted(name_input.text))
 	player_row.add_child(name_input)
+
+	var nick_ok := Button.new()
+	nick_ok.text = "OK"
+	nick_ok.custom_minimum_size = Vector2(60, 50)
+	nick_ok.add_theme_font_size_override("font_size", 26)
+	var ok_sb := StyleBoxFlat.new()
+	ok_sb.bg_color = Color(0.15, 0.4, 0.15)
+	ok_sb.set_corner_radius_all(6)
+	nick_ok.add_theme_stylebox_override("normal", ok_sb)
+	nick_ok.pressed.connect(func(): _on_nick_submitted(name_input.text))
+	player_row.add_child(nick_ok)
 
 	flag_button = Button.new()
 	flag_button.custom_minimum_size = Vector2(70, 50)
