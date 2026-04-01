@@ -79,6 +79,24 @@ func _build_track() -> void:
 	# Second pass: clear boundary voxels at ramp HIGH end
 	RampSpawner.clear_ramp_boundaries(tool, pieces)
 
+	# Move StaticViewer to track center so all chunks load
+	if not pieces.is_empty():
+		var min_x := INF
+		var max_x := -INF
+		var min_z := INF
+		var max_z := -INF
+		for p in pieces:
+			var wx: float = p.grid.x * GRID
+			var wz: float = p.grid.y * GRID
+			min_x = minf(min_x, wx)
+			max_x = maxf(max_x, wx)
+			min_z = minf(min_z, wz)
+			max_z = maxf(max_z, wz)
+		var center := Vector3((min_x + max_x) / 2.0, 0, (min_z + max_z) / 2.0)
+		var static_viewer := get_node_or_null("../StaticViewer")
+		if static_viewer:
+			static_viewer.global_position = center
+
 	RaceManager.total_checkpoints = _checkpoint_count
 	RaceManager.is_sprint = has_finish
 
