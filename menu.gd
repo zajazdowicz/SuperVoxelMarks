@@ -82,7 +82,7 @@ func _build_header() -> PanelContainer:
 
 	# Title
 	var title := Label.new()
-	title.text = "SUPER VOXEL MARKS"
+	title.text = "RC TRICK MANIA X"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var title_s := LabelSettings.new()
 	title_s.font_size = 52
@@ -118,7 +118,8 @@ func _build_header() -> PanelContainer:
 	input_sb.content_margin_left = 8.0
 	input_sb.content_margin_right = 8.0
 	name_input.add_theme_stylebox_override("normal", input_sb)
-	name_input.text_changed.connect(func(t: String): PlayerData.player_name = t; PlayerData.save())
+	name_input.text_submitted.connect(_on_nick_submitted)
+	name_input.focus_exited.connect(func(): _on_nick_submitted(name_input.text))
 	player_row.add_child(name_input)
 
 	flag_button = Button.new()
@@ -960,6 +961,24 @@ func _on_flag_selected(code: String) -> void:
 # =============================================================================
 # PLAYER REGISTRATION
 # =============================================================================
+
+func _on_nick_submitted(new_name: String) -> void:
+	new_name = new_name.strip_edges()
+	if new_name.is_empty() or new_name == PlayerData.player_name:
+		return
+	PlayerData.player_name = new_name
+	PlayerData.save()
+	# Re-register with new name on server
+	ApiClient.register(new_name, PlayerData.player_flag, func(success, reason = ""):
+		if success:
+			_set_status("Nick: %s" % new_name)
+			_update_status()
+		elif reason == "reserved":
+			_prompt_admin_password()
+		else:
+			_set_status("Nie mozna zmienic nicku")
+	)
+
 
 func _auto_register_player() -> void:
 	if ApiClient.is_registered():
