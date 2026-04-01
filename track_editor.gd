@@ -214,25 +214,21 @@ func _create_top_buttons() -> void:
 	var topbar: HBoxContainer = $"../UI/TopBar"
 	topbar.add_theme_constant_override("separation", 4)
 
-	var btn_h := 56  # min touch target size
+	var btn_h := 44  # compact for mobile
 
-	var save_btn := _make_top_button("ZAPISZ", Color(0.2, 0.35, 0.5), btn_h)
+	var save_btn := _make_top_button("SAVE", Color(0.2, 0.35, 0.5), btn_h)
 	save_btn.pressed.connect(_on_save_pressed)
 	topbar.add_child(save_btn)
 
-	var new_btn := _make_top_button("NOWA", Color(0.25, 0.25, 0.3), btn_h)
+	var new_btn := _make_top_button("NEW", Color(0.25, 0.25, 0.3), btn_h)
 	new_btn.pressed.connect(_on_new_pressed)
 	topbar.add_child(new_btn)
 
-	var test_btn := _make_top_button("TESTUJ", Color(0.4, 0.5, 0.15), btn_h)
+	var test_btn := _make_top_button("TEST", Color(0.4, 0.5, 0.15), btn_h)
 	test_btn.pressed.connect(_test_track)
 	topbar.add_child(test_btn)
 
-	var cleanup_btn := _make_top_button("WYCZYSC", Color(0.35, 0.25, 0.15), btn_h)
-	cleanup_btn.pressed.connect(_on_cleanup_pressed)
-	topbar.add_child(cleanup_btn)
-
-	var publish_btn := _make_top_button("PUBLIKUJ", Color(0.1, 0.55, 0.25), btn_h)
+	var publish_btn := _make_top_button("PUB", Color(0.1, 0.55, 0.25), btn_h)
 	publish_btn.pressed.connect(_on_publish_pressed)
 	topbar.add_child(publish_btn)
 
@@ -241,7 +237,7 @@ func _make_top_button(label: String, color: Color, height: int) -> Button:
 	var btn := Button.new()
 	btn.text = label
 	btn.custom_minimum_size = Vector2(0, height)
-	btn.add_theme_font_size_override("font_size", 28)
+	btn.add_theme_font_size_override("font_size", 22)
 	btn.focus_mode = Control.FOCUS_NONE
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = color

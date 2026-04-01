@@ -73,28 +73,23 @@ environment = SubResource("Environment_1")
 [node name="UI" type="CanvasLayer" parent="."]
 
 [node name="TopBar" type="HBoxContainer" parent="UI"]
-offset_left = 10.0
-offset_top = 10.0
-offset_right = 1060.0
-offset_bottom = 70.0
-theme_override_constants/separation = 12
-
-[node name="NameLabel" type="Label" parent="UI/TopBar"]
-layout_mode = 2
-label_settings = SubResource("LabelSettings_1")
-text = "Trasa:"
+offset_left = 5.0
+offset_top = 5.0
+offset_right = 1075.0
+offset_bottom = 55.0
+theme_override_constants/separation = 4
 
 [node name="TrackName" type="LineEdit" parent="UI/TopBar"]
 layout_mode = 2
-custom_minimum_size = Vector2(300, 56)
-theme_override_font_sizes/font_size = 32
+custom_minimum_size = Vector2(200, 44)
+theme_override_font_sizes/font_size = 22
 text = "moja_trasa"
-placeholder_text = "nazwa trasy"
+placeholder_text = "nazwa"
 
 [node name="TrackList" type="OptionButton" parent="UI/TopBar"]
 layout_mode = 2
-custom_minimum_size = Vector2(300, 56)
-theme_override_font_sizes/font_size = 28
+custom_minimum_size = Vector2(200, 44)
+theme_override_font_sizes/font_size = 20
 
 [node name="PieceLabel" type="Label" parent="UI"]
 offset_left = 10.0
