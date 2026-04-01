@@ -666,20 +666,13 @@ func _populate_online_tracks(container: VBoxContainer, server_tracks: Array) -> 
 		btn.add_theme_font_size_override("font_size", 26)
 		btn.focus_mode = Control.FOCUS_NONE
 
-		if is_local:
-			btn.text = "GRAJ"
-			var play_sb := StyleBoxFlat.new()
-			play_sb.bg_color = Color(0.1, 0.35, 0.1)
-			play_sb.set_corner_radius_all(6)
-			btn.add_theme_stylebox_override("normal", play_sb)
-			btn.pressed.connect(_play_online_track.bind(track_name, track_id))
-		else:
-			btn.text = "POBIERZ"
-			var dl_sb := StyleBoxFlat.new()
-			dl_sb.bg_color = Color(0.1, 0.15, 0.35)
-			dl_sb.set_corner_radius_all(6)
-			btn.add_theme_stylebox_override("normal", dl_sb)
-			btn.pressed.connect(_download_track.bind(track_id, track_name, btn))
+		btn.text = "GRAJ" if is_local else "POBIERZ"
+		var btn_sb := StyleBoxFlat.new()
+		btn_sb.bg_color = Color(0.1, 0.35, 0.1) if is_local else Color(0.1, 0.15, 0.35)
+		btn_sb.set_corner_radius_all(6)
+		btn.add_theme_stylebox_override("normal", btn_sb)
+		# Always download fresh version before playing (track may have been updated via web editor)
+		btn.pressed.connect(_download_and_play.bind(track_id, track_name, btn))
 
 		row.add_child(btn)
 		container.add_child(row)
@@ -737,14 +730,47 @@ func _download_track(track_id: int, track_name: String, btn: Button) -> void:
 	req.request(ApiClient.API_BASE + "/tracks/%d" % track_id)
 
 
-func _play_online_track(track_name: String, track_id: int) -> void:
-	TrackData.current_track = track_name
-	TrackData.current_server_id = track_id
-	RaceManager.set_track_id(track_id)
-	if _online_modal:
-		_online_modal.queue_free()
-		_online_modal = null
-	get_tree().change_scene_to_file("res://race.tscn")
+func _download_and_play(track_id: int, track_name: String, btn: Button) -> void:
+	btn.text = "..."
+	btn.disabled = true
+
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result: int, code: int, headers: PackedStringArray, body: PackedByteArray):
+		req.queue_free()
+		if code != 200:
+			btn.text = "BLAD"
+			btn.disabled = false
+			return
+
+		var json: Variant = JSON.parse_string(body.get_string_from_utf8())
+		if not json or not json.has("track_json"):
+			btn.text = "BLAD"
+			btn.disabled = false
+			return
+
+		var track_json: Array = json["track_json"]
+		var pieces: Array[Dictionary] = []
+		for entry in track_json:
+			pieces.append({
+				"grid": Vector2i(int(entry.get("gx", 0)), int(entry.get("gz", 0))),
+				"piece": int(entry.get("piece", 0)),
+				"rotation": int(entry.get("rotation", 0)),
+				"base_height": int(entry.get("bh", 0)),
+				"down": bool(entry.get("down", 0)),
+			})
+		TrackData.save_track(track_name, pieces)
+		TrackData.set_server_id(track_name, track_id)
+
+		TrackData.current_track = track_name
+		TrackData.current_server_id = track_id
+		RaceManager.set_track_id(track_id)
+		if _online_modal:
+			_online_modal.queue_free()
+			_online_modal = null
+		get_tree().change_scene_to_file("res://race.tscn")
+	)
+	req.request(ApiClient.API_BASE + "/tracks/%d" % track_id)
 
 
 # =============================================================================
