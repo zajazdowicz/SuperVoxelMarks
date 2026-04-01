@@ -83,6 +83,9 @@ static func get_piece(index: int) -> Array[Dictionary]:
 		60: return _slope_turn_clear(false, 4)
 		61: return _slope_turn_clear(true, 0)
 		62: return _slope_turn_clear(false, 0)
+		63: return _road_narrowing()
+		64: return _trampoline()
+		65: return _chicane_barriers()
 	return []
 
 static func rotate_piece(piece: Array[Dictionary], rotations: int) -> Array[Dictionary]:
@@ -830,9 +833,9 @@ static func _qp_clear(piece_id: int) -> Array[Dictionary]:
 
 
 # === BUMPY ROAD: straight with 3 bumps alternating left/right ===
-static func _bumpy_road(bump_w: int) -> Array[Dictionary]:
+static func _bumpy_road(variant: int) -> Array[Dictionary]:
 	var blocks: Array[Dictionary] = []
-	# Base road (same as straight)
+	# Base road
 	for z in range(LO, HI + 1):
 		for x in range(LO, HI + 1):
 			if absi(x) <= ROAD_W:
@@ -843,18 +846,30 @@ static func _bumpy_road(bump_w: int) -> Array[Dictionary]:
 			elif absi(x) == ROAD_W + 1:
 				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
 				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
-	# 3 bumps: alternating left/right/center, width = bump_w voxels
-	var bump_positions := [-3, 1, 5]
-	var bump_sides := [-1, 1, 0]  # -1=left, +1=right, 0=center
-	var half_w: int = bump_w / 2  # integer division: 0, 1, 1
-	for bi in range(bump_positions.size()):
-		var bz: int = bump_positions[bi]
-		var side: int = bump_sides[bi]
-		var cx: int = side * 2
-		for x in range(cx - half_w, cx + half_w + 1):
-			if absi(x) < ROAD_W:
-				blocks.append({"pos": Vector3i(x, 1, bz), "type": WALL})
-				blocks.append({"pos": Vector3i(x, 1, bz + 1), "type": WALL})
+
+	if variant == 1:
+		# Single-voxel pillars — easy to dodge, 4 pillars alternating sides
+		var pillar_data := [[-4, -2], [2, 2], [-4, 2], [2, -2]]  # [z, x]
+		for pd in pillar_data:
+			blocks.append({"pos": Vector3i(pd[1], 1, pd[0]), "type": WALL})
+			blocks.append({"pos": Vector3i(pd[1], 2, pd[0]), "type": WALL})
+	elif variant == 2:
+		# Slalom barriers — alternating side walls forcing S-curve driving
+		# Left barrier
+		for x in range(-ROAD_W, -1):
+			blocks.append({"pos": Vector3i(x, 1, -3), "type": WALL})
+			blocks.append({"pos": Vector3i(x, 2, -3), "type": WALL})
+		# Right barrier
+		for x in range(2, ROAD_W + 1):
+			blocks.append({"pos": Vector3i(x, 1, 2), "type": WALL})
+			blocks.append({"pos": Vector3i(x, 2, 2), "type": WALL})
+	elif variant == 3:
+		# Narrow passage — walls from both sides, 4-voxel gap in center
+		for z in range(-2, 3):
+			for x in [-3, -2, 2, 3]:
+				if absi(x) <= ROAD_W:
+					blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+					blocks.append({"pos": Vector3i(x, 2, z), "type": WALL})
 	return blocks
 
 
@@ -887,4 +902,74 @@ static func _slope_turn_clear(is_right: bool, rise: int) -> Array[Dictionary]:
 				var local_h := int(ceil(progress * float(rise))) + 2
 				for h in range(0, local_h):
 					blocks.append({"pos": Vector3i(x, h, z), "type": AIR})
+	return blocks
+
+
+# === ROAD NARROWING — funnels road from 9 to 5 voxels wide and back ===
+static func _road_narrowing() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		var progress := float(z - LO) / float(SEGMENT_SIZE)
+		# Triangle profile: narrow at center (z=0), full width at edges
+		var narrow := 0
+		if progress < 0.5:
+			narrow = int(progress * 4.0)  # 0 → 2
+		else:
+			narrow = int((1.0 - progress) * 4.0)  # 2 → 0
+		for x in range(LO, HI + 1):
+			var inner_wall := ROAD_W - narrow
+			if absi(x) <= inner_wall:
+				if absi(x) == inner_wall and z % 3 == 0:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": CURB})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			elif absi(x) <= ROAD_W:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+# === TRAMPOLINE — speed bump that launches car ===
+static func _trampoline() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				if z >= -1 and z <= 1 and absi(x) <= 3:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": BOOST})
+					if z == 0:
+						blocks.append({"pos": Vector3i(x, 1, z), "type": BOOST})
+				else:
+					blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	return blocks
+
+
+# === CHICANE BARRIERS — alternating wall blocks forcing tight S-turns ===
+static func _chicane_barriers() -> Array[Dictionary]:
+	var blocks: Array[Dictionary] = []
+	for z in range(LO, HI + 1):
+		for x in range(LO, HI + 1):
+			if absi(x) <= ROAD_W:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": ASPHALT})
+			elif absi(x) == ROAD_W + 1:
+				blocks.append({"pos": Vector3i(x, 0, z), "type": WALL})
+				blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+	# 3 barriers alternating L, R, L
+	var barriers := [
+		[-4, -3, -ROAD_W, -1],   # left
+		[0, 1, 1, ROAD_W],       # right
+		[4, 5, -ROAD_W, -1],     # left
+	]
+	for b in barriers:
+		for z in range(b[0], b[1] + 1):
+			for x in range(b[2], b[3] + 1):
+				if absi(x) <= ROAD_W:
+					blocks.append({"pos": Vector3i(x, 1, z), "type": WALL})
+					blocks.append({"pos": Vector3i(x, 2, z), "type": WALL})
 	return blocks

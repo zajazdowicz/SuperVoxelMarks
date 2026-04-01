@@ -38,7 +38,7 @@
     {"id": "loop",       "name": "Petla",          "pieces": [19]},
     {"id": "slopes",     "name": "Slopes",         "pieces": [42, 43, 44, 45, 46, 47]},
     {"id": "qp",         "name": "Quarter-Pipes",  "pieces": [48, 49, 50, 51, 52, 53]},
-    {"id": "obstacles",  "name": "Przeszkody",     "pieces": [54, 55, 56]},
+    {"id": "obstacles",  "name": "Przeszkody",     "pieces": [54, 55, 56, 63, 64, 65]},
     {"id": "slope_turn", "name": "Slope Turn",     "pieces": [61, 62, 57, 58, 59, 60]}
   ],
   "pieces": {
@@ -421,21 +421,21 @@
       "preview_type": "shape"
     },
     "54": {
-      "name": "Przeszkody 1",
+      "name": "Slupki",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "55": {
-      "name": "Przeszkody 2",
+      "name": "Slalom",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "56": {
-      "name": "Przeszkody 3",
+      "name": "Zwezenie",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
@@ -482,6 +482,27 @@
       "height_delta": 0,
       "flags": {"is_turn": true},
       "preview_type": "shape"
+    },
+    "63": {
+      "name": "Zwezenie drogi",
+      "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
+      "height_delta": 0,
+      "flags": {},
+      "preview_type": "voxel"
+    },
+    "64": {
+      "name": "Trampolina",
+      "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
+      "height_delta": 0,
+      "flags": {},
+      "preview_type": "voxel"
+    },
+    "65": {
+      "name": "Barierki",
+      "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
+      "height_delta": 0,
+      "flags": {},
+      "preview_type": "voxel"
     }
   }
 }
