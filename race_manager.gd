@@ -81,8 +81,9 @@ func start_race() -> void:
 func hit_checkpoint(index: int) -> void:
 	if state != State.RACING:
 		return
-	if index == checkpoints_hit:
-		checkpoints_hit += 1
+	# Accept checkpoint if it's the next expected OR any later one (in case we skipped one)
+	if index >= checkpoints_hit:
+		checkpoints_hit = index + 1
 
 
 func cross_start_finish() -> void:

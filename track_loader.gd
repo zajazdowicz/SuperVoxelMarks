@@ -162,7 +162,7 @@ func _spawn_trigger(pos: Vector3, rot_y: float, trigger_name: String) -> void:
 
 	var col := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(float(TrackPieces.ROAD_W) * 2.0 + 2.0, 4.0, 2.0)
+	box.size = Vector3(float(TrackPieces.ROAD_W) * 2.0 + 2.0, 6.0, 6.0)
 	col.shape = box
 	area.add_child(col)
 
