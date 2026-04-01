@@ -196,7 +196,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _update_cursor() -> void:
-	cursor_mesh.global_position = Vector3(cursor_grid.x * GRID, current_height + 0.5, cursor_grid.y * GRID)
+	var pos := Vector3(cursor_grid.x * GRID, current_height + 0.5, cursor_grid.y * GRID)
+	cursor_mesh.global_position = pos
+	# Move VoxelViewer to follow cursor so terrain loads around build area
+	var viewer := get_node_or_null("../../VoxelViewer")
+	if viewer:
+		viewer.global_position = Vector3(pos.x, 0, pos.z)
 	_update_preview()
 
 
