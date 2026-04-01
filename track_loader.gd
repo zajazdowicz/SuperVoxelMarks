@@ -156,9 +156,12 @@ func _respawn_at_start() -> void:
 	car.velocity = Vector3.ZERO
 	car.speed = 0.0
 
-	# Start ghost playback
-	if _ghost_best and _ghost_best.has_method("start_playback"):
-		_ghost_best.start_playback()
+	# Stop ghost — will restart on race_started signal after countdown
+	if _ghost_best and _ghost_best.has_method("stop_playback"):
+		_ghost_best.stop_playback()
+	# Re-connect ghost to race_started (reset() disconnects all signals)
+	if not RaceManager.race_started.is_connected(_start_ghost):
+		RaceManager.race_started.connect(_start_ghost)
 
 
 func _start_ghost() -> void:
