@@ -540,11 +540,16 @@ func _create_piece_toolbar() -> void:
 	_pieces_grid.add_theme_constant_override("v_separation", 0)
 	piece_scroll.add_child(_pieces_grid)
 
-	# --- Row 3: Action bar (always visible, big touch targets) ---
+	# --- Row 3: Action bar (scrollable on mobile) ---
+	var action_scroll := ScrollContainer.new()
+	action_scroll.custom_minimum_size = Vector2(0, 50)
+	action_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	action_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	vbox.add_child(action_scroll)
+
 	var action_bar := HBoxContainer.new()
 	action_bar.add_theme_constant_override("separation", 4)
-	action_bar.alignment = BoxContainer.ALIGNMENT_CENTER
-	vbox.add_child(action_bar)
+	action_scroll.add_child(action_bar)
 
 	# POSTAW button (green, prominent)
 	_place_btn = _make_action_button("POSTAW", Color(0.15, 0.55, 0.2), func():
