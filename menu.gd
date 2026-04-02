@@ -13,6 +13,8 @@ var _status_label: Label  # bottom info bar
 
 
 func _ready() -> void:
+	# Force full screen
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 	_load_tracks()
 	_auto_register_player()
@@ -50,8 +52,15 @@ func _build_ui() -> void:
 
 	var root := VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 0)
 	scroll.add_child(root)
+
+	# --- TOP SPACER ---
+	var top_spacer := Control.new()
+	top_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	top_spacer.custom_minimum_size = Vector2(0, 20)
+	root.add_child(top_spacer)
 
 	# --- LOGO ---
 	var logo_section := _build_logo()
@@ -61,6 +70,12 @@ func _build_ui() -> void:
 	var player_section := _build_player_row()
 	root.add_child(player_section)
 
+	# --- MID SPACER ---
+	var mid_spacer := Control.new()
+	mid_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	mid_spacer.custom_minimum_size = Vector2(0, 10)
+	root.add_child(mid_spacer)
+
 	# --- MAIN BUTTONS ---
 	var buttons := _build_main_buttons()
 	root.add_child(buttons)
@@ -68,6 +83,12 @@ func _build_ui() -> void:
 	# --- SECONDARY BUTTONS ---
 	var secondary := _build_secondary_buttons()
 	root.add_child(secondary)
+
+	# --- BOTTOM SPACER ---
+	var bot_spacer := Control.new()
+	bot_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	bot_spacer.custom_minimum_size = Vector2(0, 10)
+	root.add_child(bot_spacer)
 
 	# --- FOOTER ---
 	var footer := _build_footer()
