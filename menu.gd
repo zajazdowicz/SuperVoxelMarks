@@ -38,10 +38,42 @@ func _load_tracks() -> void:
 # =============================================================================
 
 func _build_ui() -> void:
-	# Dark gradient background
+	# Animated voxel grid background
 	var bg := ColorRect.new()
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.04, 0.05, 0.1, 1.0)
+	var shader := Shader.new()
+	shader.code = "
+shader_type canvas_item;
+
+void fragment() {
+	vec2 uv = SCREEN_UV;
+	float t = TIME * 0.03;
+
+	// Base dark gradient
+	vec3 col = mix(vec3(0.06, 0.04, 0.12), vec3(0.03, 0.05, 0.08), uv.y);
+
+	// Horizontal grid lines (cyan, moving up)
+	float gy = fract((uv.y + t) * 60.0);
+	float line_h = smoothstep(0.0, 0.06, gy) * (1.0 - smoothstep(0.06, 0.12, gy));
+	col += vec3(0.1, 0.4, 0.6) * line_h * 0.08;
+
+	// Vertical grid lines (orange, moving right)
+	float gx = fract((uv.x + t * 0.7) * 40.0);
+	float line_v = smoothstep(0.0, 0.06, gx) * (1.0 - smoothstep(0.06, 0.12, gx));
+	col += vec3(0.6, 0.4, 0.1) * line_v * 0.05;
+
+	// Diagonal track stripes at bottom
+	float bottom = smoothstep(0.5, 1.0, uv.y);
+	float stripe = fract((uv.x - uv.y * 0.3 + t * 0.5) * 8.0);
+	float s = smoothstep(0.4, 0.5, stripe) * (1.0 - smoothstep(0.5, 0.6, stripe));
+	col += vec3(0.6, 0.3, 0.0) * s * bottom * 0.12;
+
+	COLOR = vec4(col, 1.0);
+}
+"
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	bg.material = mat
 	add_child(bg)
 
 	# Scrollable root
