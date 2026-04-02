@@ -1385,13 +1385,9 @@ func _setup_spinning_car() -> void:
 		_car_model.rotation.y = PI  # flip like in game
 		_car_model.scale = Vector3(1.1, 1.0, 1.0)
 		_car_node.add_child(_car_model)
-		# Find wheels
-		var front_names := ["pCylinder2", "pCylinder3", "pCylinder4", "pCylinder5",
-			"pCylinder6", "pCylinder7", "pCylinder8", "pCylinder9",
-			"pCylinder10", "pCylinder11"]
-		var rear_names := ["pCylinder12", "pCylinder13", "pCylinder14", "pCylinder15",
-			"pCylinder16", "pCylinder17", "pCylinder18", "pCylinder19",
-			"pCylinder20", "pCylinder21"]
+		# Find wheels (pPipe = tires, not pCylinder = suspension rods)
+		var front_names := ["pPipe1", "pPipe2"]
+		var rear_names := ["pPipe3", "pPipe4"]
 		_find_menu_wheels(_car_model, front_names, _car_front_wheels)
 		_find_menu_wheels(_car_model, rear_names, _car_wheels)
 		_car_wheels.append_array(_car_front_wheels)

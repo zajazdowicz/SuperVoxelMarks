@@ -120,14 +120,11 @@ func _load_car_model() -> void:
 func _find_wheels(root: Node3D) -> void:
 	_front_wheels.clear()
 	_rear_wheels.clear()
-	# Front wheel empties: pCylinder2-11 (Blender Y≈-8.76 → Godot Z≈+1.0 before flip)
-	# Rear wheel empties: pCylinder12-21 (Blender Y≈2.84-2.99 → Godot Z≈-0.35 before flip)
-	var front_names := ["pCylinder2", "pCylinder3", "pCylinder4", "pCylinder5",
-		"pCylinder6", "pCylinder7", "pCylinder8", "pCylinder9",
-		"pCylinder10", "pCylinder11"]
-	var rear_names := ["pCylinder12", "pCylinder13", "pCylinder14", "pCylinder15",
-		"pCylinder16", "pCylinder17", "pCylinder18", "pCylinder19",
-		"pCylinder20", "pCylinder21"]
+	# Actual tires are pPipe nodes (torus meshes), not pCylinder (those are suspension rods)
+	# pPipe1, pPipe2: front tires (Blender Y≈-8.76)
+	# pPipe3, pPipe4: rear tires (Blender Y≈2.98)
+	var front_names := ["pPipe1", "pPipe2"]
+	var rear_names := ["pPipe3", "pPipe4"]
 	_collect_named_nodes(root, front_names, _front_wheels)
 	_collect_named_nodes(root, rear_names, _rear_wheels)
 	_all_wheels = _front_wheels + _rear_wheels
