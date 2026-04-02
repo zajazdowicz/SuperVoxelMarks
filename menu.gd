@@ -1385,11 +1385,11 @@ func _setup_spinning_car() -> void:
 		_car_model.rotation.y = PI  # flip like in game
 		_car_model.scale = Vector3(1.1, 1.0, 1.0)
 		_car_node.add_child(_car_model)
-		# Find wheels (pPipe = tires, not pCylinder = suspension rods)
+		# Find wheels and fix pivot: reparent mesh under a new pivot at geometry center
 		var front_names := ["pPipe1", "pPipe2"]
 		var rear_names := ["pPipe3", "pPipe4"]
-		_find_menu_wheels(_car_model, front_names, _car_front_wheels)
-		_find_menu_wheels(_car_model, rear_names, _car_wheels)
+		_setup_wheel_pivots(_car_model, front_names, _car_front_wheels)
+		_setup_wheel_pivots(_car_model, rear_names, _car_wheels)
 		_car_wheels.append_array(_car_front_wheels)
 
 	# Tire smoke — follows car
@@ -1424,11 +1424,48 @@ func _setup_spinning_car() -> void:
 	_car_smoke.position = Vector3(0, 0.1, -0.8)  # behind car
 
 
-func _find_menu_wheels(node: Node, names: Array, result: Array[Node3D]) -> void:
-	if node is Node3D and String(node.name) in names:
-		result.append(node)
+func _setup_wheel_pivots(root: Node, names: Array, result: Array[Node3D]) -> void:
+	# For each wheel: find the pPipe empty, get its mesh child,
+	# calculate geometry center, create a pivot node there,
+	# reparent mesh under pivot so rotation works correctly
+	for name in names:
+		var parent_empty := _find_node_by_name(root, name)
+		if not parent_empty:
+			continue
+		var mesh_child: MeshInstance3D = null
+		for c in parent_empty.get_children():
+			if c is MeshInstance3D:
+				mesh_child = c
+				break
+		if not mesh_child:
+			continue
+
+		# Get mesh AABB center in local space
+		var aabb := mesh_child.get_aabb()
+		var local_center := aabb.get_center()
+
+		# Create pivot at geometry center (in parent_empty local space)
+		var pivot := Node3D.new()
+		pivot.name = name + "_pivot"
+		pivot.position = local_center
+		parent_empty.add_child(pivot)
+
+		# Move mesh under pivot, offset to compensate
+		parent_empty.remove_child(mesh_child)
+		pivot.add_child(mesh_child)
+		mesh_child.position = -local_center
+
+		result.append(pivot)
+
+
+func _find_node_by_name(node: Node, target_name: String) -> Node3D:
+	if node is Node3D and String(node.name) == target_name:
+		return node
 	for child in node.get_children():
-		_find_menu_wheels(child, names, result)
+		var found := _find_node_by_name(child, target_name)
+		if found:
+			return found
+	return null
 
 
 # Figure-8 path (lemniscate)
@@ -1463,12 +1500,8 @@ func _process(delta: float) -> void:
 	if _car_model:
 		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
 
-	# Wheel spin — X axis (confirmed via Blender: thinnest dim = axle)
+	# Wheel spin — rotate entire pPipe parent, offset compensated at setup
 	_car_wheel_spin += 8.0 * delta
 	for w in _car_wheels:
+		# Rotate around local X (axle axis after glTF import)
 		w.rotation.x = _car_wheel_spin
-
-	# Front wheel steering — Y axis (Blender Z up → Godot Y)
-	var steer := clampf(drift_offset * 3.0, -0.6, 0.6)
-	for w in _car_front_wheels:
-		w.rotation.y = lerp(w.rotation.y, steer, 10.0 * delta)
