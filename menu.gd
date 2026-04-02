@@ -72,12 +72,12 @@ func _build_header() -> PanelContainer:
 	style.bg_color = Color(0.06, 0.06, 0.1, 1.0)
 	style.content_margin_left = 20.0
 	style.content_margin_right = 20.0
-	style.content_margin_top = 16.0
-	style.content_margin_bottom = 8.0
+	style.content_margin_top = 30.0
+	style.content_margin_bottom = 16.0
 	panel.add_theme_stylebox_override("panel", style)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
+	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
 	# Title
@@ -85,12 +85,24 @@ func _build_header() -> PanelContainer:
 	title.text = "RC TRICK MANIA X"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var title_s := LabelSettings.new()
-	title_s.font_size = 52
-	title_s.font_color = Color(1.0, 0.9, 0.2)
-	title_s.outline_size = 4
-	title_s.outline_color = Color(0.15, 0.1, 0.0)
+	title_s.font_size = 64
+	title_s.font_color = Color(1.0, 0.88, 0.15)
+	title_s.outline_size = 5
+	title_s.outline_color = Color(0.2, 0.12, 0.0)
 	title.label_settings = title_s
 	vbox.add_child(title)
+
+	# Subtitle
+	var subtitle := Label.new()
+	subtitle.text = "VOXEL RACING"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var sub_s := LabelSettings.new()
+	sub_s.font_size = 22
+	sub_s.font_color = Color(0.5, 0.5, 0.55)
+	sub_s.outline_size = 2
+	sub_s.outline_color = Color.BLACK
+	subtitle.label_settings = sub_s
+	vbox.add_child(subtitle)
 
 	# Player row
 	var player_row := HBoxContainer.new()
@@ -152,52 +164,56 @@ func _build_header() -> PanelContainer:
 func _build_tiles() -> MarginContainer:
 	var margin := MarginContainer.new()
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_bottom", 12)
+	margin.add_theme_constant_override("margin_left", 20)
+	margin.add_theme_constant_override("margin_right", 20)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
 
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 12)
+	margin.add_child(vbox)
+
+	# === BIG TILES (full width) ===
+	vbox.add_child(_make_tile(
+		"TRASA DNIA", "Codzienne wyzwanie",
+		Color(0.35, 0.25, 0.02), Color(1.0, 0.85, 0.2),
+		_on_daily
+	))
+	vbox.add_child(_make_tile(
+		"GRAJ", "Wybierz trase i jedz",
+		Color(0.08, 0.3, 0.12), Color(0.3, 1.0, 0.4),
+		_on_track_picker
+	))
+	vbox.add_child(_make_tile(
+		"TRASY ONLINE", "Pobierz trasy graczy",
+		Color(0.08, 0.12, 0.3), Color(0.4, 0.6, 1.0),
+		_on_online_pressed
+	))
+
+	# === SMALL TILES (2-column grid) ===
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 12)
-	margin.add_child(grid)
+	vbox.add_child(grid)
 
-	# Row 1: TRASA DNIA | GRAJ
-	grid.add_child(_make_tile(
-		"TRASA\nDNIA", "Codzienne wyzwanie",
-		Color(0.4, 0.3, 0.05), Color(1.0, 0.85, 0.2),
-		_on_daily
-	))
-	grid.add_child(_make_tile(
-		"GRAJ", "Wybierz trase",
-		Color(0.1, 0.35, 0.15), Color(0.3, 0.9, 0.4),
-		_on_track_picker
-	))
-
-	# Row 2: ONLINE | EDYTOR
-	grid.add_child(_make_tile(
-		"TRASY\nONLINE", "Pobierz i rywalizuj",
-		Color(0.1, 0.15, 0.35), Color(0.4, 0.6, 1.0),
-		_on_online_pressed
-	))
-	grid.add_child(_make_tile(
-		"EDYTOR", "Buduj wlasne trasy",
-		Color(0.25, 0.15, 0.3), Color(0.7, 0.5, 1.0),
+	grid.add_child(_make_tile_small(
+		"EDYTOR", Color(0.2, 0.12, 0.28), Color(0.7, 0.5, 1.0),
 		_on_editor
 	))
-
-	# Row 3: GENERUJ | USTAWIENIA (placeholder)
-	grid.add_child(_make_tile(
-		"LOSOWA\nTRASA", "Generuj i jedz",
-		Color(0.05, 0.2, 0.1), Color(0.2, 0.8, 0.4),
+	grid.add_child(_make_tile_small(
+		"LOSOWA", Color(0.05, 0.18, 0.08), Color(0.2, 0.8, 0.4),
 		_on_generate_and_play
 	))
-	grid.add_child(_make_tile(
-		"POLACZ\nZ WEB", "Edytor w przegladarce",
-		Color(0.15, 0.1, 0.3), Color(0.6, 0.4, 1.0),
+	grid.add_child(_make_tile_small(
+		"WEB LINK", Color(0.12, 0.08, 0.25), Color(0.6, 0.4, 1.0),
 		_on_link_web
+	))
+	grid.add_child(_make_tile_small(
+		"LOSOWA+", Color(0.12, 0.2, 0.08), Color(0.4, 0.9, 0.3),
+		_on_generate_and_edit
 	))
 
 	return margin
@@ -205,38 +221,34 @@ func _build_tiles() -> MarginContainer:
 
 func _make_tile(title: String, subtitle: String, bg_color: Color, accent: Color, callback: Callable) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(0, 160)
+	btn.custom_minimum_size = Vector2(0, 140)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.focus_mode = Control.FOCUS_NONE
 
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg_color
-	sb.corner_radius_top_left = 14
-	sb.corner_radius_top_right = 14
-	sb.corner_radius_bottom_left = 14
-	sb.corner_radius_bottom_right = 14
-	sb.border_color = accent.darkened(0.4)
-	sb.border_width_left = 4
-	sb.content_margin_left = 18.0
-	sb.content_margin_right = 12.0
-	sb.content_margin_top = 12.0
-	sb.content_margin_bottom = 12.0
+	sb.set_corner_radius_all(16)
+	sb.border_color = accent.darkened(0.3)
+	sb.border_width_left = 5
+	sb.border_width_bottom = 1
+	sb.content_margin_left = 24.0
+	sb.content_margin_right = 16.0
+	sb.content_margin_top = 16.0
+	sb.content_margin_bottom = 14.0
 	btn.add_theme_stylebox_override("normal", sb)
 
 	var sb_pressed := sb.duplicate()
 	sb_pressed.bg_color = bg_color.lightened(0.15)
 	sb_pressed.border_color = accent
-	sb_pressed.border_width_left = 4
 	btn.add_theme_stylebox_override("pressed", sb_pressed)
 
 	var sb_hover := sb.duplicate()
 	sb_hover.bg_color = bg_color.lightened(0.08)
 	btn.add_theme_stylebox_override("hover", sb_hover)
 
-	# Content: title + subtitle stacked
 	var vbox := VBoxContainer.new()
 	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	vbox.add_theme_constant_override("separation", 4)
+	vbox.add_theme_constant_override("separation", 6)
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(vbox)
 
@@ -249,10 +261,10 @@ func _make_tile(title: String, subtitle: String, bg_color: Color, accent: Color,
 	title_lbl.text = title
 	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var title_s := LabelSettings.new()
-	title_s.font_size = 36
+	title_s.font_size = 40
 	title_s.font_color = accent
-	title_s.outline_size = 2
-	title_s.outline_color = Color(0, 0, 0, 0.5)
+	title_s.outline_size = 3
+	title_s.outline_color = Color(0, 0, 0, 0.6)
 	title_lbl.label_settings = title_s
 	vbox.add_child(title_lbl)
 
@@ -260,10 +272,49 @@ func _make_tile(title: String, subtitle: String, bg_color: Color, accent: Color,
 	sub_lbl.text = subtitle
 	sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sub_s := LabelSettings.new()
-	sub_s.font_size = 18
-	sub_s.font_color = Color(0.6, 0.6, 0.65)
+	sub_s.font_size = 22
+	sub_s.font_color = Color(0.55, 0.55, 0.6)
 	sub_lbl.label_settings = sub_s
 	vbox.add_child(sub_lbl)
+
+	btn.pressed.connect(callback)
+	return btn
+
+
+func _make_tile_small(title: String, bg_color: Color, accent: Color, callback: Callable) -> Button:
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(0, 100)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.focus_mode = Control.FOCUS_NONE
+
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg_color
+	sb.set_corner_radius_all(12)
+	sb.border_color = accent.darkened(0.4)
+	sb.border_width_left = 3
+	sb.content_margin_left = 16.0
+	sb.content_margin_right = 12.0
+	sb.content_margin_top = 10.0
+	sb.content_margin_bottom = 10.0
+	btn.add_theme_stylebox_override("normal", sb)
+
+	var sb_pressed := sb.duplicate()
+	sb_pressed.bg_color = bg_color.lightened(0.15)
+	sb_pressed.border_color = accent
+	btn.add_theme_stylebox_override("pressed", sb_pressed)
+
+	var title_lbl := Label.new()
+	title_lbl.text = title
+	title_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var title_s := LabelSettings.new()
+	title_s.font_size = 30
+	title_s.font_color = accent
+	title_s.outline_size = 2
+	title_s.outline_color = Color(0, 0, 0, 0.5)
+	title_lbl.label_settings = title_s
+	btn.add_child(title_lbl)
 
 	btn.pressed.connect(callback)
 	return btn
@@ -485,6 +536,13 @@ func _on_generate_and_play() -> void:
 	var gen_name := "gen_%d" % (randi() % 9999)
 	TrackGenerator.generate(length, gen_name, randi())
 	get_tree().change_scene_to_file("res://race.tscn")
+
+
+func _on_generate_and_edit() -> void:
+	var length: int = randi_range(18, 30)
+	var gen_name := "gen_%d" % (randi() % 9999)
+	TrackGenerator.generate(length, gen_name, randi())
+	get_tree().change_scene_to_file("res://editor.tscn")
 
 
 func _on_link_web() -> void:
