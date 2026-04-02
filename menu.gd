@@ -36,285 +36,273 @@ func _load_tracks() -> void:
 # =============================================================================
 
 func _build_ui() -> void:
-	# Background
+	# Dark gradient background
 	var bg := ColorRect.new()
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.04, 0.04, 0.07, 1.0)
+	bg.color = Color(0.04, 0.05, 0.1, 1.0)
 	add_child(bg)
 
-	# Main vertical layout
+	# Scrollable root
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(scroll)
+
 	var root := VBoxContainer.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 0)
-	add_child(root)
+	scroll.add_child(root)
 
-	# --- HEADER (title + player) ---
-	var header := _build_header()
-	root.add_child(header)
+	# --- LOGO ---
+	var logo_section := _build_logo()
+	root.add_child(logo_section)
 
-	# --- TILE GRID (main content) ---
-	var tile_scroll := ScrollContainer.new()
-	tile_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	tile_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	root.add_child(tile_scroll)
+	# --- PLAYER ROW ---
+	var player_section := _build_player_row()
+	root.add_child(player_section)
 
-	var tile_container := _build_tiles()
-	tile_scroll.add_child(tile_container)
+	# --- MAIN BUTTONS ---
+	var buttons := _build_main_buttons()
+	root.add_child(buttons)
 
-	# --- FOOTER (status bar) ---
+	# --- SECONDARY BUTTONS ---
+	var secondary := _build_secondary_buttons()
+	root.add_child(secondary)
+
+	# --- FOOTER ---
 	var footer := _build_footer()
 	root.add_child(footer)
 
 
-func _build_header() -> PanelContainer:
-	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.06, 0.06, 0.1, 1.0)
-	style.content_margin_left = 20.0
-	style.content_margin_right = 20.0
-	style.content_margin_top = 30.0
-	style.content_margin_bottom = 16.0
-	panel.add_theme_stylebox_override("panel", style)
+func _build_logo() -> MarginContainer:
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_top", 50)
+	margin.add_theme_constant_override("margin_bottom", 10)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
-	panel.add_child(vbox)
+	margin.add_child(vbox)
 
-	# Title
+	# Title — big voxel style
 	var title := Label.new()
 	title.text = "RC TRICK MANIA X"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var title_s := LabelSettings.new()
-	title_s.font_size = 64
-	title_s.font_color = Color(1.0, 0.88, 0.15)
-	title_s.outline_size = 5
-	title_s.outline_color = Color(0.2, 0.12, 0.0)
+	title_s.font_size = 58
+	title_s.font_color = Color(1.0, 0.9, 0.52)
+	title_s.outline_size = 6
+	title_s.outline_color = Color(0.7, 0.37, 0.1)
 	title.label_settings = title_s
 	vbox.add_child(title)
 
-	# Subtitle
-	var subtitle := Label.new()
-	subtitle.text = "VOXEL RACING"
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var sub_s := LabelSettings.new()
-	sub_s.font_size = 22
-	sub_s.font_color = Color(0.5, 0.5, 0.55)
-	sub_s.outline_size = 2
-	sub_s.outline_color = Color.BLACK
-	subtitle.label_settings = sub_s
-	vbox.add_child(subtitle)
+	# Subtitle pill
+	var sub_row := HBoxContainer.new()
+	sub_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(sub_row)
 
-	# Player row
+	var sub_btn := Button.new()
+	sub_btn.text = "  VOXEL RACING  "
+	sub_btn.disabled = true
+	sub_btn.custom_minimum_size = Vector2(0, 36)
+	sub_btn.add_theme_font_size_override("font_size", 16)
+	sub_btn.add_theme_color_override("font_disabled_color", Color(0.53, 0.8, 1.0))
+	var sub_sb := StyleBoxFlat.new()
+	sub_sb.bg_color = Color(0.0, 0.0, 0.0, 0.6)
+	sub_sb.set_corner_radius_all(20)
+	sub_sb.content_margin_left = 16.0
+	sub_sb.content_margin_right = 16.0
+	sub_btn.add_theme_stylebox_override("disabled", sub_sb)
+	sub_row.add_child(sub_btn)
+
+	return margin
+
+
+func _build_player_row() -> MarginContainer:
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_bottom", 12)
+
 	var player_row := HBoxContainer.new()
 	player_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	player_row.add_theme_constant_override("separation", 8)
-	vbox.add_child(player_row)
-
-	var nick_label := Label.new()
-	nick_label.text = "NICK:"
-	nick_label.add_theme_font_size_override("font_size", 28)
-	nick_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.7))
-	player_row.add_child(nick_label)
+	margin.add_child(player_row)
 
 	name_input = LineEdit.new()
 	name_input.text = PlayerData.player_name
 	name_input.placeholder_text = "Wpisz nick"
 	name_input.max_length = 15
-	name_input.custom_minimum_size = Vector2(280, 50)
+	name_input.custom_minimum_size = Vector2(320, 56)
 	name_input.add_theme_font_size_override("font_size", 28)
 	var input_sb := StyleBoxFlat.new()
-	input_sb.bg_color = Color(0.1, 0.1, 0.15)
+	input_sb.bg_color = Color(0.08, 0.08, 0.12)
 	input_sb.border_color = Color(0.3, 0.5, 0.8)
 	input_sb.set_border_width_all(1)
-	input_sb.set_corner_radius_all(6)
-	input_sb.content_margin_left = 8.0
-	input_sb.content_margin_right = 8.0
+	input_sb.set_corner_radius_all(12)
+	input_sb.content_margin_left = 14.0
+	input_sb.content_margin_right = 14.0
 	name_input.add_theme_stylebox_override("normal", input_sb)
 	name_input.text_changed.connect(func(t: String): PlayerData.player_name = t; PlayerData.save())
 	player_row.add_child(name_input)
 
 	var nick_ok := Button.new()
 	nick_ok.text = "OK"
-	nick_ok.custom_minimum_size = Vector2(60, 50)
+	nick_ok.custom_minimum_size = Vector2(70, 56)
 	nick_ok.add_theme_font_size_override("font_size", 26)
 	var ok_sb := StyleBoxFlat.new()
-	ok_sb.bg_color = Color(0.15, 0.4, 0.15)
-	ok_sb.set_corner_radius_all(6)
+	ok_sb.bg_color = Color(0.12, 0.35, 0.12)
+	ok_sb.set_corner_radius_all(12)
 	nick_ok.add_theme_stylebox_override("normal", ok_sb)
 	nick_ok.pressed.connect(func(): _on_nick_submitted(name_input.text))
 	player_row.add_child(nick_ok)
 
 	flag_button = Button.new()
-	flag_button.custom_minimum_size = Vector2(70, 50)
+	flag_button.custom_minimum_size = Vector2(80, 56)
 	flag_button.add_theme_font_size_override("font_size", 28)
 	var flag_sb := StyleBoxFlat.new()
-	flag_sb.bg_color = Color(0.1, 0.1, 0.15)
+	flag_sb.bg_color = Color(0.08, 0.08, 0.12)
 	flag_sb.border_color = Color(0.3, 0.5, 0.8)
 	flag_sb.set_border_width_all(1)
-	flag_sb.set_corner_radius_all(6)
+	flag_sb.set_corner_radius_all(12)
 	flag_button.add_theme_stylebox_override("normal", flag_sb)
 	flag_button.focus_mode = Control.FOCUS_NONE
 	flag_button.pressed.connect(_on_flag_pressed)
 	player_row.add_child(flag_button)
 	_update_flag_button()
 
-	return panel
+	return margin
 
 
-func _build_tiles() -> MarginContainer:
+func _build_main_buttons() -> MarginContainer:
 	var margin := MarginContainer.new()
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.add_theme_constant_override("margin_left", 20)
-	margin.add_theme_constant_override("margin_right", 20)
-	margin.add_theme_constant_override("margin_top", 16)
-	margin.add_theme_constant_override("margin_bottom", 16)
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 20)
+	margin.add_theme_constant_override("margin_bottom", 10)
 
 	var vbox := VBoxContainer.new()
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.add_theme_constant_override("separation", 12)
+	vbox.add_theme_constant_override("separation", 20)
 	margin.add_child(vbox)
 
-	# === BIG TILES (full width) ===
-	vbox.add_child(_make_tile(
-		"TRASA DNIA", "Codzienne wyzwanie",
-		Color(0.35, 0.25, 0.02), Color(1.0, 0.85, 0.2),
-		_on_daily
+	# GRAJ — orange, biggest
+	vbox.add_child(_make_big_btn(
+		"GRAJ",
+		Color(0.9, 0.5, 0.13), Color(0.7, 0.37, 0.1),
+		Color(1.0, 0.8, 0.27), 8,
+		_on_track_picker, true
 	))
-	vbox.add_child(_make_tile(
-		"GRAJ", "Wybierz trase i jedz",
-		Color(0.08, 0.3, 0.12), Color(0.3, 1.0, 0.4),
-		_on_track_picker
-	))
-	vbox.add_child(_make_tile(
-		"TRASY ONLINE", "Pobierz trasy graczy",
-		Color(0.08, 0.12, 0.3), Color(0.4, 0.6, 1.0),
+
+	# TRASY ONLINE — purple
+	vbox.add_child(_make_big_btn(
+		"TRASY ONLINE",
+		Color(0.23, 0.24, 0.55), Color(0.14, 0.15, 0.38),
+		Color(0.65, 0.49, 1.0), 6,
 		_on_online_pressed
 	))
 
-	# === SMALL TILES (2-column grid) ===
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 12)
-	vbox.add_child(grid)
-
-	grid.add_child(_make_tile_small(
-		"EDYTOR", Color(0.2, 0.12, 0.28), Color(0.7, 0.5, 1.0),
+	# EDYTOR — violet, big
+	vbox.add_child(_make_big_btn(
+		"EDYTOR",
+		Color(0.25, 0.15, 0.35), Color(0.18, 0.1, 0.25),
+		Color(0.7, 0.5, 1.0), 6,
 		_on_editor
-	))
-	grid.add_child(_make_tile_small(
-		"LOSOWA", Color(0.05, 0.18, 0.08), Color(0.2, 0.8, 0.4),
-		_on_generate_and_play
-	))
-	grid.add_child(_make_tile_small(
-		"WEB LINK", Color(0.12, 0.08, 0.25), Color(0.6, 0.4, 1.0),
-		_on_link_web
-	))
-	grid.add_child(_make_tile_small(
-		"LOSOWA+", Color(0.12, 0.2, 0.08), Color(0.4, 0.9, 0.3),
-		_on_generate_and_edit
 	))
 
 	return margin
 
 
-func _make_tile(title: String, subtitle: String, bg_color: Color, accent: Color, callback: Callable) -> Button:
+func _build_secondary_buttons() -> MarginContainer:
+	var margin := MarginContainer.new()
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_bottom", 20)
+
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 20)
+	margin.add_child(row)
+
+	row.add_child(_make_pill_btn("LOSUJ TRASE", Color(1.0, 0.85, 0.3), _on_generate_and_play))
+	row.add_child(_make_pill_btn("WEB LINK", Color(1.0, 0.4, 0.8), _on_link_web))
+
+	return margin
+
+
+func _make_big_btn(title: String, color_top: Color, color_bot: Color, accent: Color, border_w: int, callback: Callable, is_main: bool = false) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(0, 140)
+	var h: int = 130 if is_main else 100
+	btn.custom_minimum_size = Vector2(0, h)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.focus_mode = Control.FOCUS_NONE
 
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = bg_color
-	sb.set_corner_radius_all(16)
-	sb.border_color = accent.darkened(0.3)
-	sb.border_width_left = 5
-	sb.border_width_bottom = 1
-	sb.content_margin_left = 24.0
-	sb.content_margin_right = 16.0
-	sb.content_margin_top = 16.0
-	sb.content_margin_bottom = 14.0
+	sb.bg_color = color_top
+	sb.set_corner_radius_all(20)
+	sb.border_color = Color(accent.r, accent.g, accent.b, 0.3)
+	sb.border_width_left = border_w
+	sb.set_border_width_all(1)
+	sb.border_width_left = border_w
+	sb.content_margin_left = 20.0
+	sb.content_margin_right = 20.0
+	sb.content_margin_top = 10.0
+	sb.content_margin_bottom = 10.0
+	sb.shadow_color = Color(0.04, 0.06, 0.1, 1.0)
+	sb.shadow_size = 12
 	btn.add_theme_stylebox_override("normal", sb)
 
-	var sb_pressed := sb.duplicate()
-	sb_pressed.bg_color = bg_color.lightened(0.15)
-	sb_pressed.border_color = accent
-	btn.add_theme_stylebox_override("pressed", sb_pressed)
+	var sb_p := sb.duplicate()
+	sb_p.bg_color = color_top.lightened(0.15)
+	sb_p.shadow_size = 4
+	btn.add_theme_stylebox_override("pressed", sb_p)
 
-	var sb_hover := sb.duplicate()
-	sb_hover.bg_color = bg_color.lightened(0.08)
-	btn.add_theme_stylebox_override("hover", sb_hover)
-
-	var vbox := VBoxContainer.new()
-	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	vbox.add_theme_constant_override("separation", 6)
-	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	btn.add_child(vbox)
-
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_child(spacer)
-
-	var title_lbl := Label.new()
-	title_lbl.text = title
-	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title_s := LabelSettings.new()
-	title_s.font_size = 40
-	title_s.font_color = accent
-	title_s.outline_size = 3
-	title_s.outline_color = Color(0, 0, 0, 0.6)
-	title_lbl.label_settings = title_s
-	vbox.add_child(title_lbl)
-
-	var sub_lbl := Label.new()
-	sub_lbl.text = subtitle
-	sub_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sub_s := LabelSettings.new()
-	sub_s.font_size = 22
-	sub_s.font_color = Color(0.55, 0.55, 0.6)
-	sub_lbl.label_settings = sub_s
-	vbox.add_child(sub_lbl)
+	# Label centered
+	var lbl := Label.new()
+	lbl.text = title
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ls := LabelSettings.new()
+	ls.font_size = 34 if is_main else 28
+	ls.font_color = accent
+	ls.outline_size = 3
+	ls.outline_color = Color(0, 0, 0, 0.5)
+	lbl.label_settings = ls
+	btn.add_child(lbl)
 
 	btn.pressed.connect(callback)
 	return btn
 
 
-func _make_tile_small(title: String, bg_color: Color, accent: Color, callback: Callable) -> Button:
+func _make_pill_btn(title: String, accent: Color, callback: Callable) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(0, 100)
-	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.custom_minimum_size = Vector2(0, 56)
 	btn.focus_mode = Control.FOCUS_NONE
 
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = bg_color
-	sb.set_corner_radius_all(12)
-	sb.border_color = accent.darkened(0.4)
-	sb.border_width_left = 3
-	sb.content_margin_left = 16.0
-	sb.content_margin_right = 12.0
-	sb.content_margin_top = 10.0
-	sb.content_margin_bottom = 10.0
+	sb.bg_color = Color(0.08, 0.12, 0.22, 0.85)
+	sb.set_corner_radius_all(30)
+	sb.border_color = Color(accent.r, accent.g, accent.b, 0.6)
+	sb.set_border_width_all(1)
+	sb.content_margin_left = 24.0
+	sb.content_margin_right = 24.0
+	sb.shadow_color = Color(0.01, 0.02, 0.05, 1.0)
+	sb.shadow_size = 5
 	btn.add_theme_stylebox_override("normal", sb)
 
-	var sb_pressed := sb.duplicate()
-	sb_pressed.bg_color = bg_color.lightened(0.15)
-	sb_pressed.border_color = accent
-	btn.add_theme_stylebox_override("pressed", sb_pressed)
+	var sb_p := sb.duplicate()
+	sb_p.bg_color = Color(0.12, 0.16, 0.28)
+	sb_p.shadow_size = 1
+	btn.add_theme_stylebox_override("pressed", sb_p)
 
-	var title_lbl := Label.new()
-	title_lbl.text = title
-	title_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title_lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title_s := LabelSettings.new()
-	title_s.font_size = 30
-	title_s.font_color = accent
-	title_s.outline_size = 2
-	title_s.outline_color = Color(0, 0, 0, 0.5)
-	title_lbl.label_settings = title_s
-	btn.add_child(title_lbl)
+	btn.text = title
+	btn.add_theme_font_size_override("font_size", 20)
+	btn.add_theme_color_override("font_color", accent)
 
 	btn.pressed.connect(callback)
 	return btn
