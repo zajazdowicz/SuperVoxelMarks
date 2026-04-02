@@ -1314,99 +1314,117 @@ func _show_link_code_modal(code: String) -> void:
 # SPINNING CAR IN BACKGROUND
 # =============================================================================
 
-var _car_pivot: Node3D
-var _car_angle := 0.0
-const DONUT_RADIUS := 3.0
-const DONUT_SPEED := 1.8
+var _car_node: Node3D
+var _car_smoke: GPUParticles3D
+var _car_t := 0.0
+const FIG8_SPEED := 0.6
+const FIG8_RX := 3.5
+const FIG8_RZ := 2.0
 
 func _setup_spinning_car() -> void:
-	# SubViewportContainer as background layer
 	var svc := SubViewportContainer.new()
 	svc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	svc.stretch = true
 	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Insert behind scroll (index 1 = after bg shader, before scroll)
 	add_child(svc)
 	move_child(svc, 1)
 
 	var svp := SubViewport.new()
-	svp.size = Vector2i(540, 960)  # half res for performance
+	svp.size = Vector2i(540, 960)
 	svp.transparent_bg = true
 	svp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	svp.msaa_3d = Viewport.MSAA_2X
 	svc.add_child(svp)
 
-	# 3D scene inside viewport
 	var scene_root := Node3D.new()
 	svp.add_child(scene_root)
 
-	# Camera looking down at angle
+	# Camera — top-down angled
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 6, 5)
-	cam.rotation_degrees = Vector3(-45, 0, 0)
-	cam.fov = 40
+	cam.position = Vector3(0, 8, 6)
+	cam.rotation_degrees = Vector3(-50, 0, 0)
+	cam.fov = 35
 	cam.current = true
 	scene_root.add_child(cam)
 
-	# Light
+	# Lights
 	var light := DirectionalLight3D.new()
-	light.position = Vector3(3, 8, 2)
 	light.rotation_degrees = Vector3(-50, 30, 0)
+	light.light_energy = 1.2
 	scene_root.add_child(light)
 
-	var ambient := DirectionalLight3D.new()
-	ambient.light_energy = 0.3
-	ambient.position = Vector3(-3, 5, -2)
-	ambient.rotation_degrees = Vector3(-30, -150, 0)
-	scene_root.add_child(ambient)
+	var fill := DirectionalLight3D.new()
+	fill.rotation_degrees = Vector3(-30, -150, 0)
+	fill.light_energy = 0.3
+	scene_root.add_child(fill)
 
-	# Car pivot (spins around origin)
-	_car_pivot = Node3D.new()
-	scene_root.add_child(_car_pivot)
+	# Ground plane (subtle, dark)
+	var ground := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(20, 20)
+	ground.mesh = plane
+	var ground_mat := StandardMaterial3D.new()
+	ground_mat.albedo_color = Color(0.06, 0.06, 0.1)
+	ground_mat.roughness = 0.9
+	ground.material_override = ground_mat
+	ground.position.y = -0.01
+	scene_root.add_child(ground)
 
-	# Load F1 model
+	# Car
+	_car_node = Node3D.new()
+	scene_root.add_child(_car_node)
+
 	var f1_scene: PackedScene = load("res://assets/models/f1_car.glb")
 	if f1_scene:
-		var car_model := f1_scene.instantiate()
-		car_model.position = Vector3(DONUT_RADIUS, 0, 0)
-		car_model.rotation.y = -PI / 2.0  # face tangent direction
-		car_model.scale = Vector3(1.1, 1.0, 1.0)
-		_car_pivot.add_child(car_model)
+		var model := f1_scene.instantiate()
+		model.rotation.y = PI
+		model.scale = Vector3(1.1, 1.0, 1.0)
+		_car_node.add_child(model)
 
-	# Tire smoke particles
-	var smoke := GPUParticles3D.new()
-	smoke.amount = 30
-	smoke.lifetime = 1.5
-	smoke.position = Vector3(DONUT_RADIUS, 0.1, 0)
-	smoke.emitting = true
+	# Tire smoke — follows car
+	_car_smoke = GPUParticles3D.new()
+	_car_smoke.amount = 40
+	_car_smoke.lifetime = 2.0
+	_car_smoke.emitting = true
 
-	var smoke_mat := ParticleProcessMaterial.new()
-	smoke_mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	smoke_mat.emission_sphere_radius = 0.3
-	smoke_mat.direction = Vector3(0, 1, 0)
-	smoke_mat.initial_velocity_min = 0.5
-	smoke_mat.initial_velocity_max = 1.5
-	smoke_mat.gravity = Vector3(0, 0.2, 0)
-	smoke_mat.scale_min = 0.3
-	smoke_mat.scale_max = 0.8
-	smoke_mat.damping_min = 2.0
-	smoke_mat.damping_max = 4.0
-	smoke_mat.color = Color(0.8, 0.8, 0.8, 0.4)
-	var color_ramp := Gradient.new()
-	color_ramp.set_color(0, Color(0.9, 0.9, 0.9, 0.5))
-	color_ramp.set_color(1, Color(0.5, 0.5, 0.5, 0.0))
-	var color_tex := GradientTexture1D.new()
-	color_tex.gradient = color_ramp
-	smoke_mat.color_ramp = color_tex
-	smoke.process_material = smoke_mat
+	var sm := ParticleProcessMaterial.new()
+	sm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	sm.emission_sphere_radius = 0.2
+	sm.direction = Vector3(0, 1, 0)
+	sm.initial_velocity_min = 0.3
+	sm.initial_velocity_max = 1.0
+	sm.gravity = Vector3(0, 0.1, 0)
+	sm.scale_min = 0.2
+	sm.scale_max = 0.6
+	sm.damping_min = 1.5
+	sm.damping_max = 3.0
+	var grad := Gradient.new()
+	grad.set_color(0, Color(1.0, 1.0, 1.0, 0.5))
+	grad.set_color(1, Color(0.6, 0.6, 0.6, 0.0))
+	var gtex := GradientTexture1D.new()
+	gtex.gradient = grad
+	sm.color_ramp = gtex
+	_car_smoke.process_material = sm
 
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.4, 0.4)
-	smoke.draw_pass_1 = quad
-	_car_pivot.add_child(smoke)
+	quad.size = Vector2(0.35, 0.35)
+	_car_smoke.draw_pass_1 = quad
+	_car_node.add_child(_car_smoke)
+	_car_smoke.position = Vector3(0, 0.1, 0.8)  # behind car
+
+
+# Figure-8 path: x = R * sin(t), z = R * sin(t) * cos(t)
+func _fig8_pos(t: float) -> Vector3:
+	return Vector3(FIG8_RX * sin(t), 0, FIG8_RZ * sin(t) * cos(t))
 
 
 func _process(delta: float) -> void:
-	if _car_pivot:
-		_car_angle += DONUT_SPEED * delta
-		_car_pivot.rotation.y = _car_angle
+	if _car_node:
+		_car_t += FIG8_SPEED * delta
+		var pos := _fig8_pos(_car_t)
+		var next_pos := _fig8_pos(_car_t + 0.05)
+		_car_node.position = pos
+		# Face movement direction
+		var dir := (next_pos - pos).normalized()
+		if dir.length() > 0.001:
+			_car_node.rotation.y = atan2(dir.x, dir.z)
