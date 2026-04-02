@@ -1382,7 +1382,7 @@ func _setup_spinning_car() -> void:
 	var f1_scene: PackedScene = load("res://assets/models/f1_car.glb")
 	if f1_scene:
 		_car_model = f1_scene.instantiate()
-		_car_model.rotation.y = 0
+		_car_model.rotation.y = PI  # flip like in game
 		_car_model.scale = Vector3(1.1, 1.0, 1.0)
 		_car_node.add_child(_car_model)
 		# Find wheels
