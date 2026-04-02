@@ -1377,7 +1377,7 @@ func _setup_spinning_car() -> void:
 	var f1_scene: PackedScene = load("res://assets/models/f1_car.glb")
 	if f1_scene:
 		var model := f1_scene.instantiate()
-		model.rotation.y = PI
+		model.rotation.y = 0
 		model.scale = Vector3(1.1, 1.0, 1.0)
 		_car_node.add_child(model)
 
@@ -1410,7 +1410,7 @@ func _setup_spinning_car() -> void:
 	quad.size = Vector2(0.35, 0.35)
 	_car_smoke.draw_pass_1 = quad
 	_car_node.add_child(_car_smoke)
-	_car_smoke.position = Vector3(0, 0.1, 0.8)  # behind car
+	_car_smoke.position = Vector3(0, 0.1, -0.8)  # behind car
 
 
 # Figure-8 path: x = R * sin(t), z = R * sin(t) * cos(t)
