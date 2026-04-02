@@ -1480,6 +1480,8 @@ func _process(delta: float) -> void:
 	for w in _car_front_wheels:
 		w.rotation.y = lerp(w.rotation.y, steer, 10.0 * delta)
 
-	# Debug: print wheel count once
+	# Debug: print wheel info once
 	if Engine.get_frames_drawn() == 10:
 		print("Menu car wheels: %d total, %d front" % [_car_wheels.size(), _car_front_wheels.size()])
+		for w in _car_front_wheels.slice(0, 3):
+			print("  Front wheel: %s type=%s pos=%s" % [w.name, w.get_class(), w.position])
