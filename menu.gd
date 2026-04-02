@@ -1464,7 +1464,7 @@ func _process(delta: float) -> void:
 		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
 
 	# Wheel spin — X axis (confirmed via Blender: thinnest dim = axle)
-	_car_wheel_spin -= 8.0 * delta
+	_car_wheel_spin += 8.0 * delta
 	for w in _car_wheels:
 		w.rotation.x = _car_wheel_spin
 
