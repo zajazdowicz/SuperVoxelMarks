@@ -205,7 +205,7 @@ func _build_tiles() -> MarginContainer:
 
 func _make_tile(title: String, subtitle: String, bg_color: Color, accent: Color, callback: Callable) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(0, 130)
+	btn.custom_minimum_size = Vector2(0, 160)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.focus_mode = Control.FOCUS_NONE
 
@@ -249,7 +249,7 @@ func _make_tile(title: String, subtitle: String, bg_color: Color, accent: Color,
 	title_lbl.text = title
 	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var title_s := LabelSettings.new()
-	title_s.font_size = 32
+	title_s.font_size = 36
 	title_s.font_color = accent
 	title_s.outline_size = 2
 	title_s.outline_color = Color(0, 0, 0, 0.5)
@@ -331,7 +331,7 @@ func _create_track_modal() -> void:
 	box_sb.content_margin_top = 12
 	box_sb.content_margin_bottom = 12
 	content.add_theme_stylebox_override("panel", box_sb)
-	content.custom_minimum_size = Vector2(680, 850)
+	content.custom_minimum_size = Vector2(1020, 900)
 	center.add_child(content)
 
 	var vbox := VBoxContainer.new()
@@ -596,7 +596,7 @@ func _create_online_modal() -> void:
 	box_sb.content_margin_top = 12
 	box_sb.content_margin_bottom = 12
 	content.add_theme_stylebox_override("panel", box_sb)
-	content.custom_minimum_size = Vector2(700, 850)
+	content.custom_minimum_size = Vector2(1020, 900)
 	center.add_child(content)
 
 	var vbox := VBoxContainer.new()
@@ -804,9 +804,9 @@ func _update_flag_button() -> void:
 		rect.texture = tex
 		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		rect.custom_minimum_size = Vector2(36, 22)
-		rect.size = Vector2(36, 22)
-		rect.position = Vector2(12, 9)
+		rect.custom_minimum_size = Vector2(48, 30)
+		rect.size = Vector2(48, 30)
+		rect.position = Vector2(10, 8)
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		flag_button.add_child(rect)
 	else:
@@ -842,7 +842,7 @@ func _create_flag_modal() -> void:
 	box_sb.content_margin_top = 12
 	box_sb.content_margin_bottom = 12
 	content.add_theme_stylebox_override("panel", box_sb)
-	content.custom_minimum_size = Vector2(500, 600)
+	content.custom_minimum_size = Vector2(700, 750)
 	center.add_child(content)
 
 	var vbox := VBoxContainer.new()
@@ -881,7 +881,7 @@ func _create_flag_modal() -> void:
 	vbox.add_child(scroll)
 
 	var grid := GridContainer.new()
-	grid.columns = 5
+	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", 5)
 	grid.add_theme_constant_override("v_separation", 5)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -912,7 +912,7 @@ func _populate_flag_grid(grid: GridContainer, countries: Array) -> void:
 
 	for country in countries:
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(80, 50)
+		btn.custom_minimum_size = Vector2(100, 64)
 		btn.tooltip_text = country["name"]
 		btn.focus_mode = Control.FOCUS_NONE
 
@@ -942,7 +942,7 @@ func _populate_flag_grid(grid: GridContainer, countries: Array) -> void:
 			flag_rect.texture = flag_tex
 			flag_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			flag_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			flag_rect.custom_minimum_size = Vector2(36, 22)
+			flag_rect.custom_minimum_size = Vector2(48, 30)
 			flag_rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 			flag_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			bvbox.add_child(flag_rect)
@@ -1005,21 +1005,98 @@ func _auto_register_player() -> void:
 	)
 
 func _prompt_admin_password() -> void:
-	# Show password dialog for reserved name login
-	var dialog := AcceptDialog.new()
-	dialog.title = "Zarezerwowany nick"
-	dialog.dialog_text = "Nick '%s' jest zarezerwowany.\nPodaj haslo admina:" % PlayerData.player_name
+	var overlay := Panel.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.0, 0.0, 0.0, 0.9)
+	overlay.add_theme_stylebox_override("panel", bg)
+	add_child(overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+
+	var box := PanelContainer.new()
+	box.custom_minimum_size = Vector2(600, 400)
+	var box_sb := StyleBoxFlat.new()
+	box_sb.bg_color = Color(0.06, 0.06, 0.1)
+	box_sb.border_color = Color(0.6, 0.4, 1.0)
+	box_sb.set_border_width_all(2)
+	box_sb.set_corner_radius_all(12)
+	box_sb.content_margin_left = 32.0
+	box_sb.content_margin_right = 32.0
+	box_sb.content_margin_top = 24.0
+	box_sb.content_margin_bottom = 24.0
+	box.add_theme_stylebox_override("panel", box_sb)
+	center.add_child(box)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "ZAREZERWOWANY NICK"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_color_override("font_color", Color(0.6, 0.4, 1.0))
+	vbox.add_child(title)
+
+	var desc := Label.new()
+	desc.text = "Nick '%s' jest zarezerwowany.\nPodaj haslo:" % PlayerData.player_name
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.add_theme_font_size_override("font_size", 24)
+	desc.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
+	vbox.add_child(desc)
+
 	var line := LineEdit.new()
 	line.placeholder_text = "haslo"
 	line.secret = true
-	line.custom_minimum_size = Vector2(300, 50)
-	line.add_theme_font_size_override("font_size", 28)
-	dialog.add_child(line)
-	dialog.confirmed.connect(func():
+	line.custom_minimum_size = Vector2(400, 60)
+	line.add_theme_font_size_override("font_size", 32)
+	var input_sb := StyleBoxFlat.new()
+	input_sb.bg_color = Color(0.1, 0.1, 0.15)
+	input_sb.border_color = Color(0.3, 0.5, 0.8)
+	input_sb.set_border_width_all(1)
+	input_sb.set_corner_radius_all(8)
+	input_sb.content_margin_left = 12.0
+	input_sb.content_margin_right = 12.0
+	line.add_theme_stylebox_override("normal", input_sb)
+	vbox.add_child(line)
+
+	var btn_row := HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 16)
+	vbox.add_child(btn_row)
+
+	var ok_btn := Button.new()
+	ok_btn.text = "ZALOGUJ"
+	ok_btn.custom_minimum_size = Vector2(200, 56)
+	ok_btn.add_theme_font_size_override("font_size", 26)
+	var ok_sb := StyleBoxFlat.new()
+	ok_sb.bg_color = Color(0.15, 0.5, 0.2)
+	ok_sb.set_corner_radius_all(8)
+	ok_btn.add_theme_stylebox_override("normal", ok_sb)
+	btn_row.add_child(ok_btn)
+
+	var cancel_btn := Button.new()
+	cancel_btn.text = "ANULUJ"
+	cancel_btn.custom_minimum_size = Vector2(200, 56)
+	cancel_btn.add_theme_font_size_override("font_size", 26)
+	var c_sb := StyleBoxFlat.new()
+	c_sb.bg_color = Color(0.3, 0.1, 0.1)
+	c_sb.set_corner_radius_all(8)
+	cancel_btn.add_theme_stylebox_override("normal", c_sb)
+	btn_row.add_child(cancel_btn)
+
+	cancel_btn.pressed.connect(func(): overlay.queue_free())
+
+	ok_btn.pressed.connect(func():
 		var pw: String = line.text.strip_edges()
 		if pw.is_empty():
-			dialog.queue_free()
 			return
+		ok_btn.text = "..."
+		ok_btn.disabled = true
 		ApiClient.register(PlayerData.player_name, PlayerData.player_flag, func(success, reason = ""):
 			if success:
 				print("Admin login OK: %s (%s)" % [ApiClient.player_name, ApiClient.player_id])
@@ -1028,12 +1105,12 @@ func _prompt_admin_password() -> void:
 				_set_status("Zalogowano jako admin!")
 			else:
 				_set_status("Bledne haslo!")
-			dialog.queue_free()
+				ok_btn.text = "ZALOGUJ"
+				ok_btn.disabled = false
+				return
+			overlay.queue_free()
 		, pw)
 	)
-	dialog.canceled.connect(func(): dialog.queue_free())
-	add_child(dialog)
-	dialog.popup_centered()
 
 
 func _set_status(text: String) -> void:

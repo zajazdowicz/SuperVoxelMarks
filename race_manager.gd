@@ -13,6 +13,8 @@ var lap_count := 0
 var checkpoints_hit := 0
 var total_checkpoints := 0
 var laps: Array[float] = []  # finished lap times
+var checkpoint_times: Array[float] = []       # current lap CP times
+var best_checkpoint_times: Array[float] = []  # best lap CP times
 
 # Ghost recording per lap
 var ghost_frames: Array[Dictionary] = []
@@ -41,6 +43,7 @@ func reset() -> void:
 	ghost_frames.clear()
 	_lap_ghost.clear()
 	_record_timer = 0.0
+	checkpoint_times.clear()
 	respawn_pos = Vector3.ZERO
 	respawn_rot = 0.0
 	# Disconnect stale signals from destroyed scene nodes
@@ -70,6 +73,7 @@ func start_countdown() -> void:
 signal race_started    # emitted when countdown ends and GO! begins
 signal lap_completed   # emitted when a lap finishes (for ghost restart)
 signal new_best_set    # emitted when a new best lap time + ghost is recorded
+signal checkpoint_passed(index: int, time: float, delta: float)  # CP split time
 
 func start_race() -> void:
 	state = State.RACING
@@ -84,6 +88,12 @@ func hit_checkpoint(index: int) -> void:
 	# Accept checkpoint if it's the next expected OR any later one (in case we skipped one)
 	if index >= checkpoints_hit:
 		checkpoints_hit = index + 1
+		checkpoint_times.append(lap_time)
+		# Calculate delta vs best
+		var delta := 0.0
+		if index < best_checkpoint_times.size():
+			delta = lap_time - best_checkpoint_times[index]
+		checkpoint_passed.emit(index, lap_time, delta)
 
 
 func cross_start_finish() -> void:
@@ -148,6 +158,7 @@ func _finish_lap() -> void:
 	if lap_time < best_time:
 		best_time = lap_time
 		best_ghost = _lap_ghost.duplicate()
+		best_checkpoint_times = checkpoint_times.duplicate()
 		_save_best_time()
 		new_best_set.emit()
 		# Upload to server
@@ -156,6 +167,7 @@ func _finish_lap() -> void:
 	# Reset for next lap
 	checkpoints_hit = 0
 	lap_time = 0.0
+	checkpoint_times.clear()
 	_lap_ghost.clear()
 	lap_completed.emit()
 

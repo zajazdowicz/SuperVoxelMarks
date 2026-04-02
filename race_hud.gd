@@ -12,6 +12,11 @@ var delta_label: Label
 var car: CharacterBody3D
 var drift_bar: ProgressBar
 var drift_label: Label
+var _cp_label: Label
+var _cp_timer := 0.0
+var _finish_overlay: PanelContainer
+var _finish_vbox: VBoxContainer
+var _finish_shown := false
 
 var _last_lap_count := 0
 var _last_countdown := -1
@@ -114,7 +119,7 @@ func _create_ui() -> void:
 	countdown_label.offset_right = 200.0
 	countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var cd_s := LabelSettings.new()
-	cd_s.font_size = 110
+	cd_s.font_size = 130
 	cd_s.font_color = Color(1.0, 1.0, 1.0)
 	cd_s.outline_size = 6
 	cd_s.outline_color = Color.BLACK
@@ -153,6 +158,45 @@ func _create_ui() -> void:
 	laps_label.label_settings = laps_s
 	add_child(laps_label)
 
+	# --- Checkpoint popup ---
+	_cp_label = Label.new()
+	_cp_label.anchor_left = 0.5
+	_cp_label.anchor_right = 0.5
+	_cp_label.offset_left = -200.0
+	_cp_label.offset_right = 200.0
+	_cp_label.offset_top = 110.0
+	_cp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var cp_s := LabelSettings.new()
+	cp_s.font_size = 38
+	cp_s.font_color = Color(0.3, 1.0, 0.3)
+	cp_s.outline_size = 3
+	cp_s.outline_color = Color.BLACK
+	_cp_label.label_settings = cp_s
+	_cp_label.visible = false
+	add_child(_cp_label)
+
+	# --- Finish overlay ---
+	_finish_overlay = PanelContainer.new()
+	_finish_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var fo_sb := StyleBoxFlat.new()
+	fo_sb.bg_color = Color(0.02, 0.02, 0.05, 0.88)
+	_finish_overlay.add_theme_stylebox_override("panel", fo_sb)
+	_finish_overlay.visible = false
+	add_child(_finish_overlay)
+
+	var fo_center := CenterContainer.new()
+	fo_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_finish_overlay.add_child(fo_center)
+
+	_finish_vbox = VBoxContainer.new()
+	_finish_vbox.add_theme_constant_override("separation", 8)
+	_finish_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	fo_center.add_child(_finish_vbox)
+
+	# Connect checkpoint signal
+	if not RaceManager.checkpoint_passed.is_connected(_on_checkpoint):
+		RaceManager.checkpoint_passed.connect(_on_checkpoint)
+
 	# --- Drift progress bar (bottom center) ---
 	_create_drift_bar()
 
@@ -178,7 +222,12 @@ func _process(_delta: float) -> void:
 			var cd := ceili(RaceManager.countdown_timer)
 			if cd > 0:
 				countdown_label.text = str(cd)
-				countdown_label.label_settings.font_color = Color(1.0, 1.0, 1.0)
+				if cd >= 3:
+					countdown_label.label_settings.font_color = Color(1.0, 0.2, 0.2)
+				elif cd == 2:
+					countdown_label.label_settings.font_color = Color(1.0, 0.85, 0.2)
+				else:
+					countdown_label.label_settings.font_color = Color(0.2, 1.0, 0.2)
 			else:
 				countdown_label.text = "GO!"
 				countdown_label.label_settings.font_color = Color(0.2, 1.0, 0.2)
@@ -212,11 +261,8 @@ func _process(_delta: float) -> void:
 			var finish_time := RaceManager.get_last_lap_time()
 			timer_label.text = RaceManager.get_time_string(finish_time)
 			remaining_label.text = ""
-			var msg := "FINISH!\n%s" % RaceManager.get_time_string(finish_time)
-			if finish_time == RaceManager.best_time:
-				msg += "\nNOWY REKORD!"
-			msg += "\nR = restart | G = duch | ESC = menu"
-			info_label.text = msg
+			info_label.text = ""
+			_show_finish_overlay()
 
 	# Best time (always visible when available)
 	if RaceManager.best_time < INF:
@@ -256,6 +302,21 @@ func _process(_delta: float) -> void:
 
 	# Touch zone visual feedback
 	_update_touch_indicators()
+
+	# Checkpoint popup fade
+	if _cp_timer > 0:
+		_cp_timer -= _delta
+		if _cp_timer <= 0:
+			_cp_label.visible = false
+		elif _cp_timer < 0.5:
+			_cp_label.modulate.a = _cp_timer / 0.5
+		else:
+			_cp_label.modulate.a = 1.0
+
+	# Hide finish overlay on reset
+	if RaceManager.state != RaceManager.State.FINISHED and _finish_shown:
+		_finish_overlay.visible = false
+		_finish_shown = false
 
 
 func _update_laps_list() -> void:
@@ -553,3 +614,151 @@ func _on_reset_pressed() -> void:
 
 func _on_pause_pressed() -> void:
 	get_tree().change_scene_to_file("res://menu.tscn")
+
+
+# === CHECKPOINT POPUP ===
+
+func _on_checkpoint(index: int, time: float, delta: float) -> void:
+	var time_str := RaceManager.get_time_string(time)
+	var delta_str := ""
+	if absf(delta) > 0.001 and RaceManager.best_checkpoint_times.size() > index:
+		if delta > 0:
+			delta_str = "  +%s" % RaceManager.get_time_string(delta)
+			_cp_label.label_settings.font_color = Color(1.0, 0.3, 0.3)  # red = slower
+		else:
+			delta_str = "  -%s" % RaceManager.get_time_string(absf(delta))
+			_cp_label.label_settings.font_color = Color(0.3, 1.0, 0.3)  # green = faster
+	else:
+		_cp_label.label_settings.font_color = Color(1.0, 1.0, 1.0)
+
+	_cp_label.text = "CP%d: %s%s" % [index + 1, time_str, delta_str]
+	_cp_label.visible = true
+	_cp_timer = 2.5
+
+
+# === FINISH OVERLAY ===
+
+func _show_finish_overlay() -> void:
+	if _finish_shown:
+		return
+	_finish_shown = true
+
+	# Clear previous content
+	for child in _finish_vbox.get_children():
+		child.queue_free()
+
+	# Title
+	var title := Label.new()
+	title.text = "FINISH"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var ts := LabelSettings.new()
+	ts.font_size = 72
+	ts.font_color = Color(1.0, 0.85, 0.2)
+	ts.outline_size = 5
+	ts.outline_color = Color(0.15, 0.1, 0.0)
+	title.label_settings = ts
+	_finish_vbox.add_child(title)
+
+	# Lap time
+	var lap := RaceManager.get_last_lap_time()
+	var time_label := Label.new()
+	time_label.text = RaceManager.get_time_string(lap)
+	time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var tl_s := LabelSettings.new()
+	tl_s.font_size = 80
+	tl_s.font_color = Color.WHITE
+	tl_s.outline_size = 4
+	tl_s.outline_color = Color.BLACK
+	time_label.label_settings = tl_s
+	_finish_vbox.add_child(time_label)
+
+	# New record?
+	if lap == RaceManager.best_time:
+		var rec := Label.new()
+		rec.text = "NOWY REKORD!"
+		rec.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var rec_s := LabelSettings.new()
+		rec_s.font_size = 44
+		rec_s.font_color = Color(0.2, 1.0, 0.3)
+		rec_s.outline_size = 3
+		rec_s.outline_color = Color.BLACK
+		rec.label_settings = rec_s
+		_finish_vbox.add_child(rec)
+
+	# Checkpoint split times
+	if not RaceManager.checkpoint_times.is_empty():
+		var cp_title := Label.new()
+		cp_title.text = "--- Checkpointy ---"
+		cp_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var cpt_s := LabelSettings.new()
+		cpt_s.font_size = 26
+		cpt_s.font_color = Color(0.5, 0.5, 0.55)
+		cpt_s.outline_size = 2
+		cpt_s.outline_color = Color.BLACK
+		cp_title.label_settings = cpt_s
+		_finish_vbox.add_child(cp_title)
+
+		for i in range(RaceManager.checkpoint_times.size()):
+			var cp_time: float = RaceManager.checkpoint_times[i]
+			var cp_text := "CP%d:  %s" % [i + 1, RaceManager.get_time_string(cp_time)]
+			if i < RaceManager.best_checkpoint_times.size():
+				var d: float = cp_time - RaceManager.best_checkpoint_times[i]
+				if absf(d) > 0.001:
+					cp_text += "  %s%s" % ["+" if d > 0 else "-", RaceManager.get_time_string(absf(d))]
+			var cp_lbl := Label.new()
+			cp_lbl.text = cp_text
+			cp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			var cp_s := LabelSettings.new()
+			cp_s.font_size = 30
+			cp_s.font_color = Color(0.8, 0.8, 0.85)
+			cp_s.outline_size = 2
+			cp_s.outline_color = Color.BLACK
+			cp_lbl.label_settings = cp_s
+			_finish_vbox.add_child(cp_lbl)
+
+	# Best time
+	if RaceManager.best_time < INF:
+		var best := Label.new()
+		best.text = "Best: %s" % RaceManager.get_time_string(RaceManager.best_time)
+		best.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var b_s := LabelSettings.new()
+		b_s.font_size = 36
+		b_s.font_color = Color(0.4, 0.8, 1.0)
+		b_s.outline_size = 3
+		b_s.outline_color = Color.BLACK
+		best.label_settings = b_s
+		_finish_vbox.add_child(best)
+
+	# Buttons
+	var btn_row := HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 20)
+	_finish_vbox.add_child(btn_row)
+
+	var restart_btn := Button.new()
+	restart_btn.text = "RESTART"
+	restart_btn.custom_minimum_size = Vector2(200, 60)
+	restart_btn.add_theme_font_size_override("font_size", 30)
+	var r_sb := StyleBoxFlat.new()
+	r_sb.bg_color = Color(0.15, 0.5, 0.2)
+	r_sb.set_corner_radius_all(8)
+	restart_btn.add_theme_stylebox_override("normal", r_sb)
+	restart_btn.pressed.connect(func():
+		_finish_overlay.visible = false
+		_finish_shown = false
+		_on_reset_pressed()
+	)
+	btn_row.add_child(restart_btn)
+
+	var menu_btn := Button.new()
+	menu_btn.text = "MENU"
+	menu_btn.custom_minimum_size = Vector2(200, 60)
+	menu_btn.add_theme_font_size_override("font_size", 30)
+	var m_sb := StyleBoxFlat.new()
+	m_sb.bg_color = Color(0.3, 0.3, 0.35)
+	m_sb.set_corner_radius_all(8)
+	menu_btn.add_theme_stylebox_override("normal", m_sb)
+	menu_btn.pressed.connect(_on_pause_pressed)
+	btn_row.add_child(menu_btn)
+
+	_finish_overlay.visible = true
