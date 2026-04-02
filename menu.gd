@@ -1429,8 +1429,11 @@ func _setup_spinning_car() -> void:
 
 
 func _find_menu_wheels(node: Node, names: Array, result: Array[Node3D]) -> void:
-	if node is Node3D and node.name in names:
-		result.append(node)
+	if node is Node3D:
+		for n in names:
+			if String(node.name).begins_with(n):
+				result.append(node)
+				break
 	for child in node.get_children():
 		_find_menu_wheels(child, names, result)
 
