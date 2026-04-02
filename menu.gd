@@ -1453,7 +1453,8 @@ func _process(delta: float) -> void:
 	var dir := (next_pos - pos).normalized()
 	if dir.length() < 0.001:
 		return
-	var target_yaw := atan2(dir.x, dir.z)
+	# Model is flipped (rotation.y = PI), so add PI to face forward
+	var target_yaw := atan2(dir.x, dir.z) + PI
 
 	# Drift angle — car body rotated slightly sideways
 	var turn_rate := (_fig8_pos(_car_t + 0.01) - _fig8_pos(_car_t - 0.01)).normalized()
@@ -1466,12 +1467,16 @@ func _process(delta: float) -> void:
 	if _car_model:
 		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
 
-	# Wheel spin
-	_car_wheel_spin += 8.0 * delta
+	# Wheel spin — same axes as car_controller.gd
+	_car_wheel_spin -= 8.0 * delta  # negative = forward roll with flipped model
 	for w in _car_wheels:
 		w.rotation.x = _car_wheel_spin
 
-	# Front wheel steering
-	var steer := clampf(-drift_offset * 2.0, -0.5, 0.5)
+	# Front wheel steering — stronger angle for visibility
+	var steer := clampf(drift_offset * 3.0, -0.6, 0.6)
 	for w in _car_front_wheels:
-		w.rotation.y = lerp(w.rotation.y, steer, 8.0 * delta)
+		w.rotation.y = lerp(w.rotation.y, steer, 10.0 * delta)
+
+	# Debug: print wheel count once
+	if Engine.get_frames_drawn() == 10:
+		print("Menu car wheels: %d total, %d front" % [_car_wheels.size(), _car_front_wheels.size()])
