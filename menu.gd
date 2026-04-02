@@ -1315,11 +1315,16 @@ func _show_link_code_modal(code: String) -> void:
 # =============================================================================
 
 var _car_node: Node3D
+var _car_model: Node3D
 var _car_smoke: GPUParticles3D
+var _car_wheels: Array[Node3D] = []
+var _car_front_wheels: Array[Node3D] = []
 var _car_t := 0.0
-const FIG8_SPEED := 0.6
+var _car_wheel_spin := 0.0
+const FIG8_SPEED := 1.2
 const FIG8_RX := 3.5
 const FIG8_RZ := 2.0
+const DRIFT_ANGLE := 0.35  # radians, car body offset from movement dir
 
 func _setup_spinning_car() -> void:
 	var svc := SubViewportContainer.new()
@@ -1376,10 +1381,20 @@ func _setup_spinning_car() -> void:
 
 	var f1_scene: PackedScene = load("res://assets/models/f1_car.glb")
 	if f1_scene:
-		var model := f1_scene.instantiate()
-		model.rotation.y = 0
-		model.scale = Vector3(1.1, 1.0, 1.0)
-		_car_node.add_child(model)
+		_car_model = f1_scene.instantiate()
+		_car_model.rotation.y = 0
+		_car_model.scale = Vector3(1.1, 1.0, 1.0)
+		_car_node.add_child(_car_model)
+		# Find wheels
+		var front_names := ["pCylinder2", "pCylinder3", "pCylinder4", "pCylinder5",
+			"pCylinder6", "pCylinder7", "pCylinder8", "pCylinder9",
+			"pCylinder10", "pCylinder11"]
+		var rear_names := ["pCylinder12", "pCylinder13", "pCylinder14", "pCylinder15",
+			"pCylinder16", "pCylinder17", "pCylinder18", "pCylinder19",
+			"pCylinder20", "pCylinder21"]
+		_find_menu_wheels(_car_model, front_names, _car_front_wheels)
+		_find_menu_wheels(_car_model, rear_names, _car_wheels)
+		_car_wheels.append_array(_car_front_wheels)
 
 	# Tire smoke — follows car
 	_car_smoke = GPUParticles3D.new()
@@ -1413,18 +1428,50 @@ func _setup_spinning_car() -> void:
 	_car_smoke.position = Vector3(0, 0.1, -0.8)  # behind car
 
 
-# Figure-8 path: x = R * sin(t), z = R * sin(t) * cos(t)
+func _find_menu_wheels(node: Node, names: Array, result: Array[Node3D]) -> void:
+	if node is Node3D and node.name in names:
+		result.append(node)
+	for child in node.get_children():
+		_find_menu_wheels(child, names, result)
+
+
+# Figure-8 path (lemniscate)
 func _fig8_pos(t: float) -> Vector3:
-	return Vector3(FIG8_RX * sin(t), 0, FIG8_RZ * sin(t) * cos(t))
+	return Vector3(FIG8_RX * sin(t), 0.3, FIG8_RZ * sin(t) * cos(t))
 
 
 func _process(delta: float) -> void:
-	if _car_node:
-		_car_t += FIG8_SPEED * delta
-		var pos := _fig8_pos(_car_t)
-		var next_pos := _fig8_pos(_car_t + 0.05)
-		_car_node.position = pos
-		# Face movement direction
-		var dir := (next_pos - pos).normalized()
-		if dir.length() > 0.001:
-			_car_node.rotation.y = atan2(dir.x, dir.z)
+	if not _car_node:
+		return
+
+	_car_t += FIG8_SPEED * delta
+	var pos := _fig8_pos(_car_t)
+	var next_pos := _fig8_pos(_car_t + 0.05)
+	_car_node.position = pos
+
+	# Movement direction
+	var dir := (next_pos - pos).normalized()
+	if dir.length() < 0.001:
+		return
+	var target_yaw := atan2(dir.x, dir.z)
+
+	# Drift angle — car body rotated slightly sideways
+	var turn_rate := (_fig8_pos(_car_t + 0.01) - _fig8_pos(_car_t - 0.01)).normalized()
+	var turn_rate2 := (_fig8_pos(_car_t + 0.02) - _fig8_pos(_car_t)).normalized()
+	var cross := turn_rate.x * turn_rate2.z - turn_rate.z * turn_rate2.x
+	var drift_offset := clampf(cross * 15.0, -DRIFT_ANGLE, DRIFT_ANGLE)
+	_car_node.rotation.y = target_yaw + drift_offset
+
+	# Body roll (lean into turns)
+	if _car_model:
+		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
+
+	# Wheel spin
+	_car_wheel_spin += 8.0 * delta
+	for w in _car_wheels:
+		w.rotation.x = _car_wheel_spin
+
+	# Front wheel steering
+	var steer := clampf(-drift_offset * 2.0, -0.5, 0.5)
+	for w in _car_front_wheels:
+		w.rotation.y = lerp(w.rotation.y, steer, 8.0 * delta)
