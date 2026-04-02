@@ -1463,12 +1463,12 @@ func _process(delta: float) -> void:
 	if _car_model:
 		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
 
-	# Wheel spin — try Z axis (Blender cylinder default spin axis)
+	# Wheel spin — X axis (confirmed via Blender: thinnest dim = axle)
 	_car_wheel_spin -= 8.0 * delta
 	for w in _car_wheels:
-		w.rotation.z = _car_wheel_spin
+		w.rotation.x = _car_wheel_spin
 
-	# Front wheel steering — Y axis for turning
+	# Front wheel steering — Y axis (Blender Z up → Godot Y)
 	var steer := clampf(drift_offset * 3.0, -0.6, 0.6)
 	for w in _car_front_wheels:
 		w.rotation.y = lerp(w.rotation.y, steer, 10.0 * delta)
