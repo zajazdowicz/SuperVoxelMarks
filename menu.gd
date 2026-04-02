@@ -1429,11 +1429,8 @@ func _setup_spinning_car() -> void:
 
 
 func _find_menu_wheels(node: Node, names: Array, result: Array[Node3D]) -> void:
-	if node is Node3D:
-		for n in names:
-			if String(node.name).begins_with(n):
-				result.append(node)
-				break
+	if node is Node3D and String(node.name) in names:
+		result.append(node)
 	for child in node.get_children():
 		_find_menu_wheels(child, names, result)
 
@@ -1470,18 +1467,12 @@ func _process(delta: float) -> void:
 	if _car_model:
 		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
 
-	# Wheel spin — same axes as car_controller.gd
-	_car_wheel_spin -= 8.0 * delta  # negative = forward roll with flipped model
+	# Wheel spin — try Z axis (Blender cylinder default spin axis)
+	_car_wheel_spin -= 8.0 * delta
 	for w in _car_wheels:
-		w.rotation.x = _car_wheel_spin
+		w.rotation.z = _car_wheel_spin
 
-	# Front wheel steering — stronger angle for visibility
+	# Front wheel steering — Y axis for turning
 	var steer := clampf(drift_offset * 3.0, -0.6, 0.6)
 	for w in _car_front_wheels:
 		w.rotation.y = lerp(w.rotation.y, steer, 10.0 * delta)
-
-	# Debug: print wheel info once
-	if Engine.get_frames_drawn() == 10:
-		print("Menu car wheels: %d total, %d front" % [_car_wheels.size(), _car_front_wheels.size()])
-		for w in _car_front_wheels.slice(0, 3):
-			print("  Front wheel: %s type=%s pos=%s" % [w.name, w.get_class(), w.position])
