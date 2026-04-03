@@ -1392,60 +1392,7 @@ func _setup_spinning_car() -> void:
 		_setup_wheel_pivots(_car_model, rear_names, _car_wheels)
 		_car_wheels.append_array(_car_front_wheels)
 
-	# Tire smoke — billboarded quads with drift smoke shader
-	_car_smoke = GPUParticles3D.new()
-	_car_smoke.amount = 60
-	_car_smoke.lifetime = 2.5
-	_car_smoke.emitting = true
-	_car_smoke.explosiveness = 0.0
-	_car_smoke.randomness = 0.3
-
-	var sm := ParticleProcessMaterial.new()
-	sm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	sm.emission_sphere_radius = 0.3
-	sm.direction = Vector3(0, 0.5, 0)
-	sm.spread = 30.0
-	sm.initial_velocity_min = 0.2
-	sm.initial_velocity_max = 0.8
-	sm.gravity = Vector3(0, 0.3, 0)
-	sm.scale_min = 0.3
-	sm.scale_max = 1.2
-	sm.damping_min = 2.0
-	sm.damping_max = 4.0
-	sm.particle_flag_align_y = false
-
-	# Size curve — grow then shrink
-	var scale_curve := CurveTexture.new()
-	var curve := Curve.new()
-	curve.add_point(Vector2(0.0, 0.3))
-	curve.add_point(Vector2(0.3, 1.0))
-	curve.add_point(Vector2(1.0, 0.5))
-	scale_curve.curve = curve
-	sm.scale_curve = scale_curve
-
-	# Color: white → transparent
-	var grad := Gradient.new()
-	grad.set_color(0, Color(0.95, 0.95, 1.0, 0.6))
-	grad.add_point(0.4, Color(0.85, 0.85, 0.9, 0.4))
-	grad.set_color(1, Color(0.7, 0.7, 0.75, 0.0))
-	var gtex := GradientTexture1D.new()
-	gtex.gradient = grad
-	sm.color_ramp = gtex
-	_car_smoke.process_material = sm
-
-	# Smoke mesh — billboard quad with soft shader
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.5, 0.5)
-	var smoke_mat := StandardMaterial3D.new()
-	smoke_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	smoke_mat.albedo_color = Color(0.9, 0.9, 0.95, 0.7)
-	smoke_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	smoke_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	smoke_mat.no_depth_test = false
-	quad.material = smoke_mat
-	_car_smoke.draw_pass_1 = quad
-	_car_node.add_child(_car_smoke)
-	_car_smoke.position = Vector3(0, 0.15, -0.8)
+	# Smoke disabled — needs proper volumetric/FogVolume solution, not quad particles
 
 
 func _setup_wheel_pivots(root: Node, names: Array, result: Array[Node3D]) -> void:
@@ -1524,8 +1471,7 @@ func _process(delta: float) -> void:
 	if _car_model:
 		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
 
-	# Wheel spin — rotate entire pPipe parent, offset compensated at setup
-	_car_wheel_spin += 8.0 * delta
+	# Wheel spin — Z axis (confirmed: Y=wrong, X=wrong, Z=correct for this model)
+	_car_wheel_spin += 10.0 * delta
 	for w in _car_wheels:
-		# Rotate around local X (axle axis after glTF import)
-		w.rotation.x = _car_wheel_spin
+		w.rotation.z = _car_wheel_spin

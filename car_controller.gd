@@ -634,10 +634,10 @@ func _physics_process(delta: float) -> void:
 		for w in _front_wheels:
 			w.rotation.y = lerp(w.rotation.y, steer_angle, 10.0 * delta)
 
-		# Wheel spin (all wheels)
+		# Wheel spin (all wheels) — Z axis for this model's tire orientation
 		_wheel_spin += speed * delta * 3.0
 		for w in _all_wheels:
-			w.rotation.x = _wheel_spin
+			w.rotation.z = _wheel_spin
 
 	# --- Skidmarks ---
 	var skidding: bool = false
