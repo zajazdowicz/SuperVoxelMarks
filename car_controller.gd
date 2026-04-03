@@ -188,7 +188,7 @@ func _create_smoke_emitter() -> GPUParticles3D:
 	p.emitting = false
 	p.amount = 64
 	p.lifetime = 3.0
-	p.trail_lifetime = 0.4
+	#p.trail_lifetime = 0.4  # disabled — may not work on mobile
 	p.visibility_aabb = AABB(Vector3(-6, -2, -6), Vector3(12, 6, 12))
 
 	# Particle process material
@@ -224,47 +224,16 @@ func _create_smoke_emitter() -> GPUParticles3D:
 	p.process_material = pmat
 
 	# Stylized smoke shader material
-	var smoke_shader := load("res://assets/shaders/Stylized_Smoke_Shader.gdshader")
-	print("Smoke shader loaded: ", smoke_shader != null)
-	var smat := ShaderMaterial.new()
-	smat.shader = smoke_shader
-
-	# Smoke color gradient (gray smoke)
-	var color_grad := Gradient.new()
-	color_grad.offsets = PackedFloat32Array([0.21, 1.0])
-	color_grad.colors = PackedColorArray([Color(0.24, 0.24, 0.24), Color(0, 0, 0)])
-	var color_tex := GradientTexture1D.new()
-	color_tex.gradient = color_grad
-	smat.set_shader_parameter("Color_Gradiant", color_tex)
-
-	# Voronoi noise (procedural)
-	var noise := FastNoiseLite.new()
-	noise.noise_type = FastNoiseLite.TYPE_CELLULAR
-	noise.fractal_type = FastNoiseLite.FRACTAL_NONE
-	var noise_tex := NoiseTexture2D.new()
-	noise_tex.noise = noise
-	smat.set_shader_parameter("Vor_Noise", noise_tex)
-
-	# Alpha curve texture
-	var acurve := Curve.new()
-	acurve.add_point(Vector2(0, 1.0))
-	acurve.add_point(Vector2(0.91, 0.0))
-	var acurve_tex := CurveTexture.new()
-	acurve_tex.curve = acurve
-	smat.set_shader_parameter("Alpha_Curve", acurve_tex)
-
-	smat.set_shader_parameter("Color", Color(1, 1, 1, 1))
-	smat.set_shader_parameter("Fernal_Power", 1.0)
-	smat.set_shader_parameter("Vor_Scale", 0.8)
-	smat.set_shader_parameter("Vor_Speed", 0.2)
-	smat.set_shader_parameter("Emmision_Power", 1.0)
-	smat.set_shader_parameter("Alpha_Clip", 0.0)
-
-	p.material_override = smat
-
-	# Quad mesh for smoke particles
+	# Simple billboard smoke material (works on all platforms including mobile)
 	var quad := QuadMesh.new()
 	quad.size = Vector2(1.0, 1.0)
+	var smoke_mat := StandardMaterial3D.new()
+	smoke_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	smoke_mat.albedo_color = Color(0.8, 0.8, 0.85, 0.4)
+	smoke_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smoke_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	smoke_mat.no_depth_test = false
+	quad.material = smoke_mat
 	p.draw_pass_1 = quad
 
 	return p
