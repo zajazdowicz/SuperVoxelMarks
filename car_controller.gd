@@ -186,6 +186,7 @@ func _create_boost_emitter() -> GPUParticles3D:
 func _create_smoke_emitter() -> Node3D:
 	# Try GPU first with stylized shader, fallback to CPU
 	var smoke_mat_res := load("res://assets/vfx/drift_smoke_material.tres")
+	print("Smoke material loaded: ", smoke_mat_res != null)
 
 	if smoke_mat_res:
 		# GPU with shader material
