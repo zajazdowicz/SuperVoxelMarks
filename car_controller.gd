@@ -189,28 +189,7 @@ func _create_smoke_emitter() -> CPUParticles3D:
 	p.amount = 60
 	p.lifetime = 2.5
 	p.randomness = 0.5
-	# Soft circle texture generated procedurally
-	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
-	for y in range(64):
-		for x in range(64):
-			var dx := (x - 32.0) / 32.0
-			var dy := (y - 32.0) / 32.0
-			var dist := sqrt(dx * dx + dy * dy)
-			var alpha := clampf(1.0 - dist, 0.0, 1.0)
-			alpha = alpha * alpha  # softer falloff
-			img.set_pixel(x, y, Color(1, 1, 1, alpha))
-	var tex := ImageTexture.create_from_image(img)
-	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_texture = tex
-	mat.albedo_color = Color(1, 1, 1, 1)
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	mat.no_depth_test = false
-	var quad := QuadMesh.new()
-	quad.size = Vector2(1.2, 1.2)
-	quad.material = mat
-	p.mesh = quad
+	p.mesh = _make_particle_mesh(1.2, Color.WHITE)
 
 	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
 	p.emission_sphere_radius = 0.6
