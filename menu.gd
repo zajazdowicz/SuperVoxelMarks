@@ -49,7 +49,7 @@ void fragment() {
 	vec2 uv = SCREEN_UV;
 	float t = TIME * 0.03;
 
-	// Base dark gradient
+	// Semi-transparent dark gradient (cars visible through)
 	vec3 col = mix(vec3(0.06, 0.04, 0.12), vec3(0.03, 0.05, 0.08), uv.y);
 
 	// Horizontal grid lines (cyan, moving up)
@@ -68,7 +68,7 @@ void fragment() {
 	float s = smoothstep(0.4, 0.5, stripe) * (1.0 - smoothstep(0.5, 0.6, stripe));
 	col += vec3(0.6, 0.3, 0.0) * s * bottom * 0.12;
 
-	COLOR = vec4(col, 1.0);
+	COLOR = vec4(col, 0.6);
 }
 "
 	var mat := ShaderMaterial.new()
@@ -1318,9 +1318,9 @@ var _bg_scene: Node3D
 var _bg_cars: Array[Dictionary] = []  # {node, speed, yaw, drift_timer, wheels}
 var _bg_spawn_timer := 0.0
 var _f1_scene: PackedScene
-const BG_AREA := 30.0  # spawn/despawn boundary
-const BG_MAX_CARS := 15
-const BG_SPAWN_INTERVAL := 0.4
+const BG_AREA := 18.0  # spawn/despawn boundary
+const BG_MAX_CARS := 12
+const BG_SPAWN_INTERVAL := 0.5
 
 func _setup_spinning_car() -> void:
 	var svc := SubViewportContainer.new()
@@ -1328,7 +1328,7 @@ func _setup_spinning_car() -> void:
 	svc.stretch = true
 	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(svc)
-	move_child(svc, 1)
+	move_child(svc, 0)  # behind bg shader
 
 	var svp := SubViewport.new()
 	svp.size = Vector2i(540, 960)
@@ -1342,9 +1342,9 @@ func _setup_spinning_car() -> void:
 
 	# Camera — isometric like in game
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 35, 25)
-	cam.rotation_degrees = Vector3(-55, 0, 0)
-	cam.fov = 35
+	cam.position = Vector3(0, 20, 15)
+	cam.rotation_degrees = Vector3(-52, 0, 0)
+	cam.fov = 50
 	cam.current = true
 	_bg_scene.add_child(cam)
 
@@ -1354,7 +1354,7 @@ func _setup_spinning_car() -> void:
 	light.light_energy = 1.4
 	light.shadow_enabled = true
 	light.shadow_blur = 1.5
-	light.directional_shadow_max_distance = 80.0
+	light.directional_shadow_max_distance = 50.0
 	_bg_scene.add_child(light)
 
 	var fill := DirectionalLight3D.new()
@@ -1371,7 +1371,7 @@ func _setup_spinning_car() -> void:
 	# Dark ground that receives shadows
 	var ground := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(80, 80)
+	plane.size = Vector2(50, 50)
 	ground.mesh = plane
 	var ground_mat := StandardMaterial3D.new()
 	ground_mat.albedo_color = Color(0.06, 0.06, 0.1)
@@ -1393,6 +1393,7 @@ func _spawn_bg_car() -> void:
 	model.scale = Vector3(1.0, 1.0, 1.0)
 	car_root.add_child(model)
 	_bg_scene.add_child(car_root)
+	car_root.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if car_root is GeometryInstance3D else 0
 
 	# Random color — tint the body mesh
 	var colors := [
