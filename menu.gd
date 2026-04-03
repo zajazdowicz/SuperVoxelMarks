@@ -1361,7 +1361,6 @@ func _spawn_bg_car() -> void:
 	model.scale = Vector3(1.0, 1.0, 1.0)
 	car_root.add_child(model)
 	_bg_scene.add_child(car_root)
-	car_root.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if car_root is GeometryInstance3D else 0
 
 	# Random color — tint the body mesh
 	var colors := [
