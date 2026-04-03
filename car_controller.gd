@@ -186,21 +186,21 @@ func _create_boost_emitter() -> GPUParticles3D:
 func _create_smoke_emitter() -> GPUParticles3D:
 	var p := GPUParticles3D.new()
 	p.emitting = false
-	p.amount = 32
-	p.lifetime = 2.5
-	p.trail_lifetime = 0.3
+	p.amount = 64
+	p.lifetime = 3.0
+	p.trail_lifetime = 0.4
 	p.visibility_aabb = AABB(Vector3(-6, -2, -6), Vector3(12, 6, 12))
 
 	# Particle process material
 	var pmat := ParticleProcessMaterial.new()
 	pmat.particle_flag_rotate_y = true
 	pmat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	pmat.emission_sphere_radius = 0.5
+	pmat.emission_sphere_radius = 0.8
 	pmat.angle_min = -90.0
 	pmat.angle_max = 90.0
-	pmat.gravity = Vector3(1.0, 1.5, 0)
-	pmat.scale_min = 0.4
-	pmat.scale_max = 0.6
+	pmat.gravity = Vector3(2.0, 2.0, 0)
+	pmat.scale_min = 0.8
+	pmat.scale_max = 1.5
 	pmat.turbulence_noise_strength = 0.05
 	pmat.turbulence_noise_scale = 0.1
 
@@ -264,7 +264,7 @@ func _create_smoke_emitter() -> GPUParticles3D:
 
 	# Quad mesh for smoke particles
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.5, 0.5)
+	quad.size = Vector2(1.0, 1.0)
 	p.draw_pass_1 = quad
 
 	return p
