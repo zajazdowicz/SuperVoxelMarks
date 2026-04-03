@@ -1348,27 +1348,37 @@ func _setup_spinning_car() -> void:
 	cam.current = true
 	_bg_scene.add_child(cam)
 
-	# Lights
+	# Lights with shadows
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-50, 30, 0)
-	light.light_energy = 1.2
+	light.light_energy = 1.4
+	light.shadow_enabled = true
+	light.shadow_blur = 1.5
+	light.directional_shadow_max_distance = 50.0
 	_bg_scene.add_child(light)
 
 	var fill := DirectionalLight3D.new()
 	fill.rotation_degrees = Vector3(-30, -150, 0)
-	fill.light_energy = 0.3
+	fill.light_energy = 0.4
 	_bg_scene.add_child(fill)
 
-	# Dark ground
+	var ambient := OmniLight3D.new()
+	ambient.position = Vector3(0, 10, 0)
+	ambient.light_energy = 0.2
+	ambient.omni_range = 40.0
+	_bg_scene.add_child(ambient)
+
+	# Dark ground that receives shadows
 	var ground := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(40, 40)
+	plane.size = Vector2(50, 50)
 	ground.mesh = plane
 	var ground_mat := StandardMaterial3D.new()
-	ground_mat.albedo_color = Color(0.05, 0.05, 0.08)
-	ground_mat.roughness = 0.9
+	ground_mat.albedo_color = Color(0.06, 0.06, 0.1)
+	ground_mat.roughness = 0.85
 	ground.material_override = ground_mat
 	ground.position.y = -0.01
+	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_bg_scene.add_child(ground)
 
 	_f1_scene = load("res://assets/models/f1_car_new.glb")
@@ -1383,6 +1393,20 @@ func _spawn_bg_car() -> void:
 	model.scale = Vector3(1.0, 1.0, 1.0)
 	car_root.add_child(model)
 	_bg_scene.add_child(car_root)
+
+	# Random color — tint the body mesh
+	var colors := [
+		Color(0.9, 0.15, 0.1),   # red
+		Color(0.1, 0.4, 0.9),    # blue
+		Color(0.1, 0.8, 0.2),    # green
+		Color(1.0, 0.6, 0.0),    # orange
+		Color(0.9, 0.9, 0.1),    # yellow
+		Color(0.7, 0.1, 0.9),    # purple
+		Color(0.1, 0.8, 0.8),    # cyan
+		Color(0.95, 0.95, 0.95), # white
+	]
+	var car_color: Color = colors[randi() % colors.size()]
+	_tint_model(model, car_color)
 
 	# Find wheels
 	var wheels: Array[Node3D] = []
@@ -1409,8 +1433,21 @@ func _spawn_bg_car() -> void:
 	car_root.position = pos
 	car_root.rotation.y = yaw + PI
 
-	var speed := randf_range(4.0, 8.0)
+	var speed := randf_range(10.0, 18.0)
 	var drift_time := randf_range(2.0, 5.0)  # when to start drifting
+
+	# Skidmark mesh
+	var skid_mesh := ImmediateMesh.new()
+	var skid_inst := MeshInstance3D.new()
+	skid_inst.mesh = skid_mesh
+	var skid_mat := StandardMaterial3D.new()
+	skid_mat.albedo_color = Color(0.08, 0.08, 0.08, 0.7)
+	skid_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	skid_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	skid_mat.no_depth_test = false
+	skid_inst.material_override = skid_mat
+	skid_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_bg_scene.add_child(skid_inst)
 
 	_bg_cars.append({
 		"node": car_root,
@@ -1422,7 +1459,25 @@ func _spawn_bg_car() -> void:
 		"wheels": wheels,
 		"wheel_spin": 0.0,
 		"lifetime": 0.0,
+		"skid_mesh": skid_mesh,
+		"skid_inst": skid_inst,
+		"skid_points": [],  # Array of Vector3 pairs (left, right tire)
+		"last_pos": pos,
 	})
+
+
+func _tint_model(node: Node, color: Color) -> void:
+	if node is MeshInstance3D:
+		var mi: MeshInstance3D = node
+		# Only tint body parts (orange/glossy), not wheels (black)
+		if "black" not in String(mi.name) and "Glass" not in String(mi.name):
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = color
+			mat.roughness = 0.4
+			mat.metallic = 0.2
+			mi.material_override = mat
+	for child in node.get_children():
+		_tint_model(child, color)
 
 
 func _find_bg_nodes(root: Node, names: Array, result: Array[Node3D]) -> void:
@@ -1480,6 +1535,21 @@ func _process(delta: float) -> void:
 		for w in c.wheels:
 			w.rotation.x = c.wheel_spin
 
+		# Skidmarks during drift
+		if c.drift_active:
+			var cur_pos: Vector3 = node.position
+			if cur_pos.distance_to(c.last_pos) > 0.3:
+				# Add skid point pair (two tire tracks)
+				var right := Vector3(sin(c.yaw + PI / 2.0), 0, cos(c.yaw + PI / 2.0)) * 0.25
+				c.skid_points.append(cur_pos + right)
+				c.skid_points.append(cur_pos - right)
+				c.last_pos = cur_pos
+				# Rebuild skid mesh
+				if c.skid_points.size() >= 4:
+					_rebuild_skidmarks(c.skid_mesh, c.skid_points)
+		else:
+			c.last_pos = node.position
+
 		# Despawn if out of bounds
 		if absf(node.position.x) > BG_AREA + 5.0 or absf(node.position.z) > BG_AREA + 5.0:
 			to_remove.append(i)
@@ -1488,4 +1558,20 @@ func _process(delta: float) -> void:
 	for i in range(to_remove.size() - 1, -1, -1):
 		var idx: int = to_remove[i]
 		_bg_cars[idx].node.queue_free()
+		_bg_cars[idx].skid_inst.queue_free()
 		_bg_cars.remove_at(idx)
+
+
+func _rebuild_skidmarks(imesh: ImmediateMesh, points: Array) -> void:
+	imesh.clear_surfaces()
+	if points.size() < 4:
+		return
+	imesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in range(0, points.size(), 2):
+		var p1: Vector3 = points[i]
+		var p2: Vector3 = points[i + 1] if i + 1 < points.size() else p1
+		p1.y = 0.02
+		p2.y = 0.02
+		imesh.surface_add_vertex(p1)
+		imesh.surface_add_vertex(p2)
+	imesh.surface_end()
