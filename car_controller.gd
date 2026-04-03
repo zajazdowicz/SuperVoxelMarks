@@ -884,17 +884,20 @@ func _update_debris(progress: float, debris_root: Node3D) -> void:
 
 func _soft_restart() -> void:
 	# Reset race state without reloading scene (preserves ghosts, skidmarks)
-	RaceManager.reset()
-	RaceManager.start_countdown()
 
-	# Reset car to start
+	# Move car to start FIRST (before reset, to avoid trigger re-entry)
+	global_position = _spawn_pos + Vector3(0, 1, 0)
+	rotation.y = _spawn_rot
 	speed = 0.0
 	velocity = Vector3.ZERO
 	_is_dead = false
 	_offtrack_timer = 0.0
-	global_position = _spawn_pos + Vector3(0, 1, 0)
-	rotation.y = _spawn_rot
-	_grace_timer = SPAWN_GRACE
+	_grace_timer = SPAWN_GRACE + 0.5  # extra grace to avoid trigger re-fire
+
+	RaceManager.reset()
+	# Small delay before countdown to let physics settle
+	await get_tree().create_timer(0.1).timeout
+	RaceManager.start_countdown()
 
 	if mesh:
 		mesh.visible = true
