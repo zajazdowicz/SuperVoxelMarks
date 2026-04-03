@@ -109,7 +109,7 @@ func _load_car_model() -> void:
 		child.queue_free()
 
 	var model := f1_scene.instantiate()
-	model.rotation.y = PI  # Model faces +Z in Blender, flip to -Z for Godot
+	model.rotation.y = 0  # New model faces correct direction
 	model.scale = Vector3(1.1, 1.0, 1.0)  # Slightly wider
 	mesh.add_child(model)
 
