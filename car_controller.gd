@@ -186,21 +186,21 @@ func _create_boost_emitter() -> GPUParticles3D:
 func _create_smoke_emitter() -> GPUParticles3D:
 	var p := GPUParticles3D.new()
 	p.emitting = false
-	p.amount = 16
-	p.lifetime = 2.0
-	p.trail_lifetime = 0.2
+	p.amount = 32
+	p.lifetime = 2.5
+	p.trail_lifetime = 0.3
 	p.visibility_aabb = AABB(Vector3(-6, -2, -6), Vector3(12, 6, 12))
 
 	# Particle process material
 	var pmat := ParticleProcessMaterial.new()
 	pmat.particle_flag_rotate_y = true
 	pmat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	pmat.emission_sphere_radius = 0.25
+	pmat.emission_sphere_radius = 0.5
 	pmat.angle_min = -90.0
 	pmat.angle_max = 90.0
-	pmat.gravity = Vector3(0.5, 1.0, 0)
-	pmat.scale_min = 0.25
-	pmat.scale_max = 0.25
+	pmat.gravity = Vector3(1.0, 1.5, 0)
+	pmat.scale_min = 0.4
+	pmat.scale_max = 0.6
 	pmat.turbulence_noise_strength = 0.05
 	pmat.turbulence_noise_scale = 0.1
 
@@ -955,9 +955,14 @@ func _update_debris(progress: float, debris_root: Node3D) -> void:
 func _soft_restart() -> void:
 	# Reset race state without reloading scene (preserves ghosts, skidmarks)
 
-	# Move car to start FIRST (before reset, to avoid trigger re-entry)
-	global_position = _spawn_pos + Vector3(0, 1, 0)
-	rotation.y = _spawn_rot
+	# Move car to track start (from track_loader, not car's initial position)
+	var loader := get_parent().get_node_or_null("TrackLoader")
+	if loader:
+		global_position = loader._spawn_pos + Vector3(0, 1, 0)
+		rotation.y = loader._spawn_rot
+	else:
+		global_position = _spawn_pos + Vector3(0, 1, 0)
+		rotation.y = _spawn_rot
 	speed = 0.0
 	velocity = Vector3.ZERO
 	_is_dead = false
