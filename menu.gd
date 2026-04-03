@@ -1439,9 +1439,9 @@ func _find_node_by_name(node: Node, target_name: String) -> Node3D:
 	return null
 
 
-# Figure-8 path (lemniscate)
+# Straight line back and forth for debug
 func _fig8_pos(t: float) -> Vector3:
-	return Vector3(FIG8_RX * sin(t), 0.3, FIG8_RZ * sin(t) * cos(t))
+	return Vector3(0, 0.3, sin(t) * 4.0)
 
 
 func _process(delta: float) -> void:
