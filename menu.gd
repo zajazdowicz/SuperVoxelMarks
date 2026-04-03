@@ -1321,10 +1321,10 @@ var _car_wheels: Array[Node3D] = []
 var _car_front_wheels: Array[Node3D] = []
 var _car_t := 0.0
 var _car_wheel_spin := 0.0
-const FIG8_SPEED := 1.8
+const FIG8_SPEED := 0.5
 const FIG8_RX := 3.5
 const FIG8_RZ := 2.0
-const DRIFT_ANGLE := 0.55  # radians, strong drift on corners
+const DRIFT_ANGLE := 0.15  # radians, subtle at slow speed
 
 func _setup_spinning_car() -> void:
 	var svc := SubViewportContainer.new()
@@ -1472,7 +1472,7 @@ func _process(delta: float) -> void:
 		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
 
 	# Wheel spin — cycle through axes for debug: changes every 3 sec
-	_car_wheel_spin += 10.0 * delta
+	_car_wheel_spin += 3.0 * delta
 	var axis_idx: int = int(fmod(_car_t, 9.0) / 3.0)  # 0,1,2 cycling
 	for w in _car_wheels:
 		w.rotation = Vector3.ZERO
