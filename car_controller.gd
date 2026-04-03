@@ -71,7 +71,7 @@ const SKID_MAX_VERTS := 4000
 
 # Particles
 var _boost_flame: GPUParticles3D
-var _drift_smoke: GPUParticles3D
+var _drift_smoke: CPUParticles3D
 
 
 func _ready() -> void:
@@ -183,58 +183,43 @@ func _create_boost_emitter() -> GPUParticles3D:
 	return p
 
 
-func _create_smoke_emitter() -> GPUParticles3D:
-	var p := GPUParticles3D.new()
+func _create_smoke_emitter() -> CPUParticles3D:
+	var p := CPUParticles3D.new()
 	p.emitting = false
-	p.amount = 64
-	p.lifetime = 3.0
-	#p.trail_lifetime = 0.4  # disabled — may not work on mobile
-	p.visibility_aabb = AABB(Vector3(-6, -2, -6), Vector3(12, 6, 12))
+	p.amount = 50
+	p.lifetime = 2.0
+	p.randomness = 0.4
+	p.particle_flag_align_y = false
 
-	# Particle process material
-	var pmat := ParticleProcessMaterial.new()
-	pmat.particle_flag_rotate_y = true
-	pmat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	pmat.emission_sphere_radius = 0.8
-	pmat.angle_min = -90.0
-	pmat.angle_max = 90.0
-	pmat.gravity = Vector3(2.0, 2.0, 0)
-	pmat.scale_min = 0.8
-	pmat.scale_max = 1.5
-	pmat.turbulence_noise_strength = 0.05
-	pmat.turbulence_noise_scale = 0.1
+	# Billboard mesh
+	p.mesh = _make_particle_mesh(1.0, Color(0.85, 0.85, 0.9, 0.5))
 
-	# Scale curve — grow over lifetime
-	var scale_curve := Curve.new()
-	scale_curve.add_point(Vector2(0, 0.27))
-	scale_curve.add_point(Vector2(0.77, 1.0))
-	var scale_tex := CurveTexture.new()
-	scale_tex.curve = scale_curve
-	pmat.scale_curve = scale_tex
+	# Emission
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.5
+	p.direction = Vector3(0, 1, 0)
+	p.spread = 50.0
+	p.initial_velocity_min = 0.5
+	p.initial_velocity_max = 2.5
+	p.gravity = Vector3(1.5, 2.0, 0)
+	p.damping_min = 1.5
+	p.damping_max = 3.0
 
-	# Alpha curve — fade in then out
-	var alpha_curve := Curve.new()
-	alpha_curve.add_point(Vector2(0, 0.0))
-	alpha_curve.add_point(Vector2(1, 1.0))
-	var alpha_tex := CurveTexture.new()
-	alpha_tex.texture_mode = CurveTexture.TEXTURE_MODE_RED
-	alpha_tex.curve = alpha_curve
-	pmat.alpha_curve = alpha_tex
+	# Scale — grow big
+	p.scale_amount_min = 0.6
+	p.scale_amount_max = 1.8
+	var sc := Curve.new()
+	sc.add_point(Vector2(0, 0.2))
+	sc.add_point(Vector2(0.3, 0.8))
+	sc.add_point(Vector2(1, 1.5))
+	p.scale_amount_curve = sc
 
-	p.process_material = pmat
-
-	# Stylized smoke shader material
-	# Simple billboard smoke material (works on all platforms including mobile)
-	var quad := QuadMesh.new()
-	quad.size = Vector2(1.0, 1.0)
-	var smoke_mat := StandardMaterial3D.new()
-	smoke_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	smoke_mat.albedo_color = Color(0.8, 0.8, 0.85, 0.4)
-	smoke_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	smoke_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	smoke_mat.no_depth_test = false
-	quad.material = smoke_mat
-	p.draw_pass_1 = quad
+	# Color — white smoke fading out
+	var gr := Gradient.new()
+	gr.set_color(0, Color(0.95, 0.95, 1.0, 0.6))
+	gr.add_point(0.3, Color(0.85, 0.85, 0.9, 0.45))
+	gr.set_color(1, Color(0.6, 0.6, 0.65, 0.0))
+	p.color_ramp = gr
 
 	return p
 
