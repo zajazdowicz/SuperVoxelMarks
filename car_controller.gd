@@ -100,7 +100,7 @@ func _ready() -> void:
 
 
 func _load_car_model() -> void:
-	var f1_scene: PackedScene = load("res://assets/models/f1_car.glb")
+	var f1_scene: PackedScene = load("res://assets/models/f1_car_new.glb")
 	if not f1_scene:
 		push_warning("F1 model not found, keeping default mesh")
 		return
@@ -120,19 +120,21 @@ func _load_car_model() -> void:
 func _find_wheels(root: Node3D) -> void:
 	_front_wheels.clear()
 	_rear_wheels.clear()
-	# Find tire MESH instances directly (parent empties have wrong origin)
-	var front_names := ["pPipe1_lambert1_0", "pPipe2_lambert1_0"]
-	var rear_names := ["pPipe3_lambert1_0", "pPipe4_lambert1_0"]
-	_collect_named_nodes(root, front_names, _front_wheels)
-	_collect_named_nodes(root, rear_names, _rear_wheels)
+	# New model: WheelFront.000/.001 = front, .002/.003 = rear
+	var front_names := ["WheelFront.000", "WheelFront.001"]
+	var rear_names := ["WheelFront.002", "WheelFront.003"]
+	_collect_named(root, front_names, _front_wheels)
+	_collect_named(root, rear_names, _rear_wheels)
 	_all_wheels = _front_wheels + _rear_wheels
+	print("Wheels found: %d front, %d rear" % [_front_wheels.size(), _rear_wheels.size()])
 
 
-func _collect_named_nodes(node: Node, names: Array, result: Array[Node3D]) -> void:
+func _collect_named(node: Node, names: Array, result: Array[Node3D]) -> void:
 	if node is Node3D and String(node.name) in names:
 		result.append(node)
 	for child in node.get_children():
-		_collect_named_nodes(child, names, result)
+		_collect_named(child, names, result)
+	# For now wheels are static (model looks correct without rotation)
 
 
 func _setup_particles() -> void:
@@ -605,10 +607,10 @@ func _physics_process(delta: float) -> void:
 		for w in _front_wheels:
 			w.rotation.y = lerp(w.rotation.y, steer_angle, 10.0 * delta)
 
-		# Wheel spin (all wheels) — X axis
+		# Wheel spin (all wheels) — Y axis confirmed
 		_wheel_spin += speed * delta * 3.0
 		for w in _all_wheels:
-			w.rotation.x = _wheel_spin
+			w.rotation.y = _wheel_spin
 
 	# --- Skidmarks ---
 	var skidding: bool = false

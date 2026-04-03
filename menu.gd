@@ -1321,10 +1321,10 @@ var _car_wheels: Array[Node3D] = []
 var _car_front_wheels: Array[Node3D] = []
 var _car_t := 0.0
 var _car_wheel_spin := 0.0
-const FIG8_SPEED := 0.5
+const FIG8_SPEED := 1.2
 const FIG8_RX := 3.5
 const FIG8_RZ := 2.0
-const DRIFT_ANGLE := 0.15  # radians, subtle at slow speed
+const DRIFT_ANGLE := 0.4  # radians, visible drift
 
 func _setup_spinning_car() -> void:
 	var svc := SubViewportContainer.new()
@@ -1346,9 +1346,9 @@ func _setup_spinning_car() -> void:
 
 	# Camera — top-down angled
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 12, 9)
-	cam.rotation_degrees = Vector3(-50, 0, 0)
-	cam.fov = 30
+	cam.position = Vector3(0, 10, 8)
+	cam.rotation_degrees = Vector3(-48, 0, 0)
+	cam.fov = 32
 	cam.current = true
 	scene_root.add_child(cam)
 
@@ -1379,32 +1379,32 @@ func _setup_spinning_car() -> void:
 	_car_node = Node3D.new()
 	scene_root.add_child(_car_node)
 
-	var f1_scene: PackedScene = load("res://assets/models/f1_car.glb")
+	var f1_scene: PackedScene = load("res://assets/models/f1_car_new.glb")
 	if f1_scene:
 		_car_model = f1_scene.instantiate()
-		_car_model.rotation.y = PI  # flip like in game
+		_car_model.rotation.y = 0  # new model faces correct direction
 		_car_model.scale = Vector3(1.1, 1.0, 1.0)
 		_car_node.add_child(_car_model)
-		# Find wheel mesh instances directly (not empty parents)
-		var front_names := ["pPipe1_lambert1_0", "pPipe2_lambert1_0"]
-		var rear_names := ["pPipe3_lambert1_0", "pPipe4_lambert1_0"]
-		_find_nodes_by_name(_car_model, front_names, _car_front_wheels)
-		_find_nodes_by_name(_car_model, rear_names, _car_wheels)
+		# Find wheels (new model has proper origins)
+		var front_names := ["WheelFront.000", "WheelFront.001"]
+		var rear_names := ["WheelFront.002", "WheelFront.003"]
+		_find_named_nodes(_car_model, front_names, _car_front_wheels)
+		_find_named_nodes(_car_model, rear_names, _car_wheels)
 		_car_wheels.append_array(_car_front_wheels)
 
 	# Smoke disabled — needs proper volumetric/FogVolume solution, not quad particles
 
 
-func _find_nodes_by_name(root: Node, names: Array, result: Array[Node3D]) -> void:
+func _find_named_nodes(root: Node, names: Array, result: Array[Node3D]) -> void:
 	if root is Node3D and String(root.name) in names:
 		result.append(root)
 	for child in root.get_children():
-		_find_nodes_by_name(child, names, result)
+		_find_named_nodes(child, names, result)
 
 
-# Straight line back and forth for debug
+# Figure-8 path (lemniscate)
 func _fig8_pos(t: float) -> Vector3:
-	return Vector3(0, 0.3, sin(t) * 4.0)
+	return Vector3(FIG8_RX * sin(t), 0.3, FIG8_RZ * sin(t) * cos(t))
 
 
 func _process(delta: float) -> void:
@@ -1421,7 +1421,7 @@ func _process(delta: float) -> void:
 	if dir.length() < 0.001:
 		return
 	# Model is flipped (rotation.y = PI), so add PI to face forward
-	var target_yaw := atan2(dir.x, dir.z) + PI
+	var target_yaw := atan2(dir.x, dir.z)
 
 	# Drift angle — car body rotated slightly sideways
 	var turn_rate := (_fig8_pos(_car_t + 0.01) - _fig8_pos(_car_t - 0.01)).normalized()
@@ -1434,17 +1434,7 @@ func _process(delta: float) -> void:
 	if _car_model:
 		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
 
-	# Wheel spin — cycle through axes for debug: changes every 3 sec
-	_car_wheel_spin += 3.0 * delta
-	var axis_idx: int = int(fmod(_car_t, 9.0) / 3.0)  # 0,1,2 cycling
+	# Wheel spin — X axis (axle confirmed via Blender)
+	_car_wheel_spin += 5.0 * delta
 	for w in _car_wheels:
-		w.rotation = Vector3.ZERO
-		if axis_idx == 0:
-			w.rotation.x = _car_wheel_spin
-		elif axis_idx == 1:
-			w.rotation.y = _car_wheel_spin
-		else:
-			w.rotation.z = _car_wheel_spin
-	# Show which axis in console
-	if Engine.get_frames_drawn() % 180 == 0:
-		print("Wheel axis: %s" % ["X", "Y", "Z"][axis_idx])
+		w.rotation.x = _car_wheel_spin
