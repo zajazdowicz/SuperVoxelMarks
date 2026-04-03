@@ -1471,7 +1471,7 @@ func _process(delta: float) -> void:
 	if _car_model:
 		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
 
-	# Wheel spin — Z axis (confirmed: Y=wrong, X=wrong, Z=correct for this model)
+	# Wheel spin — X axis
 	_car_wheel_spin += 10.0 * delta
 	for w in _car_wheels:
-		w.rotation.z = _car_wheel_spin
+		w.rotation.x = _car_wheel_spin
