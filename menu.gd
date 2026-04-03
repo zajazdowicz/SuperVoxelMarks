@@ -38,11 +38,7 @@ func _load_tracks() -> void:
 # =============================================================================
 
 func _build_ui() -> void:
-	# Dark background (SubViewport cars will show through transparent areas)
-	var bg := ColorRect.new()
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.04, 0.04, 0.08, 1.0)
-	add_child(bg)
+	# No separate bg — SubViewport fills entire background
 
 	# Scrollable root
 	var scroll := ScrollContainer.new()
@@ -1296,11 +1292,11 @@ func _setup_spinning_car() -> void:
 	svc.stretch = true
 	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(svc)
-	move_child(svc, 1)  # above bg, below UI scroll
+	move_child(svc, 0)  # background layer, UI on top
 
 	var svp := SubViewport.new()
 	svp.size = Vector2i(540, 960)
-	svp.transparent_bg = true
+	svp.transparent_bg = false
 	svp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	svp.msaa_3d = Viewport.MSAA_2X
 	svc.add_child(svp)
@@ -1336,15 +1332,16 @@ func _setup_spinning_car() -> void:
 	ambient.omni_range = 40.0
 	_bg_scene.add_child(ambient)
 
-	# Dark ground that receives shadows
+	# Asphalt ground with parking lot grid shader
 	var ground := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(30, 30)
-	ground.mesh = plane
-	var ground_mat := StandardMaterial3D.new()
-	ground_mat.albedo_color = Color(0.06, 0.06, 0.1)
-	ground_mat.roughness = 0.85
-	ground.material_override = ground_mat
+	var gplane := PlaneMesh.new()
+	gplane.size = Vector2(30, 30)
+	ground.mesh = gplane
+	var gshader := Shader.new()
+	gshader.code = "shader_type spatial;\nrender_mode unshaded;\nvoid fragment() {\n\tvec2 uv = UV * 12.0;\n\tvec3 col = vec3(0.07, 0.07, 0.11);\n\tfloat lx = step(0.96, fract(uv.x));\n\tfloat lz = step(0.96, fract(uv.y));\n\tcol += vec3(0.06, 0.08, 0.12) * max(lx, lz);\n\tfloat n = fract(sin(dot(floor(uv), vec2(12.9898, 78.233))) * 43758.5453);\n\tcol += vec3(n * 0.015);\n\tALBEDO = col;\n}\n"
+	var gmat := ShaderMaterial.new()
+	gmat.shader = gshader
+	ground.material_override = gmat
 	ground.position.y = -0.01
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_bg_scene.add_child(ground)
@@ -1379,6 +1376,22 @@ func _spawn_bg_car() -> void:
 	# Find wheels
 	var wheels: Array[Node3D] = []
 	_find_bg_nodes(model, ["WheelFront.000", "WheelFront.001", "WheelFront.002", "WheelFront.003"], wheels)
+
+	# Drift smoke — shader-based mesh (animated noise cloud behind car)
+	var smoke_mesh := MeshInstance3D.new()
+	var smoke_quad := QuadMesh.new()
+	smoke_quad.size = Vector2(1.5, 1.0)
+	smoke_mesh.mesh = smoke_quad
+	var smoke_shader := Shader.new()
+	smoke_shader.code = "shader_type spatial;\nrender_mode blend_mix, unshaded, cull_disabled, depth_draw_opaque;\nuniform float intensity : hint_range(0.0, 1.0) = 0.0;\nvoid fragment() {\n\tvec2 uv = UV;\n\tfloat t = TIME * 1.5;\n\t// Procedural noise\n\tfloat n1 = fract(sin(dot(uv * 8.0 + t, vec2(12.9898, 78.233))) * 43758.5453);\n\tfloat n2 = fract(sin(dot(uv * 5.0 - t * 0.7, vec2(39.346, 11.135))) * 29871.4231);\n\tfloat n3 = fract(sin(dot(uv * 12.0 + t * 0.3, vec2(73.156, 52.235))) * 15731.7643);\n\tfloat noise = (n1 + n2 + n3) / 3.0;\n\t// Fade at edges\n\tfloat edge = smoothstep(0.0, 0.3, uv.x) * smoothstep(1.0, 0.5, uv.x);\n\tedge *= smoothstep(0.0, 0.3, uv.y) * smoothstep(1.0, 0.7, uv.y);\n\tfloat alpha = noise * edge * intensity * 0.7;\n\tALBEDO = vec3(0.85, 0.85, 0.9);\n\tALPHA = alpha;\n}\n"
+	var smoke_mat := ShaderMaterial.new()
+	smoke_mat.shader = smoke_shader
+	smoke_mat.set_shader_parameter("intensity", 0.0)
+	smoke_mesh.material_override = smoke_mat
+	smoke_mesh.position = Vector3(0, 0.3, -0.8)
+	smoke_mesh.rotation.x = -PI / 2.0 * 0.6  # angled up slightly
+	smoke_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	car_root.add_child(smoke_mesh)
 
 	# Random spawn from edge
 	var side := randi() % 4  # 0=left, 1=right, 2=top, 3=bottom
@@ -1429,8 +1442,9 @@ func _spawn_bg_car() -> void:
 		"lifetime": 0.0,
 		"skid_mesh": skid_mesh,
 		"skid_inst": skid_inst,
-		"skid_points": [],  # Array of Vector3 pairs (left, right tire)
+		"skid_points": [],
 		"last_pos": pos,
+		"smoke_mat": smoke_mat,
 	})
 
 
@@ -1502,6 +1516,12 @@ func _process(delta: float) -> void:
 		c.wheel_spin += spd * 2.0 * delta
 		for w in c.wheels:
 			w.rotation.x = c.wheel_spin
+
+		# Smoke intensity — high during drift
+		if c.smoke_mat:
+			var target_intensity := 1.0 if c.drift_active else 0.0
+			var cur: float = c.smoke_mat.get_shader_parameter("intensity")
+			c.smoke_mat.set_shader_parameter("intensity", lerp(cur, target_intensity, 5.0 * delta))
 
 		# Skidmarks during drift
 		if c.drift_active:
