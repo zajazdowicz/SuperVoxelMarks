@@ -1314,17 +1314,13 @@ func _show_link_code_modal(code: String) -> void:
 # SPINNING CAR IN BACKGROUND
 # =============================================================================
 
-var _car_node: Node3D
-var _car_model: Node3D
-var _car_smoke: GPUParticles3D
-var _car_wheels: Array[Node3D] = []
-var _car_front_wheels: Array[Node3D] = []
-var _car_t := 0.0
-var _car_wheel_spin := 0.0
-const FIG8_SPEED := 1.2
-const FIG8_RX := 3.5
-const FIG8_RZ := 2.0
-const DRIFT_ANGLE := 0.4  # radians, visible drift
+var _bg_scene: Node3D
+var _bg_cars: Array[Dictionary] = []  # {node, speed, yaw, drift_timer, wheels}
+var _bg_spawn_timer := 0.0
+var _f1_scene: PackedScene
+const BG_AREA := 15.0  # spawn/despawn boundary
+const BG_MAX_CARS := 6
+const BG_SPAWN_INTERVAL := 1.5
 
 func _setup_spinning_car() -> void:
 	var svc := SubViewportContainer.new()
@@ -1341,100 +1337,155 @@ func _setup_spinning_car() -> void:
 	svp.msaa_3d = Viewport.MSAA_2X
 	svc.add_child(svp)
 
-	var scene_root := Node3D.new()
-	svp.add_child(scene_root)
+	_bg_scene = Node3D.new()
+	svp.add_child(_bg_scene)
 
-	# Camera — top-down angled
+	# Camera — isometric like in game
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 10, 8)
-	cam.rotation_degrees = Vector3(-48, 0, 0)
-	cam.fov = 32
+	cam.position = Vector3(0, 18, 14)
+	cam.rotation_degrees = Vector3(-50, 0, 0)
+	cam.fov = 28
 	cam.current = true
-	scene_root.add_child(cam)
+	_bg_scene.add_child(cam)
 
 	# Lights
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-50, 30, 0)
 	light.light_energy = 1.2
-	scene_root.add_child(light)
+	_bg_scene.add_child(light)
 
 	var fill := DirectionalLight3D.new()
 	fill.rotation_degrees = Vector3(-30, -150, 0)
 	fill.light_energy = 0.3
-	scene_root.add_child(fill)
+	_bg_scene.add_child(fill)
 
-	# Ground plane (subtle, dark)
+	# Dark ground
 	var ground := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(20, 20)
+	plane.size = Vector2(40, 40)
 	ground.mesh = plane
 	var ground_mat := StandardMaterial3D.new()
-	ground_mat.albedo_color = Color(0.06, 0.06, 0.1)
+	ground_mat.albedo_color = Color(0.05, 0.05, 0.08)
 	ground_mat.roughness = 0.9
 	ground.material_override = ground_mat
 	ground.position.y = -0.01
-	scene_root.add_child(ground)
+	_bg_scene.add_child(ground)
 
-	# Car
-	_car_node = Node3D.new()
-	scene_root.add_child(_car_node)
-
-	var f1_scene: PackedScene = load("res://assets/models/f1_car_new.glb")
-	if f1_scene:
-		_car_model = f1_scene.instantiate()
-		_car_model.rotation.y = 0  # new model faces correct direction
-		_car_model.scale = Vector3(1.1, 1.0, 1.0)
-		_car_node.add_child(_car_model)
-		# Find wheels (new model has proper origins)
-		var front_names := ["WheelFront.000", "WheelFront.001"]
-		var rear_names := ["WheelFront.002", "WheelFront.003"]
-		_find_named_nodes(_car_model, front_names, _car_front_wheels)
-		_find_named_nodes(_car_model, rear_names, _car_wheels)
-		_car_wheels.append_array(_car_front_wheels)
-
-	# Smoke disabled — needs proper volumetric/FogVolume solution, not quad particles
+	_f1_scene = load("res://assets/models/f1_car_new.glb")
 
 
-func _find_named_nodes(root: Node, names: Array, result: Array[Node3D]) -> void:
+func _spawn_bg_car() -> void:
+	if not _f1_scene or not _bg_scene:
+		return
+
+	var car_root := Node3D.new()
+	var model := _f1_scene.instantiate()
+	model.scale = Vector3(1.0, 1.0, 1.0)
+	car_root.add_child(model)
+	_bg_scene.add_child(car_root)
+
+	# Find wheels
+	var wheels: Array[Node3D] = []
+	_find_bg_nodes(model, ["WheelFront.000", "WheelFront.001", "WheelFront.002", "WheelFront.003"], wheels)
+
+	# Random spawn from edge
+	var side := randi() % 4  # 0=left, 1=right, 2=top, 3=bottom
+	var pos := Vector3.ZERO
+	var yaw := 0.0
+	match side:
+		0:  # from left
+			pos = Vector3(-BG_AREA, 0.3, randf_range(-BG_AREA, BG_AREA))
+			yaw = randf_range(-0.3, 0.3)
+		1:  # from right
+			pos = Vector3(BG_AREA, 0.3, randf_range(-BG_AREA, BG_AREA))
+			yaw = PI + randf_range(-0.3, 0.3)
+		2:  # from top (far)
+			pos = Vector3(randf_range(-BG_AREA, BG_AREA), 0.3, -BG_AREA)
+			yaw = PI / 2.0 + randf_range(-0.3, 0.3)
+		3:  # from bottom (near)
+			pos = Vector3(randf_range(-BG_AREA, BG_AREA), 0.3, BG_AREA)
+			yaw = -PI / 2.0 + randf_range(-0.3, 0.3)
+
+	car_root.position = pos
+	car_root.rotation.y = yaw + PI
+
+	var speed := randf_range(4.0, 8.0)
+	var drift_time := randf_range(2.0, 5.0)  # when to start drifting
+
+	_bg_cars.append({
+		"node": car_root,
+		"speed": speed,
+		"yaw": yaw,
+		"drift_timer": drift_time,
+		"drift_active": false,
+		"drift_dir": 1.0 if randf() > 0.5 else -1.0,
+		"wheels": wheels,
+		"wheel_spin": 0.0,
+		"lifetime": 0.0,
+	})
+
+
+func _find_bg_nodes(root: Node, names: Array, result: Array[Node3D]) -> void:
 	if root is Node3D and String(root.name) in names:
 		result.append(root)
 	for child in root.get_children():
-		_find_named_nodes(child, names, result)
-
-
-# Figure-8 path (lemniscate)
-func _fig8_pos(t: float) -> Vector3:
-	return Vector3(FIG8_RX * sin(t), 0.3, FIG8_RZ * sin(t) * cos(t))
+		_find_bg_nodes(child, names, result)
 
 
 func _process(delta: float) -> void:
-	if not _car_node:
+	if not _bg_scene:
 		return
 
-	_car_t += FIG8_SPEED * delta
-	var pos := _fig8_pos(_car_t)
-	var next_pos := _fig8_pos(_car_t + 0.05)
-	_car_node.position = pos
+	# Spawn new cars
+	_bg_spawn_timer -= delta
+	if _bg_spawn_timer <= 0 and _bg_cars.size() < BG_MAX_CARS:
+		_spawn_bg_car()
+		_bg_spawn_timer = BG_SPAWN_INTERVAL + randf_range(-0.5, 0.5)
 
-	# Movement direction
-	var dir := (next_pos - pos).normalized()
-	if dir.length() < 0.001:
-		return
-	# Model is flipped (rotation.y = PI), so add PI to face forward
-	var target_yaw := atan2(dir.x, dir.z) + PI
+	# Update cars
+	var to_remove: Array[int] = []
+	for i in range(_bg_cars.size()):
+		var c: Dictionary = _bg_cars[i]
+		var node: Node3D = c.node
+		c.lifetime += delta
 
-	# Drift angle — car body rotated slightly sideways
-	var turn_rate := (_fig8_pos(_car_t + 0.01) - _fig8_pos(_car_t - 0.01)).normalized()
-	var turn_rate2 := (_fig8_pos(_car_t + 0.02) - _fig8_pos(_car_t)).normalized()
-	var cross := turn_rate.x * turn_rate2.z - turn_rate.z * turn_rate2.x
-	var drift_offset := clampf(cross * 15.0, -DRIFT_ANGLE, DRIFT_ANGLE)
-	_car_node.rotation.y = target_yaw + drift_offset
+		# Movement
+		var move_dir := Vector3(sin(c.yaw), 0, cos(c.yaw))
+		var spd: float = c.speed
 
-	# Body roll (lean into turns)
-	if _car_model:
-		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
+		# Drift after timer
+		c.drift_timer -= delta
+		if c.drift_timer <= 0 and not c.drift_active:
+			c.drift_active = true
 
-	# Wheel spin — X axis (axle confirmed via Blender)
-	_car_wheel_spin += 5.0 * delta
-	for w in _car_wheels:
-		w.rotation.x = _car_wheel_spin
+		if c.drift_active:
+			# Turn hard + slide
+			c.yaw += c.drift_dir * 2.5 * delta
+			spd *= 0.7
+			move_dir = Vector3(sin(c.yaw), 0, cos(c.yaw))
+			# Drift angle on body
+			node.rotation.y = c.yaw + PI + c.drift_dir * 0.5
+			# Stop drift after 1 second
+			if c.drift_timer < -1.0:
+				c.drift_active = false
+				c.drift_timer = randf_range(2.0, 5.0)
+				c.drift_dir = -c.drift_dir
+		else:
+			node.rotation.y = c.yaw + PI
+
+		node.position += move_dir * spd * delta
+
+		# Wheel spin
+		c.wheel_spin += spd * 2.0 * delta
+		for w in c.wheels:
+			w.rotation.x = c.wheel_spin
+
+		# Despawn if out of bounds
+		if absf(node.position.x) > BG_AREA + 5.0 or absf(node.position.z) > BG_AREA + 5.0:
+			to_remove.append(i)
+
+	# Remove despawned
+	for i in range(to_remove.size() - 1, -1, -1):
+		var idx: int = to_remove[i]
+		_bg_cars[idx].node.queue_free()
+		_bg_cars.remove_at(idx)
