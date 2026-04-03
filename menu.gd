@@ -1421,7 +1421,7 @@ func _process(delta: float) -> void:
 	if dir.length() < 0.001:
 		return
 	# Model is flipped (rotation.y = PI), so add PI to face forward
-	var target_yaw := atan2(dir.x, dir.z)
+	var target_yaw := atan2(dir.x, dir.z) + PI
 
 	# Drift angle — car body rotated slightly sideways
 	var turn_rate := (_fig8_pos(_car_t + 0.01) - _fig8_pos(_car_t - 0.01)).normalized()
