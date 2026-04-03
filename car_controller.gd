@@ -225,6 +225,7 @@ func _create_smoke_emitter() -> GPUParticles3D:
 
 	# Stylized smoke shader material
 	var smoke_shader := load("res://assets/shaders/Stylized_Smoke_Shader.gdshader")
+	print("Smoke shader loaded: ", smoke_shader != null)
 	var smat := ShaderMaterial.new()
 	smat.shader = smoke_shader
 
@@ -261,15 +262,10 @@ func _create_smoke_emitter() -> GPUParticles3D:
 
 	p.material_override = smat
 
-	# Try loading custom smoke mesh, fallback to sphere
-	var smoke_mesh := load("res://assets/shaders/smoke_mesh.tres")
-	if smoke_mesh:
-		p.draw_pass_1 = smoke_mesh
-	else:
-		var sphere := SphereMesh.new()
-		sphere.radius = 0.2
-		sphere.height = 0.4
-		p.draw_pass_1 = sphere
+	# Quad mesh for smoke particles
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.5, 0.5)
+	p.draw_pass_1 = quad
 
 	return p
 
