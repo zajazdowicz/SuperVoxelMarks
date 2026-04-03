@@ -1385,58 +1385,21 @@ func _setup_spinning_car() -> void:
 		_car_model.rotation.y = PI  # flip like in game
 		_car_model.scale = Vector3(1.1, 1.0, 1.0)
 		_car_node.add_child(_car_model)
-		# Find wheels and fix pivot: reparent mesh under a new pivot at geometry center
-		var front_names := ["pPipe1", "pPipe2"]
-		var rear_names := ["pPipe3", "pPipe4"]
-		_setup_wheel_pivots(_car_model, front_names, _car_front_wheels)
-		_setup_wheel_pivots(_car_model, rear_names, _car_wheels)
+		# Find wheel mesh instances directly (not empty parents)
+		var front_names := ["pPipe1_lambert1_0", "pPipe2_lambert1_0"]
+		var rear_names := ["pPipe3_lambert1_0", "pPipe4_lambert1_0"]
+		_find_nodes_by_name(_car_model, front_names, _car_front_wheels)
+		_find_nodes_by_name(_car_model, rear_names, _car_wheels)
 		_car_wheels.append_array(_car_front_wheels)
 
 	# Smoke disabled — needs proper volumetric/FogVolume solution, not quad particles
 
 
-func _setup_wheel_pivots(root: Node, names: Array, result: Array[Node3D]) -> void:
-	# For each wheel: find the pPipe empty, get its mesh child,
-	# calculate geometry center, create a pivot node there,
-	# reparent mesh under pivot so rotation works correctly
-	for name in names:
-		var parent_empty := _find_node_by_name(root, name)
-		if not parent_empty:
-			continue
-		var mesh_child: MeshInstance3D = null
-		for c in parent_empty.get_children():
-			if c is MeshInstance3D:
-				mesh_child = c
-				break
-		if not mesh_child:
-			continue
-
-		# Get mesh AABB center in local space
-		var aabb := mesh_child.get_aabb()
-		var local_center := aabb.get_center()
-
-		# Create pivot at geometry center (in parent_empty local space)
-		var pivot := Node3D.new()
-		pivot.name = name + "_pivot"
-		pivot.position = local_center
-		parent_empty.add_child(pivot)
-
-		# Move mesh under pivot, offset to compensate
-		parent_empty.remove_child(mesh_child)
-		pivot.add_child(mesh_child)
-		mesh_child.position = -local_center
-
-		result.append(pivot)
-
-
-func _find_node_by_name(node: Node, target_name: String) -> Node3D:
-	if node is Node3D and String(node.name) == target_name:
-		return node
-	for child in node.get_children():
-		var found := _find_node_by_name(child, target_name)
-		if found:
-			return found
-	return null
+func _find_nodes_by_name(root: Node, names: Array, result: Array[Node3D]) -> void:
+	if root is Node3D and String(root.name) in names:
+		result.append(root)
+	for child in root.get_children():
+		_find_nodes_by_name(child, names, result)
 
 
 # Straight line back and forth for debug

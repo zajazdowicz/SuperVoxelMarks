@@ -120,48 +120,19 @@ func _load_car_model() -> void:
 func _find_wheels(root: Node3D) -> void:
 	_front_wheels.clear()
 	_rear_wheels.clear()
-	# Actual tires are pPipe nodes (torus meshes), not pCylinder (those are suspension rods)
-	var front_names := ["pPipe1", "pPipe2"]
-	var rear_names := ["pPipe3", "pPipe4"]
-	_setup_wheel_pivots(root, front_names, _front_wheels)
-	_setup_wheel_pivots(root, rear_names, _rear_wheels)
+	# Find tire MESH instances directly (parent empties have wrong origin)
+	var front_names := ["pPipe1_lambert1_0", "pPipe2_lambert1_0"]
+	var rear_names := ["pPipe3_lambert1_0", "pPipe4_lambert1_0"]
+	_collect_named_nodes(root, front_names, _front_wheels)
+	_collect_named_nodes(root, rear_names, _rear_wheels)
 	_all_wheels = _front_wheels + _rear_wheels
 
 
-func _setup_wheel_pivots(root: Node3D, names: Array, result: Array[Node3D]) -> void:
-	for wname in names:
-		var parent_empty := _find_node(root, wname)
-		if not parent_empty:
-			continue
-		var mesh_child: MeshInstance3D = null
-		for c in parent_empty.get_children():
-			if c is MeshInstance3D:
-				mesh_child = c
-				break
-		if not mesh_child:
-			continue
-		# Create pivot at mesh geometry center
-		var aabb := mesh_child.get_aabb()
-		var center := aabb.get_center()
-		var pivot := Node3D.new()
-		pivot.name = wname + "_pivot"
-		pivot.position = center
-		parent_empty.add_child(pivot)
-		# Reparent mesh under pivot with offset
-		parent_empty.remove_child(mesh_child)
-		pivot.add_child(mesh_child)
-		mesh_child.position = -center
-		result.append(pivot)
-
-
-func _find_node(node: Node, target: String) -> Node3D:
-	if node is Node3D and String(node.name) == target:
-		return node
+func _collect_named_nodes(node: Node, names: Array, result: Array[Node3D]) -> void:
+	if node is Node3D and String(node.name) in names:
+		result.append(node)
 	for child in node.get_children():
-		var found := _find_node(child, target)
-		if found:
-			return found
-	return null
+		_collect_named_nodes(child, names, result)
 
 
 func _setup_particles() -> void:
