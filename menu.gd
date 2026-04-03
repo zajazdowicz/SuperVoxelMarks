@@ -1471,7 +1471,17 @@ func _process(delta: float) -> void:
 	if _car_model:
 		_car_model.rotation.z = lerp(_car_model.rotation.z, -drift_offset * 0.6, 5.0 * delta)
 
-	# Wheel spin — X axis
+	# Wheel spin — cycle through axes for debug: changes every 3 sec
 	_car_wheel_spin += 10.0 * delta
+	var axis_idx: int = int(fmod(_car_t, 9.0) / 3.0)  # 0,1,2 cycling
 	for w in _car_wheels:
-		w.rotation.x = _car_wheel_spin
+		w.rotation = Vector3.ZERO
+		if axis_idx == 0:
+			w.rotation.x = _car_wheel_spin
+		elif axis_idx == 1:
+			w.rotation.y = _car_wheel_spin
+		else:
+			w.rotation.z = _car_wheel_spin
+	# Show which axis in console
+	if Engine.get_frames_drawn() % 180 == 0:
+		print("Wheel axis: %s" % ["X", "Y", "Z"][axis_idx])
