@@ -316,8 +316,7 @@ func _input(event: InputEvent) -> void:
 			if _swipe_start.has(event.index):
 				var delta_y: float = event.position.y - _swipe_start[event.index].y
 				if delta_y > SWIPE_DOWN_THRESHOLD:
-					RaceManager.reset()
-					get_tree().reload_current_scene()
+					_soft_restart()
 					return
 				_swipe_start.erase(event.index)
 			_touch_ids.erase(event.index)
@@ -345,8 +344,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_ESCAPE:
 				get_tree().change_scene_to_file("res://menu.tscn")
 			KEY_R:
-				RaceManager.reset()
-				get_tree().reload_current_scene()
+				_soft_restart()
 			KEY_G:
 				# Toggle ghost visibility
 				var loader := get_parent().get_node_or_null("TrackLoader")
@@ -882,6 +880,42 @@ func _update_debris(progress: float, debris_root: Node3D) -> void:
 			vel.x *= 0.7
 			vel.z *= 0.7
 			piece.set_meta("vel", vel)
+
+
+func _soft_restart() -> void:
+	# Reset race state without reloading scene (preserves ghosts, skidmarks)
+	RaceManager.reset()
+	RaceManager.start_countdown()
+
+	# Reset car to start
+	speed = 0.0
+	velocity = Vector3.ZERO
+	_is_dead = false
+	_offtrack_timer = 0.0
+	global_position = _spawn_pos + Vector3(0, 1, 0)
+	rotation.y = _spawn_rot
+	_grace_timer = SPAWN_GRACE
+
+	if mesh:
+		mesh.visible = true
+		mesh.basis = Basis()
+	if collision:
+		collision.disabled = false
+
+	# Stop and re-arm ghosts
+	var loader := get_parent().get_node_or_null("TrackLoader")
+	if loader:
+		if loader.has_method("_start_ghost"):
+			# Ghosts will restart on race_started signal from countdown
+			pass
+		if loader._ghost_best and loader._ghost_best.has_method("stop_playback"):
+			loader._ghost_best.stop_playback()
+		for g in loader._ghost_server:
+			if g.has_method("stop_playback"):
+				g.stop_playback()
+		# Re-connect ghost start to race_started
+		if not RaceManager.race_started.is_connected(loader._start_ghost):
+			RaceManager.race_started.connect(loader._start_ghost)
 
 
 func _respawn() -> void:

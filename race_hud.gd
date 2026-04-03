@@ -608,6 +608,12 @@ func _update_touch_indicators() -> void:
 
 
 func _on_reset_pressed() -> void:
+	# Soft restart — find car and call _soft_restart
+	for child in get_parent().get_children():
+		if child is CharacterBody3D and child.has_method("_soft_restart"):
+			child._soft_restart()
+			return
+	# Fallback: hard restart
 	RaceManager.reset()
 	get_tree().reload_current_scene()
 
