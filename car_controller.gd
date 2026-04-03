@@ -895,8 +895,6 @@ func _soft_restart() -> void:
 	_grace_timer = SPAWN_GRACE + 0.5  # extra grace to avoid trigger re-fire
 
 	RaceManager.reset()
-	# Small delay before countdown to let physics settle
-	await get_tree().create_timer(0.1).timeout
 	RaceManager.start_countdown()
 
 	if mesh:
