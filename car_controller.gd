@@ -761,16 +761,16 @@ func _check_offtrack(surface: Dictionary, airborne: bool, delta: float) -> void:
 		_grace_timer -= delta
 		return
 
-	# Fall off the world
+	# Fall off the world → full restart
 	if global_position.y < FALL_THRESHOLD:
-		_respawn()
+		_soft_restart()
 		return
 
-	# Off track (grass/sand terrain) → respawn after OFFTRACK_TIME
+	# Off track (grass/sand terrain) → full restart after OFFTRACK_TIME
 	if not airborne and not surface.get("is_road", false):
 		_offtrack_timer += delta
 		if _offtrack_timer >= OFFTRACK_TIME:
-			_respawn()
+			_soft_restart()
 	else:
 		_offtrack_timer = 0.0
 
