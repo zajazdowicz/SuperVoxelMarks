@@ -186,21 +186,91 @@ func _create_boost_emitter() -> GPUParticles3D:
 func _create_smoke_emitter() -> GPUParticles3D:
 	var p := GPUParticles3D.new()
 	p.emitting = false
-	p.amount = 20
-	p.lifetime = 1.0
+	p.amount = 16
+	p.lifetime = 2.0
+	p.trail_lifetime = 0.2
 	p.visibility_aabb = AABB(Vector3(-6, -2, -6), Vector3(12, 6, 12))
 
-	var mat := ParticleProcessMaterial.new()
-	mat.direction = Vector3(0, 1, 0)
-	mat.spread = 50.0
-	mat.initial_velocity_min = 1.0
-	mat.initial_velocity_max = 3.0
-	mat.gravity = Vector3(0, 1.0, 0)
-	mat.scale_min = 0.3
-	mat.scale_max = 0.8
-	mat.color = Color(0.7, 0.7, 0.7, 0.4)
-	p.process_material = mat
-	p.draw_pass_1 = _make_particle_mesh(0.2, Color(0.7, 0.7, 0.7, 0.4))
+	# Particle process material
+	var pmat := ParticleProcessMaterial.new()
+	pmat.particle_flag_rotate_y = true
+	pmat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pmat.emission_sphere_radius = 0.25
+	pmat.angle_min = -90.0
+	pmat.angle_max = 90.0
+	pmat.gravity = Vector3(0.5, 1.0, 0)
+	pmat.scale_min = 0.25
+	pmat.scale_max = 0.25
+	pmat.turbulence_noise_strength = 0.05
+	pmat.turbulence_noise_scale = 0.1
+
+	# Scale curve — grow over lifetime
+	var scale_curve := Curve.new()
+	scale_curve.add_point(Vector2(0, 0.27))
+	scale_curve.add_point(Vector2(0.77, 1.0))
+	var scale_tex := CurveTexture.new()
+	scale_tex.curve = scale_curve
+	pmat.scale_curve = scale_tex
+
+	# Alpha curve — fade in then out
+	var alpha_curve := Curve.new()
+	alpha_curve.add_point(Vector2(0, 0.0))
+	alpha_curve.add_point(Vector2(1, 1.0))
+	var alpha_tex := CurveTexture.new()
+	alpha_tex.texture_mode = CurveTexture.TEXTURE_MODE_RED
+	alpha_tex.curve = alpha_curve
+	pmat.alpha_curve = alpha_tex
+
+	p.process_material = pmat
+
+	# Stylized smoke shader material
+	var smoke_shader := load("res://assets/shaders/Stylized_Smoke_Shader.gdshader")
+	var smat := ShaderMaterial.new()
+	smat.shader = smoke_shader
+
+	# Smoke color gradient (gray smoke)
+	var color_grad := Gradient.new()
+	color_grad.offsets = PackedFloat32Array([0.21, 1.0])
+	color_grad.colors = PackedColorArray([Color(0.24, 0.24, 0.24), Color(0, 0, 0)])
+	var color_tex := GradientTexture1D.new()
+	color_tex.gradient = color_grad
+	smat.set_shader_parameter("Color_Gradiant", color_tex)
+
+	# Voronoi noise (procedural)
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_CELLULAR
+	noise.fractal_type = FastNoiseLite.FRACTAL_NONE
+	var noise_tex := NoiseTexture2D.new()
+	noise_tex.noise = noise
+	smat.set_shader_parameter("Vor_Noise", noise_tex)
+
+	# Alpha curve texture
+	var acurve := Curve.new()
+	acurve.add_point(Vector2(0, 1.0))
+	acurve.add_point(Vector2(0.91, 0.0))
+	var acurve_tex := CurveTexture.new()
+	acurve_tex.curve = acurve
+	smat.set_shader_parameter("Alpha_Curve", acurve_tex)
+
+	smat.set_shader_parameter("Color", Color(1, 1, 1, 1))
+	smat.set_shader_parameter("Fernal_Power", 1.0)
+	smat.set_shader_parameter("Vor_Scale", 0.8)
+	smat.set_shader_parameter("Vor_Speed", 0.2)
+	smat.set_shader_parameter("Emmision_Power", 1.0)
+	smat.set_shader_parameter("Alpha_Clip", 0.0)
+
+	p.material_override = smat
+
+	# Try loading custom smoke mesh, fallback to sphere
+	var smoke_mesh := load("res://assets/shaders/smoke_mesh.tres")
+	if smoke_mesh:
+		p.draw_pass_1 = smoke_mesh
+	else:
+		var sphere := SphereMesh.new()
+		sphere.radius = 0.2
+		sphere.height = 0.4
+		p.draw_pass_1 = sphere
+
 	return p
 
 
