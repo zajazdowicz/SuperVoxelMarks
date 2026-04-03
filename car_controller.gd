@@ -71,7 +71,7 @@ const SKID_MAX_VERTS := 4000
 
 # Particles
 var _boost_flame: GPUParticles3D
-var _drift_smoke: Node3D  # GPUParticles3D or CPUParticles3D
+var _drift_smoke: CPUParticles3D
 
 
 func _ready() -> void:
@@ -183,62 +183,46 @@ func _create_boost_emitter() -> GPUParticles3D:
 	return p
 
 
-func _create_smoke_emitter() -> Node3D:
-	# Try GPU first with stylized shader, fallback to CPU
-	var smoke_mat_res := load("res://assets/vfx/drift_smoke_material.tres")
-	print("Smoke material loaded: ", smoke_mat_res != null)
-
-	if smoke_mat_res:
-		# GPU with shader material
-		var p := GPUParticles3D.new()
-		p.emitting = false
-		p.amount = 30
-		p.lifetime = 2.0
-		p.explosiveness = 0.0
-		p.randomness = 0.5
-		p.visibility_aabb = AABB(Vector3(-8, -4, -8), Vector3(16, 8, 16))
-		var pmat := ParticleProcessMaterial.new()
-		pmat.angle_max = 1.0
-		pmat.initial_velocity_min = 0.5
-		pmat.initial_velocity_max = 1.5
-		pmat.angular_velocity_max = 10.0
-		pmat.gravity = Vector3(0, 0, 0)
-		pmat.linear_accel_min = -1.0
-		pmat.linear_accel_max = -1.0
-		p.process_material = pmat
-		p.material_override = smoke_mat_res
-		p.draw_pass_1 = QuadMesh.new()
-		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		return p
-
-	# Fallback: CPU particles (always works on mobile)
+func _create_smoke_emitter() -> CPUParticles3D:
 	var p := CPUParticles3D.new()
 	p.emitting = false
-	p.amount = 40
-	p.lifetime = 2.0
-	p.randomness = 0.4
-	p.mesh = _make_particle_mesh(0.8, Color(0.85, 0.85, 0.9, 0.5))
+	p.amount = 60
+	p.lifetime = 2.5
+	p.randomness = 0.5
+	p.mesh = _make_particle_mesh(1.2, Color.WHITE)
+
 	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	p.emission_sphere_radius = 0.5
+	p.emission_sphere_radius = 0.6
 	p.direction = Vector3(0, 1, 0)
-	p.spread = 50.0
-	p.initial_velocity_min = 0.5
-	p.initial_velocity_max = 2.5
-	p.gravity = Vector3(1.5, 2.0, 0)
-	p.damping_min = 1.5
-	p.damping_max = 3.0
-	p.scale_amount_min = 0.6
-	p.scale_amount_max = 1.8
+	p.spread = 60.0
+	p.initial_velocity_min = 0.8
+	p.initial_velocity_max = 3.0
+	p.gravity = Vector3(2.0, 2.5, 0)
+	p.damping_min = 2.0
+	p.damping_max = 4.0
+	p.angle_min = -180.0
+	p.angle_max = 180.0
+	p.angular_velocity_min = -30.0
+	p.angular_velocity_max = 30.0
+
+	# Scale — small to big
+	p.scale_amount_min = 0.5
+	p.scale_amount_max = 2.0
 	var sc := Curve.new()
-	sc.add_point(Vector2(0, 0.2))
-	sc.add_point(Vector2(0.3, 0.8))
-	sc.add_point(Vector2(1, 1.5))
+	sc.add_point(Vector2(0.0, 0.1))
+	sc.add_point(Vector2(0.2, 0.6))
+	sc.add_point(Vector2(0.5, 1.0))
+	sc.add_point(Vector2(1.0, 1.5))
 	p.scale_amount_curve = sc
+
+	# Color — white/gray smoke fading out
 	var gr := Gradient.new()
-	gr.set_color(0, Color(0.95, 0.95, 1.0, 0.6))
-	gr.add_point(0.3, Color(0.85, 0.85, 0.9, 0.45))
-	gr.set_color(1, Color(0.6, 0.6, 0.65, 0.0))
+	gr.set_color(0, Color(1.0, 1.0, 1.0, 0.7))
+	gr.add_point(0.2, Color(0.9, 0.9, 0.95, 0.5))
+	gr.add_point(0.5, Color(0.7, 0.7, 0.75, 0.3))
+	gr.set_color(1, Color(0.5, 0.5, 0.55, 0.0))
 	p.color_ramp = gr
+
 	return p
 
 
