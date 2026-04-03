@@ -1437,6 +1437,8 @@ func _spawn_bg_car() -> void:
 		"drift_timer": drift_time,
 		"drift_active": false,
 		"drift_dir": 1.0 if randf() > 0.5 else -1.0,
+		"drift_angle": 0.0,
+		"drift_target": TAU,
 		"wheels": wheels,
 		"wheel_spin": 0.0,
 		"lifetime": 0.0,
@@ -1490,23 +1492,27 @@ func _process(delta: float) -> void:
 		var move_dir := Vector3(sin(c.yaw), 0, cos(c.yaw))
 		var spd: float = c.speed
 
-		# Drift after timer
+		# Drift/donut after timer
 		c.drift_timer -= delta
 		if c.drift_timer <= 0 and not c.drift_active:
 			c.drift_active = true
+			c.drift_angle = 0.0  # track total rotation
+			# 50% chance: full donut (360°), 50%: sharp turn (~90°)
+			c.drift_target = TAU if randf() > 0.5 else (PI * 0.5)
 
 		if c.drift_active:
-			# Turn hard + slide
-			c.yaw += c.drift_dir * 2.5 * delta
-			spd *= 0.7
+			var turn_speed := 4.0 if c.drift_target >= TAU else 2.5
+			c.yaw += c.drift_dir * turn_speed * delta
+			c.drift_angle += turn_speed * delta
+			spd *= 0.5
 			move_dir = Vector3(sin(c.yaw), 0, cos(c.yaw))
-			# Drift angle on body
-			node.rotation.y = c.yaw + PI + c.drift_dir * 0.5
-			# Stop drift after 1 second
-			if c.drift_timer < -1.0:
+			# Body sideways during drift
+			node.rotation.y = c.yaw + PI + c.drift_dir * 0.6
+			# Done spinning?
+			if c.drift_angle >= c.drift_target:
 				c.drift_active = false
-				c.drift_timer = randf_range(2.0, 5.0)
-				c.drift_dir = -c.drift_dir
+				c.drift_timer = randf_range(1.5, 4.0)
+				c.drift_dir = [-1.0, 1.0][randi() % 2]
 		else:
 			node.rotation.y = c.yaw + PI
 
