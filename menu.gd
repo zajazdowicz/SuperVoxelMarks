@@ -1286,7 +1286,7 @@ var _bg_scene: Node3D
 var _bg_cars: Array[Dictionary] = []  # {node, speed, yaw, drift_timer, wheels}
 var _bg_spawn_timer := 0.0
 var _f1_scene: PackedScene
-const BG_AREA := 18.0  # spawn/despawn boundary
+const BG_AREA := 10.0  # spawn/despawn boundary — keep cars visible
 const BG_MAX_CARS := 12
 const BG_SPAWN_INTERVAL := 0.5
 
@@ -1310,9 +1310,9 @@ func _setup_spinning_car() -> void:
 
 	# Camera — isometric like in game
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 20, 15)
-	cam.rotation_degrees = Vector3(-52, 0, 0)
-	cam.fov = 50
+	cam.position = Vector3(0, 12, 10)
+	cam.rotation_degrees = Vector3(-48, 0, 0)
+	cam.fov = 45
 	cam.current = true
 	_bg_scene.add_child(cam)
 
@@ -1322,7 +1322,7 @@ func _setup_spinning_car() -> void:
 	light.light_energy = 1.4
 	light.shadow_enabled = true
 	light.shadow_blur = 1.5
-	light.directional_shadow_max_distance = 50.0
+	light.directional_shadow_max_distance = 30.0
 	_bg_scene.add_child(light)
 
 	var fill := DirectionalLight3D.new()
@@ -1339,7 +1339,7 @@ func _setup_spinning_car() -> void:
 	# Dark ground that receives shadows
 	var ground := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(50, 50)
+	plane.size = Vector2(30, 30)
 	ground.mesh = plane
 	var ground_mat := StandardMaterial3D.new()
 	ground_mat.albedo_color = Color(0.06, 0.06, 0.1)
