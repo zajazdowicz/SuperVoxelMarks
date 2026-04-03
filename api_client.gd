@@ -147,18 +147,21 @@ func submit_score(track_id: int, lap_time_ms: int, ghost_frames: Array, callback
 func _pack_ghost(frames: Array) -> PackedByteArray:
 	# Pack ghost frames into binary: [frame_count:u16, then per frame: px,py,pz,rx,ry,rz as float32]
 	var buf := PackedByteArray()
-	buf.resize(2 + frames.size() * 24)  # 2 bytes header + 6 floats * 4 bytes
+	buf.resize(2 + frames.size() * 24)
 	buf.encode_u16(0, frames.size())
 	var offset := 2
 	for f in frames:
-		var pos: Vector3 = f.get("pos", Vector3.ZERO)
-		var rot: Vector3 = f.get("rot", Vector3.ZERO)
-		buf.encode_float(offset, pos.x); offset += 4
-		buf.encode_float(offset + 0, pos.y); offset += 4
-		buf.encode_float(offset + 0, pos.z); offset += 4
-		buf.encode_float(offset + 0, rot.x); offset += 4
-		buf.encode_float(offset + 0, rot.y); offset += 4
-		buf.encode_float(offset + 0, rot.z); offset += 4
+		# Support both formats: {px,py,pz,ry} and {pos,rot}
+		var px: float = f.get("px", 0.0)
+		var py: float = f.get("py", 0.0)
+		var pz: float = f.get("pz", 0.0)
+		var ry: float = f.get("ry", 0.0)
+		buf.encode_float(offset, px); offset += 4
+		buf.encode_float(offset, py); offset += 4
+		buf.encode_float(offset, pz); offset += 4
+		buf.encode_float(offset, 0.0); offset += 4  # rx (unused)
+		buf.encode_float(offset, ry); offset += 4
+		buf.encode_float(offset, 0.0); offset += 4  # rz (unused)
 	return buf
 
 
@@ -171,9 +174,13 @@ func _unpack_ghost(data: PackedByteArray) -> Array:
 	for i in range(count):
 		if offset + 24 > data.size():
 			break
+		var t_val: float = float(i) * 0.05  # approximate time from frame index
 		frames.append({
-			"pos": Vector3(data.decode_float(offset), data.decode_float(offset + 4), data.decode_float(offset + 8)),
-			"rot": Vector3(data.decode_float(offset + 12), data.decode_float(offset + 16), data.decode_float(offset + 20)),
+			"t": t_val,
+			"px": data.decode_float(offset),
+			"py": data.decode_float(offset + 4),
+			"pz": data.decode_float(offset + 8),
+			"ry": data.decode_float(offset + 16),  # rotation Y is second component
 		})
 		offset += 24
 	return frames

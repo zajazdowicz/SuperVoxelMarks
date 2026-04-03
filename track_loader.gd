@@ -11,6 +11,7 @@ var _checkpoint_count := 0
 var _spawn_pos := Vector3(0, 3, 0)
 var _spawn_rot := 0.0
 var _ghost_best: Node3D
+var _ghost_server: Array[Node3D] = []  # server ghosts (top players)
 var _ghost_visible := true
 
 
@@ -122,6 +123,9 @@ func _build_track() -> void:
 	# Spawn ghost for personal best
 	_spawn_ghost()
 
+	# Load server ghosts (top players)
+	_load_server_ghosts()
+
 	# Start ghost when countdown ends (GO!)
 	if not RaceManager.race_started.is_connected(_start_ghost):
 		RaceManager.race_started.connect(_start_ghost)
@@ -165,13 +169,15 @@ func _respawn_at_start() -> void:
 
 
 func _start_ghost() -> void:
+	var loop: bool = not RaceManager.is_sprint
 	if _ghost_best and _ghost_best.has_method("start_playback"):
-		var loop: bool = not RaceManager.is_sprint
 		_ghost_best.start_playback(loop)
+	for g in _ghost_server:
+		if g.has_method("start_playback"):
+			g.start_playback(loop)
 
 
 func _update_ghost_data() -> void:
-	# New best was set — update the ghost player with fresh data
 	if RaceManager.best_ghost.is_empty():
 		return
 	if _ghost_best and _ghost_best.has_method("setup"):
@@ -180,10 +186,45 @@ func _update_ghost_data() -> void:
 		_spawn_ghost()
 
 
+func _load_server_ghosts() -> void:
+	var track_id: int = TrackData.current_server_id
+	if track_id <= 0:
+		return
+
+	ApiClient.get_ghosts(track_id, func(ghosts: Array):
+		var ghost_colors := [
+			Color(1.0, 0.85, 0.0, 0.35),   # gold (fastest)
+			Color(0.75, 0.75, 0.8, 0.3),    # silver
+			Color(0.8, 0.5, 0.2, 0.3),      # bronze
+			Color(0.5, 0.8, 0.5, 0.25),     # green
+			Color(0.8, 0.4, 0.8, 0.25),     # purple
+		]
+		var ghost_script := preload("res://ghost_player.gd")
+		var count := 0
+		for g in ghosts:
+			if count >= 5:
+				break
+			var frames: Array = g.get("frames", [])
+			if frames.is_empty():
+				continue
+			var ghost_node := Node3D.new()
+			ghost_node.set_script(ghost_script)
+			add_child(ghost_node)
+			var color: Color = ghost_colors[count] if count < ghost_colors.size() else Color(0.5, 0.5, 0.5, 0.2)
+			ghost_node.setup(frames, color)
+			_ghost_server.append(ghost_node)
+			count += 1
+			print("Server ghost #%d: %s (%d ms)" % [count, g.get("player_name", "?"), g.get("lap_time_ms", 0)])
+	)
+
+
 func toggle_ghost() -> void:
 	_ghost_visible = not _ghost_visible
 	if _ghost_best and _ghost_best.has_method("toggle_visible"):
 		_ghost_best.toggle_visible()
+	for g in _ghost_server:
+		if g.has_method("toggle_visible"):
+			g.toggle_visible()
 
 
 func _spawn_trigger(pos: Vector3, rot_y: float, trigger_name: String) -> void:
