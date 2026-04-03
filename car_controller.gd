@@ -979,7 +979,6 @@ func _soft_restart() -> void:
 		collision.disabled = false
 
 	# Stop and re-arm ghosts
-	var loader := get_parent().get_node_or_null("TrackLoader")
 	if loader:
 		if loader.has_method("_start_ghost"):
 			# Ghosts will restart on race_started signal from countdown
