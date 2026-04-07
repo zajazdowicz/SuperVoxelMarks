@@ -71,7 +71,7 @@ const SKID_MAX_VERTS := 4000
 
 # Particles
 var _boost_flame: GPUParticles3D
-var _drift_smoke: CPUParticles3D
+var _drift_smoke_emitters: Array = []
 
 
 func _ready() -> void:
@@ -143,10 +143,19 @@ func _setup_particles() -> void:
 	_boost_flame.position = Vector3(0, 0.0, 1.2)
 	add_child(_boost_flame)
 
-	# Drift smoke
-	_drift_smoke = _create_smoke_emitter()
-	_drift_smoke.position = Vector3(0, -0.2, 0.8)
-	add_child(_drift_smoke)
+	# Drift smoke — 4 emitters at wheel positions
+	_drift_smoke_emitters = []
+	var wheel_positions := [
+		Vector3(-0.35, -0.3, 0.85),   # front left
+		Vector3(0.35, -0.3, 0.85),    # front right
+		Vector3(-0.45, -0.3, -0.3),   # rear left
+		Vector3(0.45, -0.3, -0.3),    # rear right
+	]
+	for wpos in wheel_positions:
+		var emitter := _create_smoke_emitter()
+		emitter.position = wpos
+		add_child(emitter)
+		_drift_smoke_emitters.append(emitter)
 
 
 func _make_particle_mesh(size: float, color: Color) -> QuadMesh:
@@ -183,45 +192,46 @@ func _create_boost_emitter() -> GPUParticles3D:
 	return p
 
 
-func _create_smoke_emitter() -> CPUParticles3D:
-	var p := CPUParticles3D.new()
+func _create_smoke_emitter() -> GPUParticles3D:
+	var p := GPUParticles3D.new()
 	p.emitting = false
-	p.amount = 60
-	p.lifetime = 2.5
+	p.amount = 25
+	p.lifetime = 2.0
 	p.randomness = 0.5
-	p.mesh = _make_particle_mesh(1.2, Color.WHITE)
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
-	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	p.emission_sphere_radius = 0.6
-	p.direction = Vector3(0, 1, 0)
-	p.spread = 60.0
-	p.initial_velocity_min = 0.8
-	p.initial_velocity_max = 3.0
-	p.gravity = Vector3(2.0, 2.5, 0)
-	p.damping_min = 2.0
-	p.damping_max = 4.0
-	p.angle_min = -180.0
-	p.angle_max = 180.0
-	p.angular_velocity_min = -30.0
-	p.angular_velocity_max = 30.0
+	var pmat := ParticleProcessMaterial.new()
+	pmat.angle_max = 1.0
+	pmat.initial_velocity_min = 0.4
+	pmat.initial_velocity_max = 1.2
+	pmat.angular_velocity_max = 10.0
+	pmat.gravity = Vector3(0, 0.5, 0)
+	pmat.linear_accel_min = -0.5
+	pmat.linear_accel_max = -0.5
+	p.process_material = pmat
 
-	# Scale — small to big
-	p.scale_amount_min = 0.5
-	p.scale_amount_max = 2.0
-	var sc := Curve.new()
-	sc.add_point(Vector2(0.0, 0.1))
-	sc.add_point(Vector2(0.2, 0.6))
-	sc.add_point(Vector2(0.5, 1.0))
-	sc.add_point(Vector2(1.0, 1.5))
-	p.scale_amount_curve = sc
+	# Generate soft circle texture (no external file needed)
+	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	for y in range(64):
+		for x in range(64):
+			var dx := (float(x) - 31.5) / 31.5
+			var dy := (float(y) - 31.5) / 31.5
+			var dist := sqrt(dx * dx + dy * dy)
+			var alpha := clampf(1.0 - dist * dist, 0.0, 1.0)
+			img.set_pixel(x, y, Color(1, 1, 1, alpha))
+	var tex := ImageTexture.create_from_image(img)
 
-	# Color — white/gray smoke fading out
-	var gr := Gradient.new()
-	gr.set_color(0, Color(1.0, 1.0, 1.0, 0.7))
-	gr.add_point(0.2, Color(0.9, 0.9, 0.95, 0.5))
-	gr.add_point(0.5, Color(0.7, 0.7, 0.75, 0.3))
-	gr.set_color(1, Color(0.5, 0.5, 0.55, 0.0))
-	p.color_ramp = gr
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.albedo_texture = tex
+	mat.albedo_color = Color(0.7, 0.7, 0.72, 0.65)
+	mat.vertex_color_use_as_albedo = true
+	var q := QuadMesh.new()
+	q.size = Vector2(0.8, 0.8)
+	q.material = mat
+	p.draw_pass_1 = q
 
 	return p
 
@@ -658,8 +668,9 @@ func _physics_process(delta: float) -> void:
 
 
 func _update_particles(airborne: bool) -> void:
-	if _drift_smoke:
-		_drift_smoke.emitting = _drifting and not airborne
+	var smoke_on: bool = _drifting and not airborne and _drift_timer > 0.3
+	for emitter in _drift_smoke_emitters:
+		emitter.emitting = smoke_on
 	if _boost_flame:
 		_boost_flame.emitting = _boost_timer > 0
 
