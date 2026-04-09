@@ -17,6 +17,9 @@ var _cp_timer := 0.0
 var _finish_overlay: PanelContainer
 var _finish_vbox: VBoxContainer
 var _finish_shown := false
+var _lb_panel: PanelContainer
+var _lb_vbox: VBoxContainer
+var _lb_loaded := false
 
 var _last_lap_count := 0
 var _last_countdown := -1
@@ -196,6 +199,10 @@ func _create_ui() -> void:
 	# Connect checkpoint signal
 	if not RaceManager.checkpoint_passed.is_connected(_on_checkpoint):
 		RaceManager.checkpoint_passed.connect(_on_checkpoint)
+
+	# --- Leaderboard panel (left side) ---
+	_create_leaderboard_panel()
+	_load_leaderboard()
 
 	# --- Drift progress bar (bottom center) ---
 	_create_drift_bar()
@@ -768,3 +775,149 @@ func _show_finish_overlay() -> void:
 	btn_row.add_child(menu_btn)
 
 	_finish_overlay.visible = true
+
+	# Refresh leaderboard after finish
+	refresh_leaderboard()
+
+
+# === LEADERBOARD ===
+
+func _create_leaderboard_panel() -> void:
+	_lb_panel = PanelContainer.new()
+	_lb_panel.anchor_left = 0.0
+	_lb_panel.anchor_top = 0.0
+	_lb_panel.offset_left = 10.0
+	_lb_panel.offset_top = 120.0
+	_lb_panel.offset_right = 320.0
+	_lb_panel.offset_bottom = 500.0
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.02, 0.02, 0.05, 0.7)
+	sb.set_corner_radius_all(10)
+	sb.content_margin_left = 12.0
+	sb.content_margin_right = 12.0
+	sb.content_margin_top = 8.0
+	sb.content_margin_bottom = 8.0
+	_lb_panel.add_theme_stylebox_override("panel", sb)
+	add_child(_lb_panel)
+
+	_lb_vbox = VBoxContainer.new()
+	_lb_vbox.add_theme_constant_override("separation", 2)
+	_lb_panel.add_child(_lb_vbox)
+
+	# Title
+	var title := Label.new()
+	title.text = "LEADERBOARD"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var ts := LabelSettings.new()
+	ts.font_size = 22
+	ts.font_color = Color(1.0, 0.85, 0.2)
+	ts.outline_size = 2
+	ts.outline_color = Color.BLACK
+	title.label_settings = ts
+	_lb_vbox.add_child(title)
+
+	# Loading placeholder
+	var loading := Label.new()
+	loading.text = "..."
+	loading.name = "LBLoading"
+	loading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	loading.add_theme_font_size_override("font_size", 18)
+	loading.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
+	_lb_vbox.add_child(loading)
+
+
+func _load_leaderboard() -> void:
+	var track_id: int = TrackData.current_server_id
+	if track_id <= 0:
+		_lb_panel.visible = false
+		return
+
+	ApiClient.get_leaderboard(track_id, func(data: Dictionary):
+		_lb_loaded = true
+		_populate_leaderboard(data)
+	)
+
+
+func _populate_leaderboard(data: Dictionary) -> void:
+	# Clear old entries (keep title)
+	while _lb_vbox.get_child_count() > 1:
+		var child := _lb_vbox.get_child(1)
+		_lb_vbox.remove_child(child)
+		child.queue_free()
+
+	var scores: Array = data.get("scores", [])
+	if scores.is_empty():
+		var empty := Label.new()
+		empty.text = "Brak wynikow"
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.add_theme_font_size_override("font_size", 18)
+		empty.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
+		_lb_vbox.add_child(empty)
+		return
+
+	var medal_colors := [
+		Color(1.0, 0.85, 0.0),   # gold
+		Color(0.75, 0.75, 0.8),  # silver
+		Color(0.8, 0.5, 0.2),    # bronze
+	]
+
+	for i in range(mini(scores.size(), 10)):
+		var s: Dictionary = scores[i]
+		var rank: int = s.get("rank", i + 1)
+		var pname: String = str(s.get("player_name", "???"))
+		var time_ms: int = int(s.get("lap_time_ms", 0))
+		var nationality: String = str(s.get("player_nationality", ""))
+
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+
+		# Rank
+		var rank_lbl := Label.new()
+		rank_lbl.text = "#%d" % rank
+		rank_lbl.custom_minimum_size = Vector2(40, 0)
+		var rank_s := LabelSettings.new()
+		rank_s.font_size = 20
+		rank_s.font_color = medal_colors[i] if i < 3 else Color(0.6, 0.6, 0.65)
+		rank_s.outline_size = 2
+		rank_s.outline_color = Color.BLACK
+		rank_lbl.label_settings = rank_s
+		row.add_child(rank_lbl)
+
+		# Flag + name
+		var name_lbl := Label.new()
+		var flag_str := "[%s] " % nationality if nationality != "" else ""
+		name_lbl.text = flag_str + pname
+		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_lbl.clip_text = true
+		var name_s := LabelSettings.new()
+		name_s.font_size = 18
+		# Highlight own player
+		if pname == ApiClient.player_name:
+			name_s.font_color = Color(0.3, 0.9, 1.0)
+		else:
+			name_s.font_color = Color(0.8, 0.8, 0.85)
+		name_s.outline_size = 1
+		name_s.outline_color = Color.BLACK
+		name_lbl.label_settings = name_s
+		row.add_child(name_lbl)
+
+		# Time
+		var time_lbl := Label.new()
+		var secs: float = float(time_ms) / 1000.0
+		var mins: int = int(secs) / 60
+		var sec_rem: float = secs - float(mins * 60)
+		time_lbl.text = "%d:%05.2f" % [mins, sec_rem]
+		time_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var time_s := LabelSettings.new()
+		time_s.font_size = 18
+		time_s.font_color = Color(0.7, 0.9, 0.7) if i == 0 else Color(0.7, 0.7, 0.75)
+		time_s.outline_size = 1
+		time_s.outline_color = Color.BLACK
+		time_lbl.label_settings = time_s
+		row.add_child(time_lbl)
+
+		_lb_vbox.add_child(row)
+
+
+func refresh_leaderboard() -> void:
+	_load_leaderboard()
