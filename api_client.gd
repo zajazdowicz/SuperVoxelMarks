@@ -145,23 +145,17 @@ func submit_score(track_id: int, lap_time_ms: int, ghost_frames: Array, callback
 
 
 func _pack_ghost(frames: Array) -> PackedByteArray:
-	# Pack ghost frames into binary: [frame_count:u16, then per frame: px,py,pz,rx,ry,rz as float32]
+	# Format v2: [frame_count:u16, per frame: t,px,py,pz,ry as float32 = 20 bytes]
 	var buf := PackedByteArray()
-	buf.resize(2 + frames.size() * 24)
+	buf.resize(2 + frames.size() * 20)
 	buf.encode_u16(0, frames.size())
 	var offset := 2
 	for f in frames:
-		# Support both formats: {px,py,pz,ry} and {pos,rot}
-		var px: float = f.get("px", 0.0)
-		var py: float = f.get("py", 0.0)
-		var pz: float = f.get("pz", 0.0)
-		var ry: float = f.get("ry", 0.0)
-		buf.encode_float(offset, px); offset += 4
-		buf.encode_float(offset, py); offset += 4
-		buf.encode_float(offset, pz); offset += 4
-		buf.encode_float(offset, 0.0); offset += 4  # rx (unused)
-		buf.encode_float(offset, ry); offset += 4
-		buf.encode_float(offset, 0.0); offset += 4  # rz (unused)
+		buf.encode_float(offset, f.get("t", 0.0)); offset += 4
+		buf.encode_float(offset, f.get("px", 0.0)); offset += 4
+		buf.encode_float(offset, f.get("py", 0.0)); offset += 4
+		buf.encode_float(offset, f.get("pz", 0.0)); offset += 4
+		buf.encode_float(offset, f.get("ry", 0.0)); offset += 4
 	return buf
 
 
@@ -171,18 +165,37 @@ func _unpack_ghost(data: PackedByteArray) -> Array:
 	var count: int = data.decode_u16(0)
 	var frames := []
 	var offset := 2
-	for i in range(count):
-		if offset + 24 > data.size():
-			break
-		var t_val: float = float(i) * 0.05  # approximate time from frame index
-		frames.append({
-			"t": t_val,
-			"px": data.decode_float(offset),
-			"py": data.decode_float(offset + 4),
-			"pz": data.decode_float(offset + 8),
-			"ry": data.decode_float(offset + 16),  # rotation Y is second component
-		})
-		offset += 24
+
+	# Detect format: v2 = 20 bytes/frame (t,px,py,pz,ry), v1 = 24 bytes/frame (px,py,pz,rx,ry,rz)
+	var expected_v2 := 2 + count * 20
+	var expected_v1 := 2 + count * 24
+	var is_v2 := absi(data.size() - expected_v2) < absi(data.size() - expected_v1)
+
+	if is_v2:
+		for i in range(count):
+			if offset + 20 > data.size():
+				break
+			frames.append({
+				"t": data.decode_float(offset),
+				"px": data.decode_float(offset + 4),
+				"py": data.decode_float(offset + 8),
+				"pz": data.decode_float(offset + 12),
+				"ry": data.decode_float(offset + 16),
+			})
+			offset += 20
+	else:
+		# Legacy v1: no time field, reconstruct from frame index
+		for i in range(count):
+			if offset + 24 > data.size():
+				break
+			frames.append({
+				"t": float(i) * 0.05,
+				"px": data.decode_float(offset),
+				"py": data.decode_float(offset + 4),
+				"pz": data.decode_float(offset + 8),
+				"ry": data.decode_float(offset + 16),
+			})
+			offset += 24
 	return frames
 
 
