@@ -982,28 +982,110 @@ func _draw_thumb_arrow(img: Image, cx: int, tip_y: int, color: Color) -> void:
 func _make_placeholder_thumbnail(piece_id: int) -> ImageTexture:
 	var img := Image.create(THUMB_SIZE, THUMB_SIZE, false, Image.FORMAT_RGBA8)
 	img.fill(THUMB_BG)
-	var color := Color(0.3, 0.25, 0.5)
-	if piece_id == 19:
-		color = Color(0.2, 0.5, 0.7)
-	elif piece_id >= 12 and piece_id <= 14:
-		color = Color(0.55, 0.35, 0.65)
-	elif piece_id == 28 or piece_id == 29:
-		color = Color(0.4, 0.5, 0.3)
-	elif piece_id == 34 or piece_id == 35:
-		color = Color(0.5, 0.4, 0.3)
-	elif piece_id == 22 or piece_id == 23:
-		color = Color(0.4, 0.4, 0.45)
-	elif piece_id == 39:
-		color = Color(0.6, 0.4, 0.2)
+	var S := THUMB_SIZE
+	var cx := S / 2
+	var cy := S / 2
+	var m := 8  # margin
 
-	# Filled rounded rect
-	var m := 6
-	for y in range(m, THUMB_SIZE - m):
-		for x in range(m, THUMB_SIZE - m):
-			img.set_pixel(x, y, color)
+	var p := PieceRegistry.get_piece_name(piece_id)
+	var flags := PieceRegistry.get_flags(piece_id)
+	var is_turn: bool = flags.get("is_turn", false)
+	var is_ramp: bool = flags.get("is_ramp", false)
+	var h_delta: int = PieceRegistry.get_height_delta(piece_id)
+
+	# Colors per type
+	var road_col := Color(0.35, 0.35, 0.4)
+	var accent := Color(0.5, 0.5, 0.55)
+	if piece_id >= 12 and piece_id <= 14:
+		road_col = Color(0.45, 0.25, 0.55)  # purple — wall ride
+		accent = Color(0.6, 0.35, 0.7)
+	elif piece_id == 19:
+		road_col = Color(0.15, 0.4, 0.6)  # cyan — loop
+		accent = Color(0.2, 0.55, 0.75)
+	elif piece_id >= 28 and piece_id <= 29:
+		road_col = Color(0.3, 0.45, 0.25)  # green — banked
+		accent = Color(0.4, 0.6, 0.3)
+	elif piece_id >= 42 and piece_id <= 47:
+		road_col = Color(0.35, 0.35, 0.5)  # slate — slope
+		accent = Color(0.5, 0.5, 0.7)
+	elif piece_id >= 48 and piece_id <= 53:
+		road_col = Color(0.4, 0.3, 0.5)  # purple — QP
+		accent = Color(0.55, 0.4, 0.65)
+	elif piece_id >= 57 and piece_id <= 62:
+		road_col = Color(0.4, 0.35, 0.3)  # brown — slope turn
+		accent = Color(0.55, 0.45, 0.35)
+	elif is_ramp:
+		road_col = Color(0.35, 0.35, 0.45)  # blue-gray
+		accent = Color(0.5, 0.5, 0.6)
+	elif piece_id == 39:
+		road_col = Color(0.5, 0.35, 0.15)  # orange — jump
+		accent = Color(0.65, 0.45, 0.2)
+
+	if is_turn and is_ramp:
+		# Ramp turn / slope turn — arc with height gradient
+		for y in range(m, S - m):
+			for x in range(m, S - m):
+				var dx := float(x - m) / float(S - m * 2)
+				var dy := float(y - m) / float(S - m * 2)
+				var dist := sqrt(dx * dx + dy * dy)
+				if dist > 0.15 and dist < 0.95:
+					var height_f := dy if h_delta > 0 else (1.0 - dy)
+					img.set_pixel(x, y, road_col.lightened(height_f * 0.3))
+	elif is_turn:
+		# Turn — arc shape
+		for y in range(m, S - m):
+			for x in range(m, S - m):
+				var dx := float(x - m) / float(S - m * 2)
+				var dy := float(y - m) / float(S - m * 2)
+				var dist := sqrt(dx * dx + dy * dy)
+				if dist > 0.2 and dist < 0.9:
+					img.set_pixel(x, y, road_col)
+	elif is_ramp and h_delta != 0:
+		# Ramp — gradient from dark to light (low→high)
+		for y in range(m, S - m):
+			for x in range(m + 10, S - m - 10):
+				var progress := float(y - m) / float(S - m * 2)
+				if h_delta < 0:
+					progress = 1.0 - progress
+				img.set_pixel(x, y, road_col.lightened(progress * 0.4))
+		# Slope indicator line
+		var y0 := m + 5 if h_delta > 0 else S - m - 5
+		var y1 := S - m - 5 if h_delta > 0 else m + 5
+		for i in range(S - m * 2 - 10):
+			var t := float(i) / float(S - m * 2 - 10)
+			var lx := m + 10 + i / 2
+			var ly := int(lerpf(float(y0), float(y1), t))
+			if lx >= 0 and lx < S and ly >= 0 and ly < S:
+				img.set_pixel(lx, ly, accent)
+	elif piece_id == 19:
+		# Loop — circle
+		for y in range(m, S - m):
+			for x in range(m, S - m):
+				var dx := float(x - cx) / float(cx - m)
+				var dy := float(y - cy) / float(cy - m)
+				var dist := sqrt(dx * dx + dy * dy)
+				if dist > 0.5 and dist < 0.95:
+					img.set_pixel(x, y, road_col)
+	elif piece_id >= 48 and piece_id <= 53:
+		# QP — curved slope (quarter pipe shape)
+		for y in range(m, S - m):
+			for x in range(m + 10, S - m - 10):
+				var t := float(y - m) / float(S - m * 2)
+				var curve_h := sin(t * PI / 2.0)
+				var threshold := int(curve_h * float(S - m * 2 - 20))
+				if x - m - 10 < threshold:
+					img.set_pixel(x, y, road_col.lightened(t * 0.3))
+	else:
+		# Default: filled road rect with accent border
+		for y in range(m, S - m):
+			for x in range(m + 8, S - m - 8):
+				if y == m or y == S - m - 1 or x == m + 8 or x == S - m - 9:
+					img.set_pixel(x, y, accent)
+				else:
+					img.set_pixel(x, y, road_col)
 
 	# Direction arrow
-	_draw_thumb_arrow(img, THUMB_SIZE / 2, 10, color.lightened(0.5))
+	_draw_thumb_arrow(img, cx, m + 2, Color(0.0, 1.0, 0.3, 0.8))
 
 	return ImageTexture.create_from_image(img)
 
