@@ -204,32 +204,39 @@ func _build_main_buttons() -> MarginContainer:
 
 	var vbox := VBoxContainer.new()
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.add_theme_constant_override("separation", 20)
+	vbox.add_theme_constant_override("separation", 18)
 	margin.add_child(vbox)
 
-	# GRAJ — orange, biggest
-	vbox.add_child(_make_big_btn(
-		"GRAJ",
-		Color(0.9, 0.5, 0.13), Color(0.7, 0.37, 0.1),
-		Color(1.0, 0.8, 0.27), 8,
-		_on_track_picker, true
-	))
+	# GRAJ — primary CTA, oversized
+	var play_btn := UIStyle.primary_button("GRAJ", UIStyle.ORANGE)
+	play_btn.custom_minimum_size = Vector2(0, 130)
+	play_btn.add_theme_font_size_override("font_size", 48)
+	play_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	play_btn.focus_mode = Control.FOCUS_NONE
+	play_btn.pressed.connect(_on_track_picker)
+	vbox.add_child(play_btn)
 
-	# TRASY ONLINE — purple
-	vbox.add_child(_make_big_btn(
-		"TRASY ONLINE",
-		Color(0.23, 0.24, 0.55), Color(0.14, 0.15, 0.38),
-		Color(0.65, 0.49, 1.0), 6,
-		_on_online_pressed
-	))
+	# TRASY ONLINE + EDYTOR — row of two
+	var row := HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 14)
+	vbox.add_child(row)
 
-	# EDYTOR — violet, big
-	vbox.add_child(_make_big_btn(
-		"EDYTOR",
-		Color(0.25, 0.15, 0.35), Color(0.18, 0.1, 0.25),
-		Color(0.7, 0.5, 1.0), 6,
-		_on_editor
-	))
+	var online_btn := UIStyle.primary_button("TRASY ONLINE", UIStyle.PURPLE)
+	online_btn.custom_minimum_size = Vector2(0, 100)
+	online_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	online_btn.focus_mode = Control.FOCUS_NONE
+	online_btn.add_theme_font_size_override("font_size", 28)
+	online_btn.pressed.connect(_on_online_pressed)
+	row.add_child(online_btn)
+
+	var editor_btn := UIStyle.primary_button("EDYTOR", UIStyle.CYAN)
+	editor_btn.custom_minimum_size = Vector2(0, 100)
+	editor_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	editor_btn.focus_mode = Control.FOCUS_NONE
+	editor_btn.add_theme_font_size_override("font_size", 32)
+	editor_btn.pressed.connect(_on_editor)
+	row.add_child(editor_btn)
 
 	return margin
 
@@ -244,11 +251,20 @@ func _build_secondary_buttons() -> MarginContainer:
 
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 20)
+	row.add_theme_constant_override("separation", 14)
 	margin.add_child(row)
 
-	row.add_child(_make_pill_btn("LOSUJ TRASE", Color(1.0, 0.85, 0.3), _on_generate_and_play))
-	row.add_child(_make_pill_btn("WEB LINK", Color(1.0, 0.4, 0.8), _on_link_web))
+	var rnd := UIStyle.ghost_button("LOSUJ TRASĘ", UIStyle.GOLD)
+	rnd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rnd.focus_mode = Control.FOCUS_NONE
+	rnd.pressed.connect(_on_generate_and_play)
+	row.add_child(rnd)
+
+	var lnk := UIStyle.ghost_button("WEB LINK", UIStyle.CYAN)
+	lnk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lnk.focus_mode = Control.FOCUS_NONE
+	lnk.pressed.connect(_on_link_web)
+	row.add_child(lnk)
 
 	return margin
 

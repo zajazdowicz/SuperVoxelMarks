@@ -20,11 +20,12 @@ config/features=PackedStringArray("4.6")
 
 [autoload]
 
-PieceRegistry="*res://piece_registry.gd"
 TrackData="*res://track_data.gd"
 RaceManager="*res://race_manager.gd"
 PlayerData="*res://player_data.gd"
 ApiClient="*res://api_client.gd"
+PieceRegistry="*res://piece_registry.gd"
+UIStyle="*res://ui_style.gd"
 
 [display]
 
@@ -45,5 +46,4 @@ pointing/emulate_touch_from_mouse=true
 
 [rendering]
 
-renderer/rendering_method="mobile"
 textures/vram_compression/import_etc2_astc=true
