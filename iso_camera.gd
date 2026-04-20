@@ -12,15 +12,23 @@ extends Camera3D
 @export var chase_distance := 6.0
 @export var chase_smoothing := 8.0
 
+# Boost FOV kick — speed/boost → wider FOV for sensation of speed
+@export var base_fov := 75.0
+@export var boost_fov := 92.0
+@export var speed_fov_bonus := 8.0  # extra fov at top speed without boost
+
 var _target_node: Node3D
 var _follow_angle := 0.0  # smoothed Y rotation of car
 var _chase_mode := false
 var _chase_blend := 0.0   # 0 = full iso, 1 = full chase
+var _fov_current := 75.0
 
 
 func _ready() -> void:
 	if target:
 		_target_node = get_node(target)
+	_fov_current = base_fov
+	fov = base_fov
 
 
 func set_chase_mode(enabled: bool) -> void:
@@ -67,3 +75,13 @@ func _process(delta: float) -> void:
 	if look_up.length() < 0.1:
 		look_up = Vector3.UP
 	look_at(target_pos, look_up)
+
+	# FOV dynamics — speed + boost
+	var fov_target := base_fov
+	if _target_node.has_method("is_boosting") and _target_node.is_boosting():
+		fov_target = boost_fov
+	elif _target_node.has_method("get_speed_ratio"):
+		var r: float = _target_node.get_speed_ratio()
+		fov_target = base_fov + speed_fov_bonus * clampf(r, 0.0, 1.0)
+	_fov_current = lerpf(_fov_current, fov_target, 4.0 * delta)
+	fov = _fov_current

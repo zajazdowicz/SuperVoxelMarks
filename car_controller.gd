@@ -616,10 +616,17 @@ func _physics_process(delta: float) -> void:
 				var vel_dir := velocity.normalized()
 				pitch_target = -asin(clampf(-vel_dir.y, -0.4, 0.4))
 
-		# Cosmetic roll from steering
-		roll_target = steer * 0.15
+		# Cosmetic roll from steering — scale with speed for arcade feel
+		var speed_factor: float = clampf(absf(speed) / 30.0, 0.5, 1.2)
+		roll_target = steer * 0.22 * speed_factor
 		if _drifting:
-			roll_target = _drift_dir * 0.25 + steer * 0.1
+			roll_target = _drift_dir * 0.38 + steer * 0.12
+
+		# Acceleration pitch — lean forward when boosting, back when braking hard
+		if _boost_timer > 0:
+			pitch_target += -0.08
+		elif throttle < -0.1 and speed > 10.0:
+			pitch_target += 0.06
 
 		# Apply: surface alignment OR euler pitch/roll
 		if surface_basis != Basis():
@@ -1005,6 +1012,14 @@ func _apply_boost(mult: float = 0.0, dur: float = 0.0) -> void:
 	_boost_mult = mult if mult > 0.0 else stats.boost_multiplier
 	_boost_timer = dur if dur > 0.0 else stats.boost_duration
 	speed = maxf(speed, stats.max_speed * 0.9)
+
+
+func is_boosting() -> bool:
+	return _boost_timer > 0
+
+
+func get_speed_ratio() -> float:
+	return clampf(absf(speed) / stats.max_speed, 0.0, 1.5)
 
 
 func set_gravity_direction(dir: Vector3) -> void:
