@@ -952,13 +952,13 @@ func _add_medal_block(medal: String, lap: float, author_time: float) -> void:
 	# Medal headline
 	var medal_label := Label.new()
 	medal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var medal_text := {
-		"author": "★ AUTHOR ★",
-		"gold":   "GOLD",
-		"silver": "SILVER",
-		"bronze": "BRONZE",
-		"none":   "BEZ MEDALU"
-	}.get(medal, "—")
+	var medal_text: String = ""
+	match medal:
+		"author": medal_text = "AUTHOR"
+		"gold":   medal_text = "GOLD"
+		"silver": medal_text = "SILVER"
+		"bronze": medal_text = "BRONZE"
+		_:        medal_text = "BEZ MEDALU"
 	medal_label.text = medal_text
 	var ml_s := LabelSettings.new()
 	ml_s.font_size = 56
@@ -975,25 +975,24 @@ func _add_medal_block(medal: String, lap: float, author_time: float) -> void:
 	grid.add_theme_constant_override("v_separation", 4)
 	mvb.add_child(grid)
 
-	var rows := [
-		["★ Author", author_time, "author"],
-		["Gold", author_time * 1.1, "gold"],
-		["Silver", author_time * 1.3, "silver"],
-		["Bronze", author_time * 1.6, "bronze"],
-	]
-	var earned_rank := TrackData.medal_rank(medal)
-	for r in rows:
+	var row_names: Array[String] = ["Author", "Gold", "Silver", "Bronze"]
+	var row_times: Array[float] = [author_time, author_time * 1.1, author_time * 1.3, author_time * 1.6]
+	var row_keys: Array[String] = ["author", "gold", "silver", "bronze"]
+	var earned_rank: int = TrackData.medal_rank(medal)
+	for i in range(row_names.size()):
+		var key: String = row_keys[i]
+		var earned: bool = TrackData.medal_rank(key) <= earned_rank
+
 		var name_lbl := Label.new()
-		name_lbl.text = r[0]
+		name_lbl.text = row_names[i]
 		var nl_s := LabelSettings.new()
 		nl_s.font_size = 26
-		var earned: bool = TrackData.medal_rank(r[2]) <= earned_rank
-		nl_s.font_color = TrackData.medal_color(r[2]) if earned else Color(0.4, 0.4, 0.45)
+		nl_s.font_color = TrackData.medal_color(key) if earned else Color(0.4, 0.4, 0.45)
 		name_lbl.label_settings = nl_s
 		grid.add_child(name_lbl)
 
 		var t_lbl := Label.new()
-		t_lbl.text = RaceManager.get_time_string(r[1])
+		t_lbl.text = RaceManager.get_time_string(row_times[i])
 		t_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		var tl_lbl_s := LabelSettings.new()
 		tl_lbl_s.font_size = 26
