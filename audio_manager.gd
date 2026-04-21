@@ -39,8 +39,7 @@ var _screech_active := false
 var _screech_volume_current := -40.0
 var _screech_volume_target := -40.0
 
-# Procedural SFX generated once at _ready
-var _screech_stream: AudioStreamWAV
+# Procedural brake (generated at _ready), screech reuses boost_whoosh
 var _brake_stream: AudioStreamWAV
 
 # Mute
@@ -53,68 +52,15 @@ func _ready() -> void:
 		p.bus = BUS_SFX
 		add_child(p)
 		_pool.append(p)
-	_screech_stream = _make_screech_stream()
 	_brake_stream = _make_brake_stream()
 
 
 # =============================================================================
-# PROCEDURAL SFX SYNTHESIS
+# PROCEDURAL BRAKE HISS
 # =============================================================================
 
-func _make_screech_stream() -> AudioStreamWAV:
-	# Tire squeal: bandpass-filtered noise, formant modulation, ~0.6s loop
-	var sr := 22050
-	var dur := 0.6
-	var n := int(sr * dur)
-	var buf := PackedByteArray()
-	buf.resize(n * 2)
-
-	# Two-pole resonant filter state
-	var x1 := 0.0
-	var x2 := 0.0
-	var y1 := 0.0
-	var y2 := 0.0
-	var wobble_phase := 0.0
-	for i in range(n):
-		# Slight LFO wobble on filter frequency 1800-2600 Hz
-		wobble_phase += 22.0 / sr
-		var f_center := 2200.0 + sin(wobble_phase * TAU) * 400.0 + sin(wobble_phase * TAU * 1.7) * 150.0
-		# Biquad bandpass coefficients
-		var w := TAU * f_center / sr
-		var q := 8.0
-		var alpha := sin(w) / (2.0 * q)
-		var cosw := cos(w)
-		var b0 := alpha
-		var b2 := -alpha
-		var a0 := 1.0 + alpha
-		var a1 := -2.0 * cosw
-		var a2 := 1.0 - alpha
-		# White noise input
-		var x0 := randf_range(-1.0, 1.0)
-		var y0 := (b0 * x0 + b2 * x2 - a1 * y1 - a2 * y2) / a0
-		x2 = x1
-		x1 = x0
-		y2 = y1
-		y1 = y0
-		var sample := y0 * 0.6
-		var s16 := int(clampf(sample, -1.0, 1.0) * 32767.0)
-		if s16 < 0:
-			s16 += 65536
-		buf[i * 2] = s16 & 0xff
-		buf[i * 2 + 1] = (s16 >> 8) & 0xff
-
-	var stream := AudioStreamWAV.new()
-	stream.data = buf
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = sr
-	stream.stereo = false
-	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	stream.loop_end = n
-	return stream
-
-
 func _make_brake_stream() -> AudioStreamWAV:
-	# Brake hiss: noise with lowpass sweep from bright to dark, ~0.25s one-shot
+	# Brake hiss: white noise with envelope, ~0.3s one-shot
 	var sr := 22050
 	var dur := 0.3
 	var n := int(sr * dur)
@@ -123,18 +69,16 @@ func _make_brake_stream() -> AudioStreamWAV:
 	var prev := 0.0
 	for i in range(n):
 		var t := float(i) / float(sr)
-		var env := exp(-t * 12.0)
-		# Lowpass: one-pole, coefficient rising (becoming darker)
-		var coef := lerpf(0.85, 0.15, t / dur)
+		var env := exp(-t * 10.0)
+		var coef := 0.5
 		var noise := randf_range(-1.0, 1.0)
 		prev = prev * coef + noise * (1.0 - coef)
-		var sample := prev * 0.55 * env
+		var sample := prev * 0.7 * env
 		var s16 := int(clampf(sample, -1.0, 1.0) * 32767.0)
 		if s16 < 0:
 			s16 += 65536
 		buf[i * 2] = s16 & 0xff
 		buf[i * 2 + 1] = (s16 >> 8) & 0xff
-
 	var stream := AudioStreamWAV.new()
 	stream.data = buf
 	stream.format = AudioStreamWAV.FORMAT_16_BITS
@@ -182,11 +126,15 @@ func start_engine(target: Node3D) -> void:
 	target.add_child(_engine_3d)
 	_engine_3d.play()
 
-	# Screech loop (silent until triggered)
+	# Screech loop — reuse boost_whoosh sample at high pitch as tire squeal
 	_screech_3d = AudioStreamPlayer3D.new()
-	_screech_3d.stream = _screech_stream
+	var screech_stream := SFX["boost_whoosh"].duplicate() as AudioStream
+	if screech_stream is AudioStreamOggVorbis:
+		(screech_stream as AudioStreamOggVorbis).loop = true
+	_screech_3d.stream = screech_stream
 	_screech_3d.bus = BUS_SFX
 	_screech_3d.volume_db = -40.0
+	_screech_3d.pitch_scale = 1.6
 	_screech_3d.unit_size = 12.0
 	_screech_3d.max_distance = 60.0
 	target.add_child(_screech_3d)
@@ -224,11 +172,11 @@ func _process(delta: float) -> void:
 
 	# Screech fade in/out
 	if _screech_3d and is_instance_valid(_screech_3d):
-		_screech_volume_target = -8.0 if _screech_active else -40.0
-		_screech_volume_current = lerpf(_screech_volume_current, _screech_volume_target, 10.0 * delta)
+		_screech_volume_target = -4.0 if _screech_active else -40.0
+		_screech_volume_current = lerpf(_screech_volume_current, _screech_volume_target, 12.0 * delta)
 		_screech_3d.volume_db = _screech_volume_current
 		# Pitch vary with speed — higher speed = higher pitch
-		_screech_3d.pitch_scale = lerpf(0.85, 1.4, clampf(_engine_target_speed_ratio, 0.0, 1.2))
+		_screech_3d.pitch_scale = lerpf(1.4, 2.2, clampf(_engine_target_speed_ratio, 0.0, 1.2))
 
 
 # =============================================================================
