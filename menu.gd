@@ -452,7 +452,7 @@ func _create_track_modal() -> void:
 		for i in range(tracks.size()):
 			var tname := tracks[i]
 			var btn := Button.new()
-			btn.custom_minimum_size = Vector2(0, 72)
+			btn.custom_minimum_size = Vector2(0, 76)
 			btn.add_theme_font_size_override("font_size", 28)
 			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			btn.focus_mode = Control.FOCUS_NONE
@@ -471,14 +471,31 @@ func _create_track_modal() -> void:
 					if t > 0:
 						time_tag = "  %.2fs" % t
 
-			btn.text = "  %s%s%s" % [tname, time_tag, online_tag]
+			# Medal badge prefix
+			var medal: String = TrackData.get_medal(tname)
+			var badge: String = ""
+			match medal:
+				"author": badge = "[A]"
+				"gold":   badge = "[G]"
+				"silver": badge = "[S]"
+				"bronze": badge = "[B]"
+				_:        badge = "[ ]"
+
+			btn.text = "  %s  %s%s%s" % [badge, tname, time_tag, online_tag]
+			var medal_c: Color = TrackData.medal_color(medal)
 
 			var sb := StyleBoxFlat.new()
 			sb.bg_color = colors[i % colors.size()]
 			sb.set_corner_radius_all(8)
 			sb.content_margin_left = 12
 			sb.content_margin_right = 12
+			sb.border_width_left = 8
+			sb.border_color = medal_c
 			btn.add_theme_stylebox_override("normal", sb)
+
+			var sb_press := sb.duplicate()
+			sb_press.bg_color = sb.bg_color.lightened(0.15)
+			btn.add_theme_stylebox_override("pressed", sb_press)
 
 			var idx := i
 			btn.pressed.connect(func(): _pick_and_play(idx))
