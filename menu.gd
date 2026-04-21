@@ -1465,23 +1465,6 @@ void fragment() {
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_bg_scene.add_child(ground)
 
-	# Distant silhouette mountains (voxel block cutouts) for horizon depth
-	for i in range(8):
-		var mtn := MeshInstance3D.new()
-		var mbox := BoxMesh.new()
-		var mw := randf_range(6.0, 12.0)
-		var mh := randf_range(3.0, 7.0)
-		mbox.size = Vector3(mw, mh, 2.0)
-		mtn.mesh = mbox
-		var mmat := StandardMaterial3D.new()
-		mmat.albedo_color = Color(0.06, 0.02, 0.12)
-		mmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mmat.emission_enabled = true
-		mmat.emission = Color(0.15, 0.05, 0.3)
-		mmat.emission_energy_multiplier = 0.5
-		mtn.material_override = mmat
-		mtn.position = Vector3(randf_range(-60, 60), mh * 0.5, -randf_range(35, 50))
-		_bg_scene.add_child(mtn)
 
 	_f1_scene = load("res://assets/models/f1_car_new.glb")
 
