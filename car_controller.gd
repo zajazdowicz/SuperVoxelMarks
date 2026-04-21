@@ -126,11 +126,36 @@ func _find_wheels(root: Node3D) -> void:
 	_front_wheels.clear()
 	_rear_wheels.clear()
 	_steer_pivots.clear()
-	# New model: WheelFront.000/.001 = front, .002/.003 = rear
-	var front_names := ["WheelFront.000", "WheelFront.001"]
-	var rear_names := ["WheelFront.002", "WheelFront.003"]
-	_collect_named(root, front_names, _front_wheels)
-	_collect_named(root, rear_names, _rear_wheels)
+
+	# Collect ALL Node3D candidates (MeshInstance3D typically)
+	var all_nodes: Array[Node3D] = []
+	_collect_all_node3d(root, all_nodes)
+
+	# Debug: print names
+	var names: Array[String] = []
+	for n in all_nodes:
+		names.append(n.name)
+	print("Model nodes: ", names)
+
+	# Heuristic: find nodes whose name contains "wheel" (case-insensitive)
+	var wheel_candidates: Array[Node3D] = []
+	for n in all_nodes:
+		var nm: String = String(n.name).to_lower()
+		if "wheel" in nm or "tire" in nm or "tyre" in nm:
+			wheel_candidates.append(n)
+
+	if wheel_candidates.size() >= 4:
+		# Sort by world X then Z — front = larger Z (or smaller, depending on model orient)
+		# Use local position in car space: the two with smallest Z are front (car faces -Z)
+		wheel_candidates.sort_custom(func(a: Node3D, b: Node3D) -> bool:
+			return a.global_position.z < b.global_position.z
+		)
+		# After sort: first 2 are lowest Z (front if car faces -Z), last 2 are rear
+		_front_wheels = [wheel_candidates[0], wheel_candidates[1]]
+		_rear_wheels = [wheel_candidates[2], wheel_candidates[3]]
+	else:
+		push_warning("Wheel detection: found %d candidates, expected 4" % wheel_candidates.size())
+
 	_all_wheels = _front_wheels + _rear_wheels
 
 	# Wrap front wheels in steer pivots so steering (pivot.Y) doesn't
@@ -158,7 +183,13 @@ func _collect_named(node: Node, names: Array, result: Array[Node3D]) -> void:
 		result.append(node)
 	for child in node.get_children():
 		_collect_named(child, names, result)
-	# For now wheels are static (model looks correct without rotation)
+
+
+func _collect_all_node3d(node: Node, result: Array[Node3D]) -> void:
+	if node is Node3D:
+		result.append(node)
+	for child in node.get_children():
+		_collect_all_node3d(child, result)
 
 
 func _setup_particles() -> void:
