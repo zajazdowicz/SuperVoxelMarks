@@ -74,10 +74,7 @@ func _make_click_stream() -> AudioStream:
 
 
 func play_click() -> void:
-	if _click_player and _click_stream:
-		_click_player.stream = _click_stream
-		_click_player.pitch_scale = randf_range(0.92, 1.08)
-		_click_player.play()
+	Audio.on_ui_click()
 
 
 # =========================================================================
@@ -280,6 +277,7 @@ func attach_press_feedback(ctrl: Control) -> void:
 		)
 		btn.mouse_entered.connect(func():
 			_scale_tween(ctrl, Vector2(1.03, 1.03), 0.12)
+			Audio.on_ui_hover()
 		)
 		btn.mouse_exited.connect(func():
 			_scale_tween(ctrl, Vector2(1.0, 1.0), 0.12)

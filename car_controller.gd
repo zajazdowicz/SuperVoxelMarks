@@ -98,6 +98,9 @@ func _ready() -> void:
 	_setup_particles()
 	_setup_occluded_silhouette()
 
+	# Start engine audio
+	Audio.start_engine(self)
+
 
 func _load_car_model() -> void:
 	var f1_scene: PackedScene = load("res://assets/models/f1_car_new.glb")
@@ -582,6 +585,7 @@ func _physics_process(delta: float) -> void:
 				speed = maxf(speed * 0.93, 0.0)
 				global_position += normal * 0.05
 				_spawn_wall_sparks(global_position, normal)
+				Audio.on_crash(speed > 50.0)
 
 	# --- Visual ---
 	if mesh:
@@ -672,6 +676,9 @@ func _physics_process(delta: float) -> void:
 
 	# --- Ghost recording ---
 	RaceManager.record_frame(global_position, rotation.y)
+
+	# --- Engine audio pitch ---
+	Audio.update_engine(get_speed_ratio(), _boost_timer > 0)
 
 
 func _update_particles(airborne: bool) -> void:
@@ -1012,6 +1019,7 @@ func _apply_boost(mult: float = 0.0, dur: float = 0.0) -> void:
 	_boost_mult = mult if mult > 0.0 else stats.boost_multiplier
 	_boost_timer = dur if dur > 0.0 else stats.boost_duration
 	speed = maxf(speed, stats.max_speed * 0.9)
+	Audio.on_boost_start()
 
 
 func is_boosting() -> bool:

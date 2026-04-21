@@ -26,6 +26,7 @@ PlayerData="*res://player_data.gd"
 ApiClient="*res://api_client.gd"
 PieceRegistry="*res://piece_registry.gd"
 UIStyle="*res://ui_style.gd"
+Audio="*res://audio_manager.gd"
 
 [display]
 

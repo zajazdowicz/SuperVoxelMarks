@@ -94,6 +94,7 @@ func hit_checkpoint(index: int) -> void:
 		if index < best_checkpoint_times.size():
 			delta = lap_time - best_checkpoint_times[index]
 		checkpoint_passed.emit(index, lap_time, delta)
+		Audio.on_checkpoint()
 
 
 func cross_start_finish() -> void:
@@ -153,6 +154,7 @@ func cross_finish() -> void:
 func _finish_lap() -> void:
 	laps.append(lap_time)
 	lap_count += 1
+	Audio.on_finish()
 
 	# Check for best lap
 	if lap_time < best_time:
@@ -190,8 +192,13 @@ func record_frame(pos: Vector3, rot_y: float) -> void:
 
 func _process(delta: float) -> void:
 	if state == State.COUNTDOWN:
+		var prev_sec := ceili(countdown_timer)
 		countdown_timer -= delta
+		var now_sec := ceili(countdown_timer)
+		if now_sec != prev_sec and now_sec > 0:
+			Audio.on_countdown_tick()
 		if countdown_timer <= 0.0:
+			Audio.on_countdown_go()
 			start_race()
 	elif state == State.RACING:
 		race_time += delta
