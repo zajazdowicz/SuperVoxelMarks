@@ -137,20 +137,19 @@ func _find_wheels(root: Node3D) -> void:
 		names.append(n.name)
 	print("Model nodes: ", names)
 
-	# Heuristic: find nodes whose name contains "wheel" (case-insensitive)
+	# Pick exact wheel parent nodes: "WheelFront_000" through "WheelFront_003"
+	# Sub-meshes (e.g. WheelFront_000_black_0) and WheelFront_011 (body) excluded.
+	var wanted := ["WheelFront_000", "WheelFront_001", "WheelFront_002", "WheelFront_003"]
 	var wheel_candidates: Array[Node3D] = []
 	for n in all_nodes:
-		var nm: String = String(n.name).to_lower()
-		if "wheel" in nm or "tire" in nm or "tyre" in nm:
+		if String(n.name) in wanted:
 			wheel_candidates.append(n)
 
 	if wheel_candidates.size() >= 4:
-		# Sort by world X then Z — front = larger Z (or smaller, depending on model orient)
-		# Use local position in car space: the two with smallest Z are front (car faces -Z)
+		# Lowest Z = front (car faces -Z)
 		wheel_candidates.sort_custom(func(a: Node3D, b: Node3D) -> bool:
 			return a.global_position.z < b.global_position.z
 		)
-		# After sort: first 2 are lowest Z (front if car faces -Z), last 2 are rear
 		_front_wheels = [wheel_candidates[0], wheel_candidates[1]]
 		_rear_wheels = [wheel_candidates[2], wheel_candidates[3]]
 	else:
