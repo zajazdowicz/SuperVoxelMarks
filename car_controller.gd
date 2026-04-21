@@ -43,6 +43,7 @@ var _in_zero_g := 0  # >0 = inside zero-gravity zone (loop)
 var _front_wheels: Array[Node3D] = []
 var _rear_wheels: Array[Node3D] = []
 var _all_wheels: Array[Node3D] = []
+var _steer_pivots: Array[Node3D] = []  # wrappers around front wheels for steering
 var _wheel_spin := 0.0
 
 # Drift
@@ -124,13 +125,32 @@ func _load_car_model() -> void:
 func _find_wheels(root: Node3D) -> void:
 	_front_wheels.clear()
 	_rear_wheels.clear()
+	_steer_pivots.clear()
 	# New model: WheelFront.000/.001 = front, .002/.003 = rear
 	var front_names := ["WheelFront.000", "WheelFront.001"]
 	var rear_names := ["WheelFront.002", "WheelFront.003"]
 	_collect_named(root, front_names, _front_wheels)
 	_collect_named(root, rear_names, _rear_wheels)
 	_all_wheels = _front_wheels + _rear_wheels
-	print("Wheels found: %d front, %d rear" % [_front_wheels.size(), _rear_wheels.size()])
+
+	# Wrap front wheels in steer pivots so steering (pivot.Y) doesn't
+	# collide with spin (wheel.Y). Pivot inherits wheel pose; wheel is
+	# re-parented under pivot with identity transform.
+	for w in _front_wheels:
+		var orig_parent: Node = w.get_parent()
+		if orig_parent == null:
+			continue
+		var orig_xf: Transform3D = w.transform
+		var pivot := Node3D.new()
+		pivot.name = "%s_SteerPivot" % w.name
+		pivot.transform = orig_xf
+		orig_parent.remove_child(w)
+		w.transform = Transform3D.IDENTITY
+		orig_parent.add_child(pivot)
+		pivot.add_child(w)
+		_steer_pivots.append(pivot)
+
+	print("Wheels found: %d front, %d rear, %d pivots" % [_front_wheels.size(), _rear_wheels.size(), _steer_pivots.size()])
 
 
 func _collect_named(node: Node, names: Array, result: Array[Node3D]) -> void:
@@ -642,14 +662,14 @@ func _physics_process(delta: float) -> void:
 			mesh.rotation.x = lerp(mesh.rotation.x, pitch_target, 8.0 * delta)
 			mesh.rotation.z = lerp(mesh.rotation.z, roll_target, 5.0 * delta)
 
-		# Front wheel steering
+		# Front wheel steering — applied to pivot (world Y), not wheel itself
 		var steer_angle: float = steer * 0.4
 		if _drifting:
 			steer_angle = steer * 0.6
-		for w in _front_wheels:
-			w.rotation.y = lerp(w.rotation.y, steer_angle, 10.0 * delta)
+		for p in _steer_pivots:
+			p.rotation.y = lerp(p.rotation.y, steer_angle, 10.0 * delta)
 
-		# Wheel spin (all wheels) — Y axis confirmed
+		# Wheel spin (all wheels) — local Y axis, independent from steer pivot
 		_wheel_spin += speed * delta * 3.0
 		for w in _all_wheels:
 			w.rotation.y = _wheel_spin
