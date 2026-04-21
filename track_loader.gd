@@ -111,6 +111,9 @@ func _build_track() -> void:
 	RaceManager.total_checkpoints = _checkpoint_count
 	RaceManager.is_sprint = has_finish
 
+	# Spawn decorations (banners, light posts, stands)
+	TrackDecorator.decorate(self, pieces, _center_offset)
+
 	# Wait for voxel meshing to complete
 	await get_tree().create_timer(0.5).timeout
 
