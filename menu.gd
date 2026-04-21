@@ -1324,7 +1324,8 @@ var _bg_scene: Node3D
 var _bg_cars: Array[Dictionary] = []  # {node, speed, yaw, drift_timer, wheels}
 var _bg_spawn_timer := 0.0
 var _f1_scene: PackedScene
-const BG_AREA := 10.0  # spawn/despawn boundary — keep cars visible
+const BG_AREA := 35.0  # spawn radius — beyond camera view
+const BG_DESPAWN := 42.0  # despawn only well beyond view
 const BG_MAX_CARS := 12
 const BG_SPAWN_INTERVAL := 0.5
 
@@ -1438,20 +1439,23 @@ void fragment() {
 	vec2 g_uv = world_pos.xz * 0.5;
 	// Scroll toward camera along Z
 	g_uv.y += TIME * 2.0;
+	// Anti-aliased grid lines using screen-space derivatives
 	vec2 g = abs(fract(g_uv - 0.5) - 0.5);
-	float line = min(g.x, g.y);
-	float grid = 1.0 - smoothstep(0.0, 0.04, line);
+	vec2 fw = fwidth(g_uv);
+	float line_x = 1.0 - smoothstep(0.0, fw.x * 1.2, g.x);
+	float line_y = 1.0 - smoothstep(0.0, fw.y * 1.2, g.y);
+	float grid = max(line_x, line_y);
 	// Distance-based fade from camera
 	float dist = length(world_pos.xz - (INV_VIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xz);
-	float fade = 1.0 - smoothstep(20.0, 80.0, dist);
-	float near_fade = smoothstep(0.0, 4.0, dist);  // dim right at camera
+	float fade = 1.0 - smoothstep(25.0, 90.0, dist);
+	float near_fade = smoothstep(0.5, 6.0, dist);  // dim near camera
 	fade *= near_fade;
 	// Colors — magenta near, violet far
 	vec3 base = vec3(0.04, 0.01, 0.08);
 	vec3 grid_col = mix(vec3(1.0, 0.2, 0.6), vec3(0.4, 0.3, 1.0), clamp(dist / 60.0, 0.0, 1.0));
 	vec3 col = base + grid * grid_col * fade * 2.5;
 	ALBEDO = col;
-	EMISSION = grid * grid_col * fade * 1.5;
+	EMISSION = grid * grid_col * fade * 1.3;
 }
 """
 	var gmat := ShaderMaterial.new()
@@ -1677,8 +1681,8 @@ func _process(delta: float) -> void:
 		else:
 			c.last_pos = node.position
 
-		# Despawn if out of bounds
-		if absf(node.position.x) > BG_AREA + 5.0 or absf(node.position.z) > BG_AREA + 5.0:
+		# Despawn if far beyond view bounds
+		if absf(node.position.x) > BG_DESPAWN or absf(node.position.z) > BG_DESPAWN:
 			to_remove.append(i)
 
 	# Remove despawned
