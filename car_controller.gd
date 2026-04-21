@@ -64,6 +64,7 @@ var _skid_prev_l := Vector3.ZERO  # previous left tire pos
 var _skid_prev_r := Vector3.ZERO  # previous right tire pos
 var _skid_active := false
 var _skid_cooldown := 0.0
+var _was_hard_braking := false
 const SKID_WIDTH := 0.07
 const SKID_MIN_DIST := 0.3
 const SKID_COOLDOWN_TIME := 0.15
@@ -655,11 +656,11 @@ func _physics_process(delta: float) -> void:
 
 	# --- Skidmarks ---
 	var skidding: bool = false
+	var hard_braking := throttle < -0.3 and absf(speed) > 20.0 and not airborne
 	if not airborne:
 		if _drifting:
 			skidding = true
-		elif throttle < 0 and abs(speed) > 20.0:
-			# Hard braking at high speed
+		elif hard_braking:
 			skidding = true
 	if skidding:
 		_skid_cooldown = SKID_COOLDOWN_TIME
@@ -670,6 +671,13 @@ func _physics_process(delta: float) -> void:
 			_add_skidmarks()
 		else:
 			_skid_active = false
+
+	# --- Audio: screech loop + brake hiss ---
+	Audio.set_screech(skidding)
+	# One-shot brake hiss on first frame of hard braking
+	if hard_braking and not _was_hard_braking:
+		Audio.on_brake_hiss()
+	_was_hard_braking = hard_braking
 
 	# --- Particles ---
 	_update_particles(airborne)
