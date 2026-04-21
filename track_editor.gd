@@ -320,6 +320,7 @@ func _on_publish_pressed() -> void:
 		if success:
 			var sid: int = int(data.get("id", 0))
 			TrackData.set_server_id(tname, sid)
+			TrackData.set_author_time(tname, float(author_time_ms) / 1000.0)
 			piece_label.text = "Opublikowano! ID: %d" % sid
 		else:
 			piece_label.text = "Blad publikacji!"

@@ -633,6 +633,9 @@ func _fetch_daily_from_server(date_str: String, daily_name: String) -> void:
 					TrackData.set_server_id(daily_name, track_id)
 					TrackData.current_server_id = track_id
 					RaceManager.set_track_id(track_id)
+				var at_ms := int(json.get("author_time_ms", 0))
+				if at_ms > 0:
+					TrackData.set_author_time(daily_name, float(at_ms) / 1000.0)
 				TrackData.current_track = daily_name
 				get_tree().change_scene_to_file("res://race.tscn")
 				req.queue_free()
@@ -803,6 +806,9 @@ func _download_track(track_id: int, track_name: String, btn: Button) -> void:
 			})
 		TrackData.save_track(track_name, pieces)
 		TrackData.set_server_id(track_name, track_id)
+		var at_ms1 := int(json.get("author_time_ms", 0))
+		if at_ms1 > 0:
+			TrackData.set_author_time(track_name, float(at_ms1) / 1000.0)
 
 		btn.text = "GRAJ"
 		btn.disabled = false
@@ -854,6 +860,9 @@ func _download_and_play(track_id: int, track_name: String, btn: Button) -> void:
 			})
 		TrackData.save_track(track_name, pieces)
 		TrackData.set_server_id(track_name, track_id)
+		var at_ms2 := int(json.get("author_time_ms", 0))
+		if at_ms2 > 0:
+			TrackData.set_author_time(track_name, float(at_ms2) / 1000.0)
 
 		TrackData.current_track = track_name
 		TrackData.current_server_id = track_id

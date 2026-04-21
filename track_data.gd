@@ -3,6 +3,68 @@ extends Node
 
 var current_track := ""
 var current_server_id := 0  # server track ID (0 = local only)
+var current_author_time := 0.0  # seconds; 0 = no author time set
+
+
+# === Author times (medal targets) ===
+
+func set_author_time(track_name: String, time_seconds: float) -> void:
+	var cfg := ConfigFile.new()
+	var path := "user://author_times.cfg"
+	if FileAccess.file_exists(path):
+		cfg.load(path)
+	cfg.set_value("times", track_name, time_seconds)
+	cfg.save(path)
+
+
+func get_author_time(track_name: String) -> float:
+	var cfg := ConfigFile.new()
+	var path := "user://author_times.cfg"
+	if FileAccess.file_exists(path):
+		cfg.load(path)
+		return cfg.get_value("times", track_name, 0.0)
+	return 0.0
+
+
+# === Earned medals ===
+
+func set_medal(track_name: String, medal: String) -> void:
+	var cfg := ConfigFile.new()
+	var path := "user://medals.cfg"
+	if FileAccess.file_exists(path):
+		cfg.load(path)
+	# Only upgrade — never downgrade
+	var current: String = cfg.get_value("medals", track_name, "none")
+	if medal_rank(medal) > medal_rank(current):
+		cfg.set_value("medals", track_name, medal)
+		cfg.save(path)
+
+
+func get_medal(track_name: String) -> String:
+	var cfg := ConfigFile.new()
+	var path := "user://medals.cfg"
+	if FileAccess.file_exists(path):
+		cfg.load(path)
+		return cfg.get_value("medals", track_name, "none")
+	return "none"
+
+
+static func medal_rank(medal: String) -> int:
+	match medal:
+		"author": return 4
+		"gold":   return 3
+		"silver": return 2
+		"bronze": return 1
+	return 0
+
+
+static func medal_color(medal: String) -> Color:
+	match medal:
+		"author": return Color("e879f9")  # magenta-violet
+		"gold":   return Color("fbbf24")
+		"silver": return Color("cbd5e1")
+		"bronze": return Color("d97706")
+	return Color("64748b")
 
 
 static func sanitize_name(name: String) -> String:

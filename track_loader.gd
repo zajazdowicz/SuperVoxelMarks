@@ -30,6 +30,7 @@ func _build_track() -> void:
 	# Set server track ID for score upload
 	var sid: int = TrackData.get_server_id(TrackData.current_track)
 	TrackData.current_server_id = sid
+	TrackData.current_author_time = TrackData.get_author_time(TrackData.current_track)
 	RaceManager.set_track_id(sid)
 
 	if car:

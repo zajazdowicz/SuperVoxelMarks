@@ -685,6 +685,12 @@ func _show_finish_overlay() -> void:
 	time_label.label_settings = tl_s
 	_finish_vbox.add_child(time_label)
 
+	# Medal earned (if author_time set)
+	var author_time: float = TrackData.current_author_time
+	if author_time > 0.0:
+		var medal: String = RaceManager.get_medal(lap, author_time)
+		_add_medal_block(medal, lap, author_time)
+
 	# New record?
 	if lap == RaceManager.best_time:
 		var rec := Label.new()
@@ -921,3 +927,80 @@ func _populate_leaderboard(data: Dictionary) -> void:
 
 func refresh_leaderboard() -> void:
 	_load_leaderboard()
+
+
+# === MEDAL BLOCK ===
+
+func _add_medal_block(medal: String, lap: float, author_time: float) -> void:
+	var medal_panel := PanelContainer.new()
+	var mp_sb := StyleBoxFlat.new()
+	mp_sb.bg_color = Color(0.06, 0.08, 0.13, 0.95)
+	mp_sb.set_corner_radius_all(16)
+	mp_sb.border_width_left = 4
+	mp_sb.border_color = TrackData.medal_color(medal)
+	mp_sb.content_margin_left = 24
+	mp_sb.content_margin_right = 24
+	mp_sb.content_margin_top = 16
+	mp_sb.content_margin_bottom = 16
+	medal_panel.add_theme_stylebox_override("panel", mp_sb)
+	_finish_vbox.add_child(medal_panel)
+
+	var mvb := VBoxContainer.new()
+	mvb.add_theme_constant_override("separation", 6)
+	medal_panel.add_child(mvb)
+
+	# Medal headline
+	var medal_label := Label.new()
+	medal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var medal_text := {
+		"author": "★ AUTHOR ★",
+		"gold":   "GOLD",
+		"silver": "SILVER",
+		"bronze": "BRONZE",
+		"none":   "BEZ MEDALU"
+	}.get(medal, "—")
+	medal_label.text = medal_text
+	var ml_s := LabelSettings.new()
+	ml_s.font_size = 56
+	ml_s.font_color = TrackData.medal_color(medal)
+	ml_s.outline_size = 4
+	ml_s.outline_color = Color.BLACK
+	medal_label.label_settings = ml_s
+	mvb.add_child(medal_label)
+
+	# Target times grid
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 24)
+	grid.add_theme_constant_override("v_separation", 4)
+	mvb.add_child(grid)
+
+	var rows := [
+		["★ Author", author_time, "author"],
+		["Gold", author_time * 1.1, "gold"],
+		["Silver", author_time * 1.3, "silver"],
+		["Bronze", author_time * 1.6, "bronze"],
+	]
+	var earned_rank := TrackData.medal_rank(medal)
+	for r in rows:
+		var name_lbl := Label.new()
+		name_lbl.text = r[0]
+		var nl_s := LabelSettings.new()
+		nl_s.font_size = 26
+		var earned: bool = TrackData.medal_rank(r[2]) <= earned_rank
+		nl_s.font_color = TrackData.medal_color(r[2]) if earned else Color(0.4, 0.4, 0.45)
+		name_lbl.label_settings = nl_s
+		grid.add_child(name_lbl)
+
+		var t_lbl := Label.new()
+		t_lbl.text = RaceManager.get_time_string(r[1])
+		t_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var tl_lbl_s := LabelSettings.new()
+		tl_lbl_s.font_size = 26
+		tl_lbl_s.font_color = Color(0.85, 0.85, 0.9) if earned else Color(0.35, 0.35, 0.4)
+		t_lbl.label_settings = tl_lbl_s
+		grid.add_child(t_lbl)
+
+	# Pulse the medal label for emphasis
+	if medal != "none":
+		UIStyle.pulse(medal_label, 1.12, 0.55)
