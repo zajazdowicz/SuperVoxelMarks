@@ -34,7 +34,7 @@ static func decorate(parent: Node3D, pieces: Array, center_offset: Vector2i) -> 
 				_spawn_gate(container, world_pos, rot_y, BANNER_GREEN, "START")
 				_spawn_flags_pair(container, world_pos, rot_y, BANNER_GREEN)
 			11:  # Finish
-				_spawn_gate(container, world_pos, rot_y, BANNER_ORANGE, "META")
+				_spawn_gate(container, world_pos, rot_y, BANNER_ORANGE, "FINISH")
 				_spawn_stands(container, world_pos, rot_y)
 			8:  # Checkpoint
 				_spawn_gate(container, world_pos, rot_y, BANNER_PURPLE, "")
@@ -75,20 +75,22 @@ static func _spawn_gate(parent: Node3D, world_pos: Vector3, rot_y: float, banner
 	banner.position = Vector3(0, post_height - 0.3, 0)
 	gate.add_child(banner)
 
-	# Banner text (optional)
+	# Banner text — two labels back-to-back so it's readable from both sides
 	if text != "":
-		var label := Label3D.new()
-		label.text = text
-		label.font_size = 72
-		label.outline_size = 8
-		label.modulate = Color.WHITE
-		label.outline_modulate = Color.BLACK
-		label.position = Vector3(0, post_height - 0.3, 0.15)
-		label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-		label.no_depth_test = false
-		label.double_sided = true
-		label.pixel_size = 0.012
-		gate.add_child(label)
+		for side in [1.0, -1.0]:
+			var label := Label3D.new()
+			label.text = text
+			label.font_size = 72
+			label.outline_size = 8
+			label.modulate = Color.WHITE
+			label.outline_modulate = Color.BLACK
+			label.position = Vector3(0, post_height - 0.3, 0.15 * side)
+			label.rotation.y = 0.0 if side > 0.0 else PI
+			label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+			label.no_depth_test = false
+			label.double_sided = false
+			label.pixel_size = 0.012
+			gate.add_child(label)
 
 
 # =============================================================================

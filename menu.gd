@@ -151,7 +151,7 @@ func _build_player_row() -> MarginContainer:
 
 	name_input = LineEdit.new()
 	name_input.text = PlayerData.player_name
-	name_input.placeholder_text = "Wpisz nick"
+	name_input.placeholder_text = "Enter nickname"
 	name_input.max_length = 15
 	name_input.custom_minimum_size = Vector2(320, 56)
 	name_input.add_theme_font_size_override("font_size", 28)
@@ -207,8 +207,8 @@ func _build_main_buttons() -> MarginContainer:
 	vbox.add_theme_constant_override("separation", 18)
 	margin.add_child(vbox)
 
-	# GRAJ — primary CTA, oversized
-	var play_btn := UIStyle.primary_button("GRAJ", UIStyle.ORANGE)
+	# PLAY — primary CTA, oversized
+	var play_btn := UIStyle.primary_button("PLAY", UIStyle.ORANGE)
 	play_btn.custom_minimum_size = Vector2(0, 130)
 	play_btn.add_theme_font_size_override("font_size", 48)
 	play_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -216,13 +216,13 @@ func _build_main_buttons() -> MarginContainer:
 	play_btn.pressed.connect(_on_track_picker)
 	vbox.add_child(play_btn)
 
-	# TRASY ONLINE + EDYTOR — row of two
+	# ONLINE TRACKS + EDITOR — row of two
 	var row := HBoxContainer.new()
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 14)
 	vbox.add_child(row)
 
-	var online_btn := UIStyle.primary_button("TRASY ONLINE", UIStyle.PURPLE)
+	var online_btn := UIStyle.primary_button("ONLINE TRACKS", UIStyle.PURPLE)
 	online_btn.custom_minimum_size = Vector2(0, 100)
 	online_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	online_btn.focus_mode = Control.FOCUS_NONE
@@ -230,7 +230,7 @@ func _build_main_buttons() -> MarginContainer:
 	online_btn.pressed.connect(_on_online_pressed)
 	row.add_child(online_btn)
 
-	var editor_btn := UIStyle.primary_button("EDYTOR", UIStyle.CYAN)
+	var editor_btn := UIStyle.primary_button("EDITOR", UIStyle.CYAN)
 	editor_btn.custom_minimum_size = Vector2(0, 100)
 	editor_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	editor_btn.focus_mode = Control.FOCUS_NONE
@@ -254,7 +254,7 @@ func _build_secondary_buttons() -> MarginContainer:
 	row.add_theme_constant_override("separation", 14)
 	margin.add_child(row)
 
-	var rnd := UIStyle.ghost_button("LOSUJ TRASĘ", UIStyle.GOLD)
+	var rnd := UIStyle.ghost_button("RANDOM TRACK", UIStyle.GOLD)
 	rnd.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rnd.focus_mode = Control.FOCUS_NONE
 	rnd.pressed.connect(_on_generate_and_play)
@@ -443,7 +443,7 @@ func _create_track_modal() -> void:
 
 	if tracks.is_empty():
 		var empty := Label.new()
-		empty.text = "Brak tras.\nUzyj GENERUJ lub EDYTOR."
+		empty.text = "No tracks.\nUse RANDOM TRACK or EDITOR."
 		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		empty.add_theme_font_size_override("font_size", 28)
 		empty.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
@@ -509,7 +509,7 @@ func _create_track_modal() -> void:
 
 	# DELETE button
 	var del_btn := Button.new()
-	del_btn.text = "USUN"
+	del_btn.text = "DELETE"
 	del_btn.custom_minimum_size = Vector2(0, 50)
 	del_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	del_btn.add_theme_font_size_override("font_size", 24)
@@ -595,14 +595,14 @@ func _on_link_web() -> void:
 	_set_status("Laczenie...")
 	ApiClient.ensure_auth(func(success: bool):
 		if not success:
-			_set_status("Blad autoryzacji")
+			_set_status("Auth error")
 			return
 		ApiClient.generate_link_code(func(ok: bool, code: String):
 			if ok:
 				_show_link_code_modal(code)
 				_set_status("")
 			else:
-				_set_status("Blad generowania kodu")
+				_set_status("Code generation error")
 		)
 	)
 
@@ -706,7 +706,7 @@ func _create_online_modal() -> void:
 	content.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "TRASY ONLINE"
+	title.text = "ONLINE TRACKS"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 44)
 	title.add_theme_color_override("font_color", Color(0.4, 0.6, 1.0))
@@ -779,7 +779,7 @@ func _populate_online_tracks(container: VBoxContainer, server_tracks: Array) -> 
 		btn.add_theme_font_size_override("font_size", 26)
 		btn.focus_mode = Control.FOCUS_NONE
 
-		btn.text = "GRAJ" if is_local else "POBIERZ"
+		btn.text = "PLAY" if is_local else "DOWNLOAD"
 		var btn_sb := StyleBoxFlat.new()
 		btn_sb.bg_color = Color(0.1, 0.35, 0.1) if is_local else Color(0.1, 0.15, 0.35)
 		btn_sb.set_corner_radius_all(6)
@@ -827,7 +827,7 @@ func _download_track(track_id: int, track_name: String, btn: Button) -> void:
 		if at_ms1 > 0:
 			TrackData.set_author_time(track_name, float(at_ms1) / 1000.0)
 
-		btn.text = "GRAJ"
+		btn.text = "PLAY"
 		btn.disabled = false
 		var play_sb := StyleBoxFlat.new()
 		play_sb.bg_color = Color(0.1, 0.35, 0.1)
@@ -1277,7 +1277,7 @@ func _show_link_code_modal(code: String) -> void:
 	vbox.add_child(title)
 
 	var desc := Label.new()
-	desc.text = "Wpisz ten kod w edytorze\nw przegladarce:"
+	desc.text = "Enter this code in the web editor:"
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc.add_theme_font_size_override("font_size", 26)
 	desc.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
@@ -1514,21 +1514,32 @@ func _spawn_bg_car() -> void:
 	var wheels: Array[Node3D] = []
 	_find_bg_nodes(model, ["WheelFront.000", "WheelFront.001", "WheelFront.002", "WheelFront.003"], wheels)
 
-	# Drift smoke — shader-based mesh (animated noise cloud behind car)
-	var smoke_mesh := MeshInstance3D.new()
-	var smoke_quad := QuadMesh.new()
-	smoke_quad.size = Vector2(1.5, 1.0)
-	smoke_mesh.mesh = smoke_quad
-	var smoke_shader := Shader.new()
-	smoke_shader.code = "shader_type spatial;\nrender_mode blend_mix, unshaded, cull_disabled, depth_draw_opaque;\nuniform float intensity : hint_range(0.0, 1.0) = 0.0;\nvoid fragment() {\n\tvec2 uv = UV;\n\tfloat t = TIME * 1.5;\n\t// Procedural noise\n\tfloat n1 = fract(sin(dot(uv * 8.0 + t, vec2(12.9898, 78.233))) * 43758.5453);\n\tfloat n2 = fract(sin(dot(uv * 5.0 - t * 0.7, vec2(39.346, 11.135))) * 29871.4231);\n\tfloat n3 = fract(sin(dot(uv * 12.0 + t * 0.3, vec2(73.156, 52.235))) * 15731.7643);\n\tfloat noise = (n1 + n2 + n3) / 3.0;\n\t// Fade at edges\n\tfloat edge = smoothstep(0.0, 0.3, uv.x) * smoothstep(1.0, 0.5, uv.x);\n\tedge *= smoothstep(0.0, 0.3, uv.y) * smoothstep(1.0, 0.7, uv.y);\n\tfloat alpha = noise * edge * intensity * 0.7;\n\tALBEDO = vec3(0.85, 0.85, 0.9);\n\tALPHA = alpha;\n}\n"
-	var smoke_mat := ShaderMaterial.new()
-	smoke_mat.shader = smoke_shader
-	smoke_mat.set_shader_parameter("intensity", 0.0)
-	smoke_mesh.material_override = smoke_mat
-	smoke_mesh.position = Vector3(0, 0.3, -0.8)
-	smoke_mesh.rotation.x = -PI / 2.0 * 0.6  # angled up slightly
-	smoke_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	car_root.add_child(smoke_mesh)
+	# Drift smoke — GPU particles behind car (matches in-game style)
+	var smoke_emitters: Array[GPUParticles3D] = []
+	for offset in [Vector3(0.6, 0.15, 1.0), Vector3(-0.6, 0.15, 1.0)]:
+		var em := GPUParticles3D.new()
+		em.amount = 24
+		em.lifetime = 0.7
+		em.emitting = false
+		em.position = offset
+		em.explosiveness = 0.0
+		em.speed_scale = 1.5
+		em.visibility_aabb = AABB(Vector3(-3, -1, -3), Vector3(6, 3, 6))
+		var mat := ParticleProcessMaterial.new()
+		mat.direction = Vector3(0, 1, 0)
+		mat.spread = 25.0
+		mat.initial_velocity_min = 0.8
+		mat.initial_velocity_max = 2.0
+		mat.gravity = Vector3(0, 0.3, 0)
+		mat.scale_min = 0.3
+		mat.scale_max = 0.7
+		mat.color = Color(0.85, 0.85, 0.95, 0.55)
+		em.process_material = mat
+		var mesh := QuadMesh.new()
+		mesh.size = Vector2(0.8, 0.8)
+		em.draw_pass_1 = mesh
+		car_root.add_child(em)
+		smoke_emitters.append(em)
 
 	# Random spawn from edge
 	var side := randi() % 4  # 0=left, 1=right, 2=top, 3=bottom
@@ -1554,12 +1565,15 @@ func _spawn_bg_car() -> void:
 	var speed := randf_range(10.0, 18.0)
 	var drift_time := randf_range(2.0, 5.0)  # when to start drifting
 
-	# Skidmark mesh
+	# Skidmark mesh — bright cyan glow trails (retrowave style)
 	var skid_mesh := ImmediateMesh.new()
 	var skid_inst := MeshInstance3D.new()
 	skid_inst.mesh = skid_mesh
 	var skid_mat := StandardMaterial3D.new()
-	skid_mat.albedo_color = Color(0.08, 0.08, 0.08, 0.7)
+	skid_mat.albedo_color = Color(0.9, 0.3, 1.0, 0.9)
+	skid_mat.emission_enabled = true
+	skid_mat.emission = Color(0.9, 0.3, 1.0)
+	skid_mat.emission_energy_multiplier = 2.0
 	skid_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	skid_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	skid_mat.no_depth_test = false
@@ -1583,7 +1597,7 @@ func _spawn_bg_car() -> void:
 		"skid_inst": skid_inst,
 		"skid_points": [],
 		"last_pos": pos,
-		"smoke_mat": smoke_mat,
+		"smoke_emitters": smoke_emitters,
 	})
 
 
@@ -1660,18 +1674,17 @@ func _process(delta: float) -> void:
 		for w in c.wheels:
 			w.rotation.x = c.wheel_spin
 
-		# Smoke intensity — high during drift
-		if c.smoke_mat:
-			var target_intensity := 1.0 if c.drift_active else 0.0
-			var cur: float = c.smoke_mat.get_shader_parameter("intensity")
-			c.smoke_mat.set_shader_parameter("intensity", lerp(cur, target_intensity, 5.0 * delta))
+		# Smoke emitters — active during drift
+		if c.has("smoke_emitters"):
+			for em in c.smoke_emitters:
+				em.emitting = c.drift_active
 
 		# Skidmarks during drift
 		if c.drift_active:
 			var cur_pos: Vector3 = node.position
 			if cur_pos.distance_to(c.last_pos) > 0.3:
 				# Add skid point pair (two tire tracks)
-				var right := Vector3(sin(c.yaw + PI / 2.0), 0, cos(c.yaw + PI / 2.0)) * 0.25
+				var right := Vector3(sin(c.yaw + PI / 2.0), 0, cos(c.yaw + PI / 2.0)) * 0.35
 				c.skid_points.append(cur_pos + right)
 				c.skid_points.append(cur_pos - right)
 				c.last_pos = cur_pos

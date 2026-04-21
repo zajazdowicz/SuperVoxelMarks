@@ -273,7 +273,7 @@ func _on_publish_pressed() -> void:
 		return
 
 	if placed_pieces.is_empty():
-		piece_label.text = "Trasa jest pusta!"
+		piece_label.text = "Track is empty!"
 		return
 
 	# Check for start piece
@@ -315,15 +315,15 @@ func _on_publish_pressed() -> void:
 			"bh": p.get("base_height", 0),
 		})
 
-	piece_label.text = "Wysylanie trasy..."
+	piece_label.text = "Publishing track..."
 	ApiClient.publish_track(tname, track_json, author_time_ms, func(success: bool, data: Dictionary):
 		if success:
 			var sid: int = int(data.get("id", 0))
 			TrackData.set_server_id(tname, sid)
 			TrackData.set_author_time(tname, float(author_time_ms) / 1000.0)
-			piece_label.text = "Opublikowano! ID: %d" % sid
+			piece_label.text = "Published! ID: %d" % sid
 		else:
-			piece_label.text = "Blad publikacji!"
+			piece_label.text = "Publish error!"
 	)
 
 
@@ -1154,7 +1154,7 @@ func _highlight_piece_button() -> void:
 			place_erase.content_margin_top = 4.0
 			place_erase.content_margin_bottom = 4.0
 			_place_btn.add_theme_stylebox_override("normal", place_erase)
-			_place_btn.text = "USUN"
+			_place_btn.text = "DELETE"
 	else:
 		var eraser_normal := StyleBoxFlat.new()
 		eraser_normal.bg_color = Color(0.55, 0.15, 0.12)

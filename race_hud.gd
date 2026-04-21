@@ -259,7 +259,7 @@ func _process(_delta: float) -> void:
 		RaceManager.State.TIME_UP:
 			timer_label.text = RaceManager.get_time_string()
 			remaining_label.text = "0:00"
-			info_label.text = "CZAS MINĄŁ!\nOkrążenia: %d" % RaceManager.lap_count
+			info_label.text = "TIME UP!\nLaps: %d" % RaceManager.lap_count
 			if RaceManager.best_time < INF:
 				info_label.text += "\nBest: %s" % RaceManager.get_time_string(RaceManager.best_time)
 			info_label.text += "\nR = restart | ESC = menu"
@@ -346,7 +346,7 @@ func _show_lap_complete() -> void:
 		return
 	var msg := "LAP %d: %s" % [RaceManager.lap_count, RaceManager.get_time_string(last_time)]
 	if last_time == RaceManager.best_time:
-		msg += "\nNOWY REKORD!"
+		msg += "\nNEW RECORD!"
 	elif RaceManager.best_time < INF:
 		var d: float = last_time - RaceManager.best_time
 		msg += "\n+%s" % RaceManager.get_time_string(d)
@@ -694,7 +694,7 @@ func _show_finish_overlay() -> void:
 	# New record?
 	if lap == RaceManager.best_time:
 		var rec := Label.new()
-		rec.text = "NOWY REKORD!"
+		rec.text = "NEW RECORD!"
 		rec.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var rec_s := LabelSettings.new()
 		rec_s.font_size = 44
@@ -707,7 +707,7 @@ func _show_finish_overlay() -> void:
 	# Checkpoint split times
 	if not RaceManager.checkpoint_times.is_empty():
 		var cp_title := Label.new()
-		cp_title.text = "--- Checkpointy ---"
+		cp_title.text = "--- Checkpoints ---"
 		cp_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var cpt_s := LabelSettings.new()
 		cpt_s.font_size = 26
@@ -958,7 +958,7 @@ func _add_medal_block(medal: String, lap: float, author_time: float) -> void:
 		"gold":   medal_text = "GOLD"
 		"silver": medal_text = "SILVER"
 		"bronze": medal_text = "BRONZE"
-		_:        medal_text = "BEZ MEDALU"
+		_:        medal_text = "NO MEDAL"
 	medal_label.text = medal_text
 	var ml_s := LabelSettings.new()
 	ml_s.font_size = 56
