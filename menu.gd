@@ -1346,11 +1346,52 @@ func _setup_spinning_car() -> void:
 	_bg_scene = Node3D.new()
 	svp.add_child(_bg_scene)
 
-	# Camera — isometric like in game
+	# World environment: retrowave sunset gradient sky + bloom
+	var world_env := WorldEnvironment.new()
+	var env := Environment.new()
+	var sky := Sky.new()
+	var sky_mat := ShaderMaterial.new()
+	var sky_shader := Shader.new()
+	sky_shader.code = """
+shader_type sky;
+void sky() {
+	vec3 dir = EYEDIR;
+	float y = dir.y * 0.5 + 0.5;
+	vec3 top = vec3(0.02, 0.01, 0.08);
+	vec3 mid = vec3(0.35, 0.05, 0.45);
+	vec3 horizon = vec3(1.0, 0.35, 0.45);
+	vec3 col;
+	if (y > 0.6) {
+		float t = smoothstep(0.6, 1.0, y);
+		col = mix(mid, top, t);
+	} else {
+		float t = smoothstep(0.35, 0.6, y);
+		col = mix(horizon, mid, t);
+	}
+	// Sun disk
+	float sun = smoothstep(0.985, 0.999, max(0.0, dot(dir, normalize(vec3(0.0, 0.15, -1.0)))));
+	col = mix(col, vec3(1.0, 0.8, 0.4), sun);
+	COLOR = col;
+}
+"""
+	sky_mat.shader = sky_shader
+	sky.sky_material = sky_mat
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.4
+	env.glow_enabled = true
+	env.glow_intensity = 0.8
+	env.glow_strength = 1.0
+	env.glow_bloom = 0.3
+	world_env.environment = env
+	_bg_scene.add_child(world_env)
+
+	# Camera — lower angle for retrowave dramatic look
 	var cam := Camera3D.new()
-	cam.position = Vector3(0, 12, 10)
-	cam.rotation_degrees = Vector3(-48, 0, 0)
-	cam.fov = 45
+	cam.position = Vector3(0, 6, 12)
+	cam.rotation_degrees = Vector3(-18, 0, 0)
+	cam.fov = 55
 	cam.current = true
 	_bg_scene.add_child(cam)
 
@@ -1374,19 +1415,69 @@ func _setup_spinning_car() -> void:
 	ambient.omni_range = 40.0
 	_bg_scene.add_child(ambient)
 
-	# Asphalt ground with parking lot grid shader
+	# Neon retrowave grid ground — scrolls toward camera
 	var ground := MeshInstance3D.new()
 	var gplane := PlaneMesh.new()
-	gplane.size = Vector2(30, 30)
+	gplane.size = Vector2(200, 200)
+	gplane.subdivide_width = 1
+	gplane.subdivide_depth = 1
 	ground.mesh = gplane
 	var gshader := Shader.new()
-	gshader.code = "shader_type spatial;\nrender_mode unshaded;\nvoid fragment() {\n\tvec2 uv = UV * 12.0;\n\tvec3 col = vec3(0.07, 0.07, 0.11);\n\tfloat lx = step(0.96, fract(uv.x));\n\tfloat lz = step(0.96, fract(uv.y));\n\tcol += vec3(0.06, 0.08, 0.12) * max(lx, lz);\n\tfloat n = fract(sin(dot(floor(uv), vec2(12.9898, 78.233))) * 43758.5453);\n\tcol += vec3(n * 0.015);\n\tALBEDO = col;\n}\n"
+	gshader.code = """
+shader_type spatial;
+render_mode unshaded, cull_disabled;
+
+varying vec3 world_pos;
+
+void vertex() {
+	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+
+void fragment() {
+	// Grid in world space, 2 units per cell
+	vec2 g_uv = world_pos.xz * 0.5;
+	// Scroll toward camera along Z
+	g_uv.y += TIME * 2.0;
+	vec2 g = abs(fract(g_uv - 0.5) - 0.5);
+	float line = min(g.x, g.y);
+	float grid = 1.0 - smoothstep(0.0, 0.04, line);
+	// Distance-based fade from camera
+	float dist = length(world_pos.xz - (INV_VIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xz);
+	float fade = 1.0 - smoothstep(20.0, 80.0, dist);
+	float near_fade = smoothstep(0.0, 4.0, dist);  // dim right at camera
+	fade *= near_fade;
+	// Colors — magenta near, violet far
+	vec3 base = vec3(0.04, 0.01, 0.08);
+	vec3 grid_col = mix(vec3(1.0, 0.2, 0.6), vec3(0.4, 0.3, 1.0), clamp(dist / 60.0, 0.0, 1.0));
+	vec3 col = base + grid * grid_col * fade * 2.5;
+	ALBEDO = col;
+	EMISSION = grid * grid_col * fade * 1.5;
+}
+"""
 	var gmat := ShaderMaterial.new()
 	gmat.shader = gshader
 	ground.material_override = gmat
 	ground.position.y = -0.01
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_bg_scene.add_child(ground)
+
+	# Distant silhouette mountains (voxel block cutouts) for horizon depth
+	for i in range(8):
+		var mtn := MeshInstance3D.new()
+		var mbox := BoxMesh.new()
+		var mw := randf_range(6.0, 12.0)
+		var mh := randf_range(3.0, 7.0)
+		mbox.size = Vector3(mw, mh, 2.0)
+		mtn.mesh = mbox
+		var mmat := StandardMaterial3D.new()
+		mmat.albedo_color = Color(0.06, 0.02, 0.12)
+		mmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mmat.emission_enabled = true
+		mmat.emission = Color(0.15, 0.05, 0.3)
+		mmat.emission_energy_multiplier = 0.5
+		mtn.material_override = mmat
+		mtn.position = Vector3(randf_range(-60, 60), mh * 0.5, -randf_range(35, 50))
+		_bg_scene.add_child(mtn)
 
 	_f1_scene = load("res://assets/models/f1_car_new.glb")
 
