@@ -699,10 +699,10 @@ func _physics_process(delta: float) -> void:
 		for p in _steer_pivots:
 			p.rotation.y = lerp(p.rotation.y, steer_angle, 10.0 * delta)
 
-		# Wheel spin (all wheels) — local Y axis, independent from steer pivot
+		# Wheel spin (all wheels) — roll axis is local X (axle perpendicular to car forward)
 		_wheel_spin += speed * delta * 3.0
 		for w in _all_wheels:
-			w.rotation.y = _wheel_spin
+			w.rotation.x = _wheel_spin
 
 	# --- Skidmarks ---
 	var skidding: bool = false
