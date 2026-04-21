@@ -37,7 +37,7 @@ static func decorate(parent: Node3D, pieces: Array, center_offset: Vector2i) -> 
 				_spawn_gate(container, world_pos, rot_y, BANNER_ORANGE, "FINISH")
 				_spawn_stands(container, world_pos, rot_y)
 			8:  # Checkpoint
-				_spawn_gate(container, world_pos, rot_y, BANNER_PURPLE, "")
+				_spawn_gate(container, world_pos, rot_y, BANNER_PURPLE, "CHECKPOINT")
 			0, 26, 27:  # Straight + s-curves
 				# Randomly place light posts and flags (seed by grid for determinism)
 				var h := hash(Vector2(centered_grid.x, centered_grid.y))
