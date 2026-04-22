@@ -263,7 +263,7 @@ func _process(_delta: float) -> void:
 			if RaceManager.best_time < INF:
 				info_label.text += "\nBest: %s" % RaceManager.get_time_string(RaceManager.best_time)
 			info_label.text += "\nR = restart | ESC = menu"
-			info_label.text += "\nDotknij aby kontynuowac"
+			info_label.text += "\nTap to continue"
 		RaceManager.State.FINISHED:
 			var finish_time := RaceManager.get_last_lap_time()
 			timer_label.text = RaceManager.get_time_string(finish_time)

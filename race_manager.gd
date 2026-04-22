@@ -166,11 +166,17 @@ func _finish_lap() -> void:
 		# Upload to server
 		_upload_score(lap_time)
 
-	# Save medal if author_time known (regardless of PB — every finish counts)
+	# First-completion fallback: set author_time on initial finish for local tracks
+	if TrackData.current_author_time <= 0.0 and lap_time > 0.0:
+		TrackData.current_author_time = lap_time
+		TrackData.set_author_time(TrackData.current_track, lap_time)
+
+	# Save medal (author_time guaranteed > 0 at this point)
 	if TrackData.current_author_time > 0.0:
 		var medal := get_medal(lap_time, TrackData.current_author_time)
 		if medal != "none":
 			TrackData.set_medal(TrackData.current_track, medal)
+	print("Finish: lap=%.2fs, author=%.2fs, medal=%s" % [lap_time, TrackData.current_author_time, get_medal(lap_time, TrackData.current_author_time)])
 
 	# Reset for next lap
 	checkpoints_hit = 0
