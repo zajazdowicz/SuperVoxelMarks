@@ -210,6 +210,47 @@ func panel(bg: Color = BG_PANEL, radius: int = 20) -> PanelContainer:
 	return p
 
 
+# Full-screen modal with scrim + inner panel sized relative to viewport.
+# Returns the inner VBoxContainer ready for content. Caller adds to scene root.
+# margin_pct: fraction of screen left as padding on each side (0.05 = 5%).
+func modal(parent: Node, border_color: Color = CYAN, margin_pct: float = 0.04) -> Dictionary:
+	var scrim := Panel.new()
+	scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
+	var scrim_sb := StyleBoxFlat.new()
+	scrim_sb.bg_color = Color(0.0, 0.0, 0.0, 0.85)
+	scrim.add_theme_stylebox_override("panel", scrim_sb)
+	parent.add_child(scrim)
+
+	var content := PanelContainer.new()
+	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	content.anchor_left = margin_pct
+	content.anchor_right = 1.0 - margin_pct
+	content.anchor_top = margin_pct
+	content.anchor_bottom = 1.0 - margin_pct
+	content.offset_left = 0
+	content.offset_right = 0
+	content.offset_top = 0
+	content.offset_bottom = 0
+	var box_sb := StyleBoxFlat.new()
+	box_sb.bg_color = BG_PANEL
+	box_sb.border_color = border_color
+	box_sb.set_border_width_all(2)
+	box_sb.set_corner_radius_all(14)
+	box_sb.content_margin_left = 20
+	box_sb.content_margin_right = 20
+	box_sb.content_margin_top = 16
+	box_sb.content_margin_bottom = 16
+	content.add_theme_stylebox_override("panel", box_sb)
+	scrim.add_child(content)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	content.add_child(vbox)
+
+	return {"scrim": scrim, "vbox": vbox}
+
+
 func headline(text: String, size: int = 48, color: Color = TEXT_PRIMARY) -> Label:
 	var lbl := Label.new()
 	lbl.text = text

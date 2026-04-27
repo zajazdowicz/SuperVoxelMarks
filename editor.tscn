@@ -100,7 +100,7 @@ offset_top = 75.0
 offset_right = 1060.0
 offset_bottom = 120.0
 label_settings = SubResource("LabelSettings_1")
-text = "Prosta | Rot: N"
+text = "Straight | Rot: N"
 
 [node name="HelpLabel" type="Label" parent="UI"]
 anchors_preset = 7

@@ -57,7 +57,7 @@ func _ready() -> void:
 	_update_cursor()
 	_update_ui()
 	_refresh_track_list()
-	help_label.text = "Swipe=rusz | Tap=postaw | D-pad=kursor"
+	help_label.text = "Swipe=move | Tap=place | D-pad=cursor"
 
 	# Load track only if coming back from test (not from menu)
 	if TrackData.current_track != "" and TrackData.current_track != "_new_":
@@ -65,7 +65,7 @@ func _ready() -> void:
 		_load_track(TrackData.current_track)
 	else:
 		TrackData.current_track = ""
-		track_name_edit.text = "nowa_trasa"
+		track_name_edit.text = "new_track"
 
 	# Generate thumbnails and refresh toolbar
 	_generate_all_thumbnails()
@@ -263,13 +263,13 @@ func _make_top_button(label: String, color: Color, height: int) -> Button:
 
 func _on_publish_pressed() -> void:
 	if not ApiClient.is_registered():
-		piece_label.text = "Najpierw zarejestruj sie! (menu)"
+		piece_label.text = "Register first! (menu)"
 		return
 
 	var tname := TrackData.sanitize_name(track_name_edit.text.strip_edges())
 	track_name_edit.text = tname
 	if tname == "":
-		piece_label.text = "Podaj nazwe trasy!"
+		piece_label.text = "Enter track name!"
 		return
 
 	if placed_pieces.is_empty():
@@ -283,7 +283,7 @@ func _on_publish_pressed() -> void:
 			has_start = true
 			break
 	if not has_start:
-		piece_label.text = "Brak klocka Start/Meta!"
+		piece_label.text = "No Start/Finish block!"
 		return
 
 	# Check for author time (must test-drive first)
@@ -301,7 +301,7 @@ func _on_publish_pressed() -> void:
 		author_time_ms = int(RaceManager.best_time * 1000.0)
 
 	if author_time_ms <= 0:
-		piece_label.text = "Najpierw przetestuj trase (T) i ukoncz okrazenie!"
+		piece_label.text = "Test the track (T) and finish a lap first!"
 		return
 
 	# Build track_json in server format
@@ -330,7 +330,7 @@ func _on_publish_pressed() -> void:
 func _on_save_pressed() -> void:
 	var tname := TrackData.sanitize_name(track_name_edit.text.strip_edges())
 	if tname == "":
-		tname = "nowa_trasa"
+		tname = "new_track"
 	track_name_edit.text = tname
 	TrackData.save_track(tname, placed_pieces)
 	TrackData.current_track = tname
@@ -346,7 +346,7 @@ func _on_cleanup_pressed() -> void:
 			start_idx = i
 			break
 	if start_idx == -1:
-		print("Brak klocka startowego — usuwam wszystko poza zasiegiem kursora")
+		print("No start block — removing everything outside cursor range")
 		# Fallback: remove pieces with bh far from any neighbor
 		var removed := 0
 		var keep: Array[Dictionary] = []
@@ -366,7 +366,7 @@ func _on_cleanup_pressed() -> void:
 			else:
 				removed += 1
 		placed_pieces = keep
-		print("Usunieto %d odosobnionych klockow" % removed)
+		print("Removed %d isolated blocks" % removed)
 		_rebuild()
 		return
 
@@ -405,7 +405,7 @@ func _on_cleanup_pressed() -> void:
 
 	var removed := placed_pieces.size() - visited.size()
 	if removed == 0:
-		print("Trasa czysta — brak odosobnionych klockow")
+		print("Track clean — no isolated blocks")
 		return
 
 	var keep: Array[Dictionary] = []
@@ -415,7 +415,7 @@ func _on_cleanup_pressed() -> void:
 		else:
 			print("Usuwam: piece=%d gx=%d gz=%d bh=%d" % [placed_pieces[i].piece, placed_pieces[i].grid.x, placed_pieces[i].grid.y, placed_pieces[i].get("base_height", 0)])
 	placed_pieces = keep
-	print("Usunieto %d odosobnionych klockow" % removed)
+	print("Removed %d isolated blocks" % removed)
 	_rebuild()
 
 
@@ -558,7 +558,7 @@ func _create_piece_toolbar() -> void:
 	action_scroll.add_child(action_bar)
 
 	# POSTAW button (green, prominent)
-	_place_btn = _make_action_button("POSTAW", Color(0.15, 0.55, 0.2), func():
+	_place_btn = _make_action_button("PLACE", Color(0.15, 0.55, 0.2), func():
 		if _eraser_mode:
 			_remove_piece()
 		else:
@@ -567,7 +567,7 @@ func _create_piece_toolbar() -> void:
 	action_bar.add_child(_place_btn)
 
 	# OBROC button (blue)
-	var rotate_btn := _make_action_button("OBROC", Color(0.2, 0.35, 0.6), func():
+	var rotate_btn := _make_action_button("ROTATE", Color(0.2, 0.35, 0.6), func():
 		current_rotation = (current_rotation + 1) % 4
 		_update_ui()
 		_update_preview()
@@ -575,7 +575,7 @@ func _create_piece_toolbar() -> void:
 	action_bar.add_child(rotate_btn)
 
 	# GUMKA button (red)
-	_eraser_button = _make_action_button("GUMKA", Color(0.55, 0.15, 0.12), func():
+	_eraser_button = _make_action_button("ERASER", Color(0.55, 0.15, 0.12), func():
 		_eraser_mode = not _eraser_mode
 		_update_ui()
 		_update_preview()
@@ -795,21 +795,21 @@ func _short_name(piece_id: int) -> String:
 	# Shortened names for toolbar display
 	var full: String = PieceRegistry.get_piece_name(piece_id)
 	var shorts := {
-		0: "Prosta", 1: "Zakret P", 2: "Zakret L",
-		3: "Rampa+", 4: "Rampa-", 5: "Start",
-		6: "Szykana", 7: "Boost", 8: "Check",
-		9: "Lod", 10: "Ziemia", 11: "Sprint",
-		12: "WR wej", 13: "WR prosta", 14: "WR wyj",
-		19: "Petla",
-		21: "Platforma", 22: "Lacz+", 23: "Lacz-",
-		24: "Lagodny P", 25: "Lagodny L",
-		26: "Esowka P", 27: "Esowka L",
-		28: "Bank P", 29: "Bank L",
-		30: "Rampa+ pol", 31: "Rampa- pol",
-		32: "Most", 33: "Tunel",
-		34: "Rampa-Z P", 35: "Rampa-Z L",
-		36: "Piasek", 37: "Woda", 38: "Bruk",
-		39: "Skok", 40: "Turbo", 41: "Slow",
+		0: "Straight", 1: "Turn R", 2: "Turn L",
+		3: "Ramp+", 4: "Ramp-", 5: "Start",
+		6: "Chicane", 7: "Boost", 8: "Check",
+		9: "Ice", 10: "Dirt", 11: "Sprint",
+		12: "WR in", 13: "WR str", 14: "WR out",
+		19: "Loop",
+		21: "Platform", 22: "Link+", 23: "Link-",
+		24: "Gentle R", 25: "Gentle L",
+		26: "S-curve R", 27: "S-curve L",
+		28: "Bank R", 29: "Bank L",
+		30: "Ramp+ half", 31: "Ramp- half",
+		32: "Bridge", 33: "Tunnel",
+		34: "RampTurn R", 35: "RampTurn L",
+		36: "Sand", 37: "Water", 38: "Cobble",
+		39: "Jump", 40: "Turbo", 41: "Slow",
 		42: "15°", 43: "30°", 44: "45°",
 		45: "60°", 46: "75°", 47: "90°",
 		48: "0-30°", 49: "30-60°", 50: "60-90°",
@@ -1168,7 +1168,7 @@ func _highlight_piece_button() -> void:
 		eraser_normal.content_margin_bottom = 4.0
 		_eraser_button.add_theme_stylebox_override("normal", eraser_normal)
 		_eraser_button.add_theme_stylebox_override("hover", eraser_normal)
-		_eraser_button.text = "GUMKA"
+		_eraser_button.text = "ERASER"
 		if _place_btn:
 			var place_normal := StyleBoxFlat.new()
 			place_normal.bg_color = Color(0.15, 0.55, 0.2)
@@ -1181,7 +1181,7 @@ func _highlight_piece_button() -> void:
 			place_normal.content_margin_top = 4.0
 			place_normal.content_margin_bottom = 4.0
 			_place_btn.add_theme_stylebox_override("normal", place_normal)
-			_place_btn.text = "POSTAW"
+			_place_btn.text = "PLACE"
 
 
 func _select_piece(index: int) -> void:
@@ -1736,7 +1736,7 @@ func _load_track(track_name: String) -> void:
 
 func _refresh_track_list() -> void:
 	track_list.clear()
-	track_list.add_item("-- wybierz trase --")
+	track_list.add_item("-- select track --")
 	for tname in TrackData.get_track_names():
 		track_list.add_item(tname)
 

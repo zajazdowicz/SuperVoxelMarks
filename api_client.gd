@@ -9,6 +9,7 @@ var player_id := ""
 var player_name := ""
 var player_nationality := "PL"
 var auth_token := ""
+var auth_token_expires_at := 0  # unix timestamp; 0 = unknown/none
 
 var _http: HTTPRequest
 
@@ -31,6 +32,7 @@ func _load_player() -> void:
 		player_name = cfg.get_value("player", "name", "")
 		player_nationality = cfg.get_value("player", "nationality", "PL")
 		auth_token = cfg.get_value("player", "auth_token", "")
+		auth_token_expires_at = int(cfg.get_value("player", "auth_token_expires_at", 0))
 
 
 func _save_player() -> void:
@@ -39,6 +41,7 @@ func _save_player() -> void:
 	cfg.set_value("player", "name", player_name)
 	cfg.set_value("player", "nationality", player_nationality)
 	cfg.set_value("player", "auth_token", auth_token)
+	cfg.set_value("player", "auth_token_expires_at", auth_token_expires_at)
 	cfg.save("user://player.cfg")
 
 
@@ -72,10 +75,9 @@ func register(p_name: String, p_nationality: String, callback: Callable, p_passw
 				# Reserved name login — switch to existing account
 				player_id = str(json["id"])
 				player_name = str(json["name"])
-				auth_token = str(json.get("token", ""))
 				if json.has("nationality"):
 					player_nationality = str(json["nationality"])
-				_save_player()
+				_store_token_from_response(json)
 				print("API: Logged in as admin: %s (%s)" % [player_name, player_id])
 			else:
 				print("API: Player registered: %s" % player_name)
@@ -297,7 +299,30 @@ func get_track_list(callback: Callable) -> void:
 # === AUTH / LINK CODE ===
 
 func has_auth() -> bool:
-	return auth_token != ""
+	if auth_token == "":
+		return false
+	# 0 = legacy/unknown expiry, treat as valid (server will tell us via 401)
+	if auth_token_expires_at > 0 and auth_token_expires_at < int(Time.get_unix_time_from_system()):
+		# Expired locally — clear and force re-auth
+		auth_token = ""
+		auth_token_expires_at = 0
+		_save_player()
+		return false
+	return true
+
+
+func _store_token_from_response(json: Variant) -> void:
+	if json == null:
+		return
+	if json.has("token"):
+		auth_token = str(json["token"])
+	if json.has("token_expires_at"):
+		var iso: String = str(json["token_expires_at"])
+		# ATOM format: 2026-04-27T17:09:00+00:00
+		var dt := Time.get_datetime_dict_from_datetime_string(iso, false)
+		if dt:
+			auth_token_expires_at = int(Time.get_unix_time_from_datetime_dict(dt))
+	_save_player()
 
 
 func ensure_auth(callback: Callable) -> void:
@@ -318,8 +343,7 @@ func ensure_auth(callback: Callable) -> void:
 		if code == 201 or code == 200:
 			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json and json.has("token"):
-				auth_token = json["token"]
-				_save_player()
+				_store_token_from_response(json)
 				callback.call(true)
 				req.queue_free()
 				return
@@ -345,8 +369,7 @@ func _login_for_token(password: String, callback: Callable) -> void:
 		if code == 200:
 			var json: Variant = JSON.parse_string(body_bytes.get_string_from_utf8())
 			if json and json.has("token"):
-				auth_token = json["token"]
-				_save_player()
+				_store_token_from_response(json)
 				callback.call(true)
 				req.queue_free()
 				return

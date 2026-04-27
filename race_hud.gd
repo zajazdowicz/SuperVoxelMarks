@@ -660,54 +660,144 @@ func _show_finish_overlay() -> void:
 	for child in _finish_vbox.get_children():
 		child.queue_free()
 
-	# Title
-	var title := Label.new()
-	title.text = "FINISH"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var ts := LabelSettings.new()
-	ts.font_size = 72
-	ts.font_color = Color(1.0, 0.85, 0.2)
-	ts.outline_size = 5
-	ts.outline_color = Color(0.15, 0.1, 0.0)
-	title.label_settings = ts
-	_finish_vbox.add_child(title)
+	_finish_vbox.add_theme_constant_override("separation", 24)
 
-	# Lap time
 	var lap := RaceManager.get_last_lap_time()
+	var author_time: float = TrackData.current_author_time
+	var medal: String = RaceManager.get_medal(lap, author_time) if author_time > 0.0 else "none"
+
+	# --- Hero row: medal cell + time cell ---
+	var hero := HBoxContainer.new()
+	hero.alignment = BoxContainer.ALIGNMENT_CENTER
+	hero.add_theme_constant_override("separation", 32)
+	_finish_vbox.add_child(hero)
+
+	# Medal cell
+	var medal_panel := PanelContainer.new()
+	var mp_sb := StyleBoxFlat.new()
+	mp_sb.bg_color = Color(0.06, 0.08, 0.13, 0.95)
+	mp_sb.set_corner_radius_all(16)
+	mp_sb.set_border_width_all(4)
+	mp_sb.border_color = TrackData.medal_color(medal)
+	mp_sb.content_margin_left = 32
+	mp_sb.content_margin_right = 32
+	mp_sb.content_margin_top = 24
+	mp_sb.content_margin_bottom = 24
+	medal_panel.add_theme_stylebox_override("panel", mp_sb)
+	hero.add_child(medal_panel)
+
+	var medal_text: String
+	match medal:
+		"author": medal_text = "AUTHOR"
+		"gold":   medal_text = "GOLD"
+		"silver": medal_text = "SILVER"
+		"bronze": medal_text = "BRONZE"
+		_:        medal_text = "NO MEDAL"
+	var medal_label := Label.new()
+	medal_label.text = medal_text
+	medal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	medal_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var ml_s := LabelSettings.new()
+	ml_s.font_size = 72
+	ml_s.font_color = TrackData.medal_color(medal)
+	ml_s.outline_size = 5
+	ml_s.outline_color = Color.BLACK
+	medal_label.label_settings = ml_s
+	medal_panel.add_child(medal_label)
+
+	# Time cell
+	var time_box := VBoxContainer.new()
+	time_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	time_box.add_theme_constant_override("separation", 4)
+	hero.add_child(time_box)
+
 	var time_label := Label.new()
 	time_label.text = RaceManager.get_time_string(lap)
 	time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var tl_s := LabelSettings.new()
-	tl_s.font_size = 80
+	tl_s.font_size = 140
 	tl_s.font_color = Color.WHITE
-	tl_s.outline_size = 4
+	tl_s.outline_size = 6
 	tl_s.outline_color = Color.BLACK
 	time_label.label_settings = tl_s
-	_finish_vbox.add_child(time_label)
+	time_box.add_child(time_label)
 
-	# Medal earned (if author_time set)
-	var author_time: float = TrackData.current_author_time
-	if author_time > 0.0:
-		var medal: String = RaceManager.get_medal(lap, author_time)
-		_add_medal_block(medal, lap, author_time)
-
-	# New record?
-	if lap == RaceManager.best_time:
+	# Delta vs PB / NEW RECORD
+	var is_new_record: bool = lap == RaceManager.best_time and RaceManager.best_time < INF
+	if is_new_record:
 		var rec := Label.new()
 		rec.text = "NEW RECORD!"
 		rec.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var rec_s := LabelSettings.new()
-		rec_s.font_size = 44
+		rec_s.font_size = 48
 		rec_s.font_color = Color(0.2, 1.0, 0.3)
 		rec_s.outline_size = 3
 		rec_s.outline_color = Color.BLACK
 		rec.label_settings = rec_s
-		_finish_vbox.add_child(rec)
+		time_box.add_child(rec)
+	elif RaceManager.best_time < INF:
+		var d := lap - RaceManager.best_time
+		var delta := Label.new()
+		var sign_str := "+" if d > 0 else "-"
+		delta.text = "%s%s vs PB" % [sign_str, RaceManager.get_time_string(absf(d))]
+		delta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var d_s := LabelSettings.new()
+		d_s.font_size = 42
+		d_s.font_color = Color(1.0, 0.4, 0.4) if d > 0 else Color(0.4, 1.0, 0.5)
+		d_s.outline_size = 3
+		d_s.outline_color = Color.BLACK
+		delta.label_settings = d_s
+		time_box.add_child(delta)
 
-	# Checkpoint split times
+	if medal != "none":
+		UIStyle.pulse(medal_label, 1.12, 0.55)
+
+	# --- Targets row (only when author_time known) ---
+	if author_time > 0.0:
+		var targets := GridContainer.new()
+		targets.columns = 4
+		targets.add_theme_constant_override("h_separation", 32)
+		targets.add_theme_constant_override("v_separation", 2)
+		_finish_vbox.add_child(targets)
+
+		var row_names: Array[String] = ["Author", "Gold", "Silver", "Bronze"]
+		var row_keys: Array[String] = ["author", "gold", "silver", "bronze"]
+		var row_times: Array[float] = [author_time, author_time * 1.1, author_time * 1.3, author_time * 1.6]
+		var earned_rank: int = TrackData.medal_rank(medal)
+
+		# Two passes: names row, then times row (GridContainer fills left-to-right top-to-bottom)
+		for i in range(row_names.size()):
+			var key: String = row_keys[i]
+			var earned: bool = TrackData.medal_rank(key) <= earned_rank
+			var name_lbl := Label.new()
+			name_lbl.text = row_names[i]
+			name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			var nl_s := LabelSettings.new()
+			nl_s.font_size = 24
+			nl_s.font_color = TrackData.medal_color(key) if earned else Color(0.4, 0.4, 0.45)
+			nl_s.outline_size = 2
+			nl_s.outline_color = Color.BLACK
+			name_lbl.label_settings = nl_s
+			targets.add_child(name_lbl)
+
+		for i in range(row_times.size()):
+			var key2: String = row_keys[i]
+			var earned2: bool = TrackData.medal_rank(key2) <= earned_rank
+			var t_lbl := Label.new()
+			t_lbl.text = RaceManager.get_time_string(row_times[i])
+			t_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			var tl_lbl_s := LabelSettings.new()
+			tl_lbl_s.font_size = 32
+			tl_lbl_s.font_color = Color(0.9, 0.9, 0.95) if earned2 else Color(0.35, 0.35, 0.4)
+			tl_lbl_s.outline_size = 2
+			tl_lbl_s.outline_color = Color.BLACK
+			t_lbl.label_settings = tl_lbl_s
+			targets.add_child(t_lbl)
+
+	# --- Checkpoints grid (2 columns, compact) ---
 	if not RaceManager.checkpoint_times.is_empty():
 		var cp_title := Label.new()
-		cp_title.text = "--- Checkpoints ---"
+		cp_title.text = "CHECKPOINTS"
 		cp_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var cpt_s := LabelSettings.new()
 		cpt_s.font_size = 26
@@ -717,47 +807,43 @@ func _show_finish_overlay() -> void:
 		cp_title.label_settings = cpt_s
 		_finish_vbox.add_child(cp_title)
 
+		var cp_grid := GridContainer.new()
+		cp_grid.columns = 2
+		cp_grid.add_theme_constant_override("h_separation", 48)
+		cp_grid.add_theme_constant_override("v_separation", 4)
+		_finish_vbox.add_child(cp_grid)
+
 		for i in range(RaceManager.checkpoint_times.size()):
 			var cp_time: float = RaceManager.checkpoint_times[i]
-			var cp_text := "CP%d:  %s" % [i + 1, RaceManager.get_time_string(cp_time)]
+			var cp_text := "CP%d  %s" % [i + 1, RaceManager.get_time_string(cp_time)]
+			var delta_col := Color(0.8, 0.8, 0.85)
 			if i < RaceManager.best_checkpoint_times.size():
-				var d: float = cp_time - RaceManager.best_checkpoint_times[i]
-				if absf(d) > 0.001:
-					cp_text += "  %s%s" % ["+" if d > 0 else "-", RaceManager.get_time_string(absf(d))]
+				var d2: float = cp_time - RaceManager.best_checkpoint_times[i]
+				if absf(d2) > 0.001:
+					cp_text += "   %s%s" % ["+" if d2 > 0 else "-", RaceManager.get_time_string(absf(d2))]
+					delta_col = Color(1.0, 0.5, 0.5) if d2 > 0 else Color(0.5, 1.0, 0.5)
 			var cp_lbl := Label.new()
 			cp_lbl.text = cp_text
 			cp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			var cp_s := LabelSettings.new()
-			cp_s.font_size = 30
-			cp_s.font_color = Color(0.8, 0.8, 0.85)
+			cp_s.font_size = 28
+			cp_s.font_color = delta_col
 			cp_s.outline_size = 2
 			cp_s.outline_color = Color.BLACK
 			cp_lbl.label_settings = cp_s
-			_finish_vbox.add_child(cp_lbl)
+			cp_grid.add_child(cp_lbl)
 
-	# Best time
-	if RaceManager.best_time < INF:
-		var best := Label.new()
-		best.text = "Best: %s" % RaceManager.get_time_string(RaceManager.best_time)
-		best.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var b_s := LabelSettings.new()
-		b_s.font_size = 36
-		b_s.font_color = Color(0.4, 0.8, 1.0)
-		b_s.outline_size = 3
-		b_s.outline_color = Color.BLACK
-		best.label_settings = b_s
-		_finish_vbox.add_child(best)
-
-	# Buttons
+	# --- Actions row ---
 	var btn_row := HBoxContainer.new()
 	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	btn_row.add_theme_constant_override("separation", 20)
+	btn_row.add_theme_constant_override("separation", 24)
 	_finish_vbox.add_child(btn_row)
 
 	var restart_btn := Button.new()
 	restart_btn.text = "RESTART"
-	restart_btn.custom_minimum_size = Vector2(200, 60)
-	restart_btn.add_theme_font_size_override("font_size", 30)
+	restart_btn.custom_minimum_size = Vector2(240, 72)
+	restart_btn.add_theme_font_size_override("font_size", 32)
+	restart_btn.focus_mode = Control.FOCUS_NONE
 	var r_sb := StyleBoxFlat.new()
 	r_sb.bg_color = Color(0.15, 0.5, 0.2)
 	r_sb.set_corner_radius_all(8)
@@ -771,8 +857,9 @@ func _show_finish_overlay() -> void:
 
 	var menu_btn := Button.new()
 	menu_btn.text = "MENU"
-	menu_btn.custom_minimum_size = Vector2(200, 60)
-	menu_btn.add_theme_font_size_override("font_size", 30)
+	menu_btn.custom_minimum_size = Vector2(240, 72)
+	menu_btn.add_theme_font_size_override("font_size", 32)
+	menu_btn.focus_mode = Control.FOCUS_NONE
 	var m_sb := StyleBoxFlat.new()
 	m_sb.bg_color = Color(0.3, 0.3, 0.35)
 	m_sb.set_corner_radius_all(8)
@@ -854,7 +941,7 @@ func _populate_leaderboard(data: Dictionary) -> void:
 	var scores: Array = data.get("scores", [])
 	if scores.is_empty():
 		var empty := Label.new()
-		empty.text = "Brak wynikow"
+		empty.text = "No results"
 		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		empty.add_theme_font_size_override("font_size", 18)
 		empty.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
@@ -927,79 +1014,3 @@ func _populate_leaderboard(data: Dictionary) -> void:
 
 func refresh_leaderboard() -> void:
 	_load_leaderboard()
-
-
-# === MEDAL BLOCK ===
-
-func _add_medal_block(medal: String, lap: float, author_time: float) -> void:
-	var medal_panel := PanelContainer.new()
-	var mp_sb := StyleBoxFlat.new()
-	mp_sb.bg_color = Color(0.06, 0.08, 0.13, 0.95)
-	mp_sb.set_corner_radius_all(16)
-	mp_sb.border_width_left = 4
-	mp_sb.border_color = TrackData.medal_color(medal)
-	mp_sb.content_margin_left = 24
-	mp_sb.content_margin_right = 24
-	mp_sb.content_margin_top = 16
-	mp_sb.content_margin_bottom = 16
-	medal_panel.add_theme_stylebox_override("panel", mp_sb)
-	_finish_vbox.add_child(medal_panel)
-
-	var mvb := VBoxContainer.new()
-	mvb.add_theme_constant_override("separation", 6)
-	medal_panel.add_child(mvb)
-
-	# Medal headline
-	var medal_label := Label.new()
-	medal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var medal_text: String = ""
-	match medal:
-		"author": medal_text = "AUTHOR"
-		"gold":   medal_text = "GOLD"
-		"silver": medal_text = "SILVER"
-		"bronze": medal_text = "BRONZE"
-		_:        medal_text = "NO MEDAL"
-	medal_label.text = medal_text
-	var ml_s := LabelSettings.new()
-	ml_s.font_size = 56
-	ml_s.font_color = TrackData.medal_color(medal)
-	ml_s.outline_size = 4
-	ml_s.outline_color = Color.BLACK
-	medal_label.label_settings = ml_s
-	mvb.add_child(medal_label)
-
-	# Target times grid
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 24)
-	grid.add_theme_constant_override("v_separation", 4)
-	mvb.add_child(grid)
-
-	var row_names: Array[String] = ["Author", "Gold", "Silver", "Bronze"]
-	var row_times: Array[float] = [author_time, author_time * 1.1, author_time * 1.3, author_time * 1.6]
-	var row_keys: Array[String] = ["author", "gold", "silver", "bronze"]
-	var earned_rank: int = TrackData.medal_rank(medal)
-	for i in range(row_names.size()):
-		var key: String = row_keys[i]
-		var earned: bool = TrackData.medal_rank(key) <= earned_rank
-
-		var name_lbl := Label.new()
-		name_lbl.text = row_names[i]
-		var nl_s := LabelSettings.new()
-		nl_s.font_size = 26
-		nl_s.font_color = TrackData.medal_color(key) if earned else Color(0.4, 0.4, 0.45)
-		name_lbl.label_settings = nl_s
-		grid.add_child(name_lbl)
-
-		var t_lbl := Label.new()
-		t_lbl.text = RaceManager.get_time_string(row_times[i])
-		t_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		var tl_lbl_s := LabelSettings.new()
-		tl_lbl_s.font_size = 26
-		tl_lbl_s.font_color = Color(0.85, 0.85, 0.9) if earned else Color(0.35, 0.35, 0.4)
-		t_lbl.label_settings = tl_lbl_s
-		grid.add_child(t_lbl)
-
-	# Pulse the medal label for emphasis
-	if medal != "none":
-		UIStyle.pulse(medal_label, 1.12, 0.55)

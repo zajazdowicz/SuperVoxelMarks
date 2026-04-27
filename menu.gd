@@ -369,7 +369,7 @@ func _update_status() -> void:
 		return
 	var track_count := tracks.size()
 	var nick := PlayerData.player_name if not PlayerData.player_name.is_empty() else "???"
-	_status_label.text = "%s  |  %d tras  |  v0.8" % [nick, track_count]
+	_status_label.text = "%s  |  %d tracks  |  v0.8" % [nick, track_count]
 
 
 # =============================================================================
@@ -384,40 +384,15 @@ func _on_track_picker() -> void:
 
 
 func _create_track_modal() -> void:
-	_track_modal = Panel.new()
-	_track_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.0, 0.0, 0.0, 0.92)
-	_track_modal.add_theme_stylebox_override("panel", bg)
-	add_child(_track_modal)
-
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_track_modal.add_child(center)
-
-	var content := PanelContainer.new()
-	var box_sb := StyleBoxFlat.new()
-	box_sb.bg_color = Color(0.05, 0.05, 0.08)
-	box_sb.border_color = Color(0.2, 0.5, 0.3)
-	box_sb.set_border_width_all(2)
-	box_sb.set_corner_radius_all(12)
-	box_sb.content_margin_left = 16
-	box_sb.content_margin_right = 16
-	box_sb.content_margin_top = 12
-	box_sb.content_margin_bottom = 12
-	content.add_theme_stylebox_override("panel", box_sb)
-	content.custom_minimum_size = Vector2(1020, 900)
-	center.add_child(content)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	content.add_child(vbox)
+	var m := UIStyle.modal(self, Color(0.3, 0.9, 0.4))
+	_track_modal = m.scrim
+	var vbox: VBoxContainer = m.vbox
 
 	# Title
 	var title := Label.new()
-	title.text = "WYBIERZ TRASE"
+	title.text = "SELECT TRACK"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_font_size_override("font_size", 48)
 	title.add_theme_color_override("font_color", Color(0.3, 0.9, 0.4))
 	vbox.add_child(title)
 
@@ -452,8 +427,8 @@ func _create_track_modal() -> void:
 		for i in range(tracks.size()):
 			var tname := tracks[i]
 			var btn := Button.new()
-			btn.custom_minimum_size = Vector2(0, 76)
-			btn.add_theme_font_size_override("font_size", 28)
+			btn.custom_minimum_size = Vector2(0, 86)
+			btn.add_theme_font_size_override("font_size", 32)
 			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			btn.focus_mode = Control.FOCUS_NONE
 
@@ -510,9 +485,9 @@ func _create_track_modal() -> void:
 	# DELETE button
 	var del_btn := Button.new()
 	del_btn.text = "DELETE"
-	del_btn.custom_minimum_size = Vector2(0, 50)
+	del_btn.custom_minimum_size = Vector2(0, 64)
 	del_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	del_btn.add_theme_font_size_override("font_size", 24)
+	del_btn.add_theme_font_size_override("font_size", 28)
 	del_btn.focus_mode = Control.FOCUS_NONE
 	var del_sb := StyleBoxFlat.new()
 	del_sb.bg_color = Color(0.3, 0.08, 0.08)
@@ -534,10 +509,10 @@ func _create_track_modal() -> void:
 
 	# CLOSE button
 	var close_btn := Button.new()
-	close_btn.text = "ZAMKNIJ"
-	close_btn.custom_minimum_size = Vector2(0, 50)
+	close_btn.text = "CLOSE"
+	close_btn.custom_minimum_size = Vector2(0, 64)
 	close_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	close_btn.add_theme_font_size_override("font_size", 24)
+	close_btn.add_theme_font_size_override("font_size", 28)
 	close_btn.focus_mode = Control.FOCUS_NONE
 	var close_sb := StyleBoxFlat.new()
 	close_sb.bg_color = Color(0.15, 0.15, 0.2)
@@ -588,11 +563,11 @@ func _on_generate_and_edit() -> void:
 
 func _on_link_web() -> void:
 	if not ApiClient.is_registered():
-		_set_status("Najpierw wpisz nick!")
+		_set_status("Enter nickname first!")
 		return
 
 	# Ensure we have auth token, then generate link code
-	_set_status("Laczenie...")
+	_set_status("Connecting...")
 	ApiClient.ensure_auth(func(success: bool):
 		if not success:
 			_set_status("Auth error")
@@ -676,47 +651,22 @@ func _on_online_pressed() -> void:
 
 
 func _create_online_modal() -> void:
-	_online_modal = Panel.new()
-	_online_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.0, 0.0, 0.0, 0.92)
-	_online_modal.add_theme_stylebox_override("panel", bg)
-	add_child(_online_modal)
-
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_online_modal.add_child(center)
-
-	var content := PanelContainer.new()
-	var box_sb := StyleBoxFlat.new()
-	box_sb.bg_color = Color(0.05, 0.05, 0.08)
-	box_sb.border_color = Color(0.3, 0.5, 1.0)
-	box_sb.set_border_width_all(2)
-	box_sb.set_corner_radius_all(12)
-	box_sb.content_margin_left = 16
-	box_sb.content_margin_right = 16
-	box_sb.content_margin_top = 12
-	box_sb.content_margin_bottom = 12
-	content.add_theme_stylebox_override("panel", box_sb)
-	content.custom_minimum_size = Vector2(1020, 900)
-	center.add_child(content)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	content.add_child(vbox)
+	var m := UIStyle.modal(self, Color(0.4, 0.6, 1.0))
+	_online_modal = m.scrim
+	var vbox: VBoxContainer = m.vbox
 
 	var title := Label.new()
 	title.text = "ONLINE TRACKS"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_font_size_override("font_size", 48)
 	title.add_theme_color_override("font_color", Color(0.4, 0.6, 1.0))
 	vbox.add_child(title)
 
 	var status := Label.new()
 	status.name = "StatusLabel"
-	status.text = "Ladowanie..."
+	status.text = "Loading..."
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	status.add_theme_font_size_override("font_size", 26)
+	status.add_theme_font_size_override("font_size", 28)
 	status.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 	vbox.add_child(status)
 
@@ -732,9 +682,9 @@ func _create_online_modal() -> void:
 	scroll.add_child(list_vbox)
 
 	var close_btn := Button.new()
-	close_btn.text = "ZAMKNIJ"
-	close_btn.custom_minimum_size = Vector2(0, 50)
-	close_btn.add_theme_font_size_override("font_size", 24)
+	close_btn.text = "CLOSE"
+	close_btn.custom_minimum_size = Vector2(0, 64)
+	close_btn.add_theme_font_size_override("font_size", 28)
 	close_btn.focus_mode = Control.FOCUS_NONE
 	var close_sb := StyleBoxFlat.new()
 	close_sb.bg_color = Color(0.2, 0.05, 0.05)
@@ -746,7 +696,7 @@ func _create_online_modal() -> void:
 	vbox.add_child(close_btn)
 
 	ApiClient.get_track_list(func(server_tracks: Array):
-		status.text = "%d tras online" % server_tracks.size()
+		status.text = "%d online tracks" % server_tracks.size()
 		_populate_online_tracks(list_vbox, server_tracks)
 	)
 
@@ -763,20 +713,20 @@ func _populate_online_tracks(container: VBoxContainer, server_tracks: Array) -> 
 		var pieces_count: int = int(t.get("piece_count", 0))
 
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		row.custom_minimum_size = Vector2(0, 60)
+		row.add_theme_constant_override("separation", 10)
+		row.custom_minimum_size = Vector2(0, 76)
 
 		var info := Label.new()
 		info.text = "%s  (%d kl.)\n%s [%s]" % [track_name, pieces_count, author, author_nat]
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		info.add_theme_font_size_override("font_size", 24)
+		info.add_theme_font_size_override("font_size", 28)
 		info.add_theme_color_override("font_color", Color.WHITE)
 		row.add_child(info)
 
 		var is_local: bool = track_name in tracks
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(150, 56)
-		btn.add_theme_font_size_override("font_size", 26)
+		btn.custom_minimum_size = Vector2(170, 68)
+		btn.add_theme_font_size_override("font_size", 30)
 		btn.focus_mode = Control.FOCUS_NONE
 
 		btn.text = "PLAY" if is_local else "DOWNLOAD"
@@ -928,45 +878,21 @@ func _on_flag_pressed() -> void:
 
 
 func _create_flag_modal() -> void:
-	flag_modal = Panel.new()
-	flag_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var bg_style := StyleBoxFlat.new()
-	bg_style.bg_color = Color(0.0, 0.0, 0.0, 0.92)
-	flag_modal.add_theme_stylebox_override("panel", bg_style)
-	add_child(flag_modal)
-
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	flag_modal.add_child(center)
-
-	var content := PanelContainer.new()
-	var box_sb := StyleBoxFlat.new()
-	box_sb.bg_color = Color(0.05, 0.05, 0.08)
-	box_sb.border_color = Color(0.3, 0.6, 0.9)
-	box_sb.set_border_width_all(2)
-	box_sb.set_corner_radius_all(12)
-	box_sb.content_margin_left = 16
-	box_sb.content_margin_right = 16
-	box_sb.content_margin_top = 12
-	box_sb.content_margin_bottom = 12
-	content.add_theme_stylebox_override("panel", box_sb)
-	content.custom_minimum_size = Vector2(700, 750)
-	center.add_child(content)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	content.add_child(vbox)
+	var m := UIStyle.modal(self, Color(0.3, 0.6, 0.9))
+	flag_modal = m.scrim
+	var vbox: VBoxContainer = m.vbox
 
 	var title := Label.new()
-	title.text = "WYBIERZ FLAGE"
+	title.text = "SELECT FLAG"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_font_size_override("font_size", 44)
 	title.add_theme_color_override("font_color", Color(0.4, 0.6, 1.0))
 	vbox.add_child(title)
 
 	var search := LineEdit.new()
-	search.placeholder_text = "Szukaj kraju..."
-	search.add_theme_font_size_override("font_size", 24)
+	search.placeholder_text = "Search country..."
+	search.add_theme_font_size_override("font_size", 28)
+	search.custom_minimum_size = Vector2(0, 56)
 	var search_sb := StyleBoxFlat.new()
 	search_sb.bg_color = Color(0.08, 0.08, 0.12)
 	search_sb.border_color = Color(0.3, 0.5, 0.8)
@@ -976,9 +902,9 @@ func _create_flag_modal() -> void:
 	vbox.add_child(search)
 
 	var none_btn := Button.new()
-	none_btn.text = "BEZ FLAGI"
-	none_btn.custom_minimum_size = Vector2(0, 44)
-	none_btn.add_theme_font_size_override("font_size", 22)
+	none_btn.text = "NO FLAG"
+	none_btn.custom_minimum_size = Vector2(0, 60)
+	none_btn.add_theme_font_size_override("font_size", 28)
 	none_btn.focus_mode = Control.FOCUS_NONE
 	none_btn.pressed.connect(_on_flag_selected.bind(""))
 	vbox.add_child(none_btn)
@@ -989,9 +915,9 @@ func _create_flag_modal() -> void:
 	vbox.add_child(scroll)
 
 	var grid := GridContainer.new()
-	grid.columns = 4
-	grid.add_theme_constant_override("h_separation", 5)
-	grid.add_theme_constant_override("v_separation", 5)
+	grid.columns = 5
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(grid)
 
@@ -1002,9 +928,9 @@ func _create_flag_modal() -> void:
 	)
 
 	var close_btn := Button.new()
-	close_btn.text = "ZAMKNIJ"
-	close_btn.custom_minimum_size = Vector2(0, 44)
-	close_btn.add_theme_font_size_override("font_size", 22)
+	close_btn.text = "CLOSE"
+	close_btn.custom_minimum_size = Vector2(0, 64)
+	close_btn.add_theme_font_size_override("font_size", 28)
 	close_btn.focus_mode = Control.FOCUS_NONE
 	var close_sb := StyleBoxFlat.new()
 	close_sb.bg_color = Color(0.2, 0.05, 0.05)
@@ -1020,7 +946,8 @@ func _populate_flag_grid(grid: GridContainer, countries: Array) -> void:
 
 	for country in countries:
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(100, 64)
+		btn.custom_minimum_size = Vector2(140, 88)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.tooltip_text = country["name"]
 		btn.focus_mode = Control.FOCUS_NONE
 
@@ -1050,7 +977,7 @@ func _populate_flag_grid(grid: GridContainer, countries: Array) -> void:
 			flag_rect.texture = flag_tex
 			flag_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			flag_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			flag_rect.custom_minimum_size = Vector2(48, 30)
+			flag_rect.custom_minimum_size = Vector2(72, 48)
 			flag_rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 			flag_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			bvbox.add_child(flag_rect)
@@ -1058,8 +985,8 @@ func _populate_flag_grid(grid: GridContainer, countries: Array) -> void:
 		var code_lbl := Label.new()
 		code_lbl.text = country["code"]
 		code_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		code_lbl.add_theme_font_size_override("font_size", 11)
-		code_lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.5))
+		code_lbl.add_theme_font_size_override("font_size", 16)
+		code_lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.65))
 		code_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		bvbox.add_child(code_lbl)
 
@@ -1113,74 +1040,51 @@ func _auto_register_player() -> void:
 	)
 
 func _prompt_admin_password() -> void:
-	var overlay := Panel.new()
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.0, 0.0, 0.0, 0.9)
-	overlay.add_theme_stylebox_override("panel", bg)
-	add_child(overlay)
-
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.add_child(center)
-
-	var box := PanelContainer.new()
-	box.custom_minimum_size = Vector2(600, 400)
-	var box_sb := StyleBoxFlat.new()
-	box_sb.bg_color = Color(0.06, 0.06, 0.1)
-	box_sb.border_color = Color(0.6, 0.4, 1.0)
-	box_sb.set_border_width_all(2)
-	box_sb.set_corner_radius_all(12)
-	box_sb.content_margin_left = 32.0
-	box_sb.content_margin_right = 32.0
-	box_sb.content_margin_top = 24.0
-	box_sb.content_margin_bottom = 24.0
-	box.add_theme_stylebox_override("panel", box_sb)
-	center.add_child(box)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
+	var m := UIStyle.modal(self, Color(0.6, 0.4, 1.0), 0.1)
+	var overlay: Control = m.scrim
+	var vbox: VBoxContainer = m.vbox
+	vbox.add_theme_constant_override("separation", 20)
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "ZAREZERWOWANY NICK"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_font_size_override("font_size", 44)
 	title.add_theme_color_override("font_color", Color(0.6, 0.4, 1.0))
 	vbox.add_child(title)
 
 	var desc := Label.new()
-	desc.text = "Nick '%s' jest zarezerwowany.\nPodaj haslo:" % PlayerData.player_name
+	desc.text = "Nick '%s' is reserved.\nEnter password:" % PlayerData.player_name
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	desc.add_theme_font_size_override("font_size", 24)
+	desc.add_theme_font_size_override("font_size", 30)
 	desc.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
 	vbox.add_child(desc)
 
 	var line := LineEdit.new()
-	line.placeholder_text = "haslo"
+	line.placeholder_text = "password"
 	line.secret = true
-	line.custom_minimum_size = Vector2(400, 60)
-	line.add_theme_font_size_override("font_size", 32)
+	line.custom_minimum_size = Vector2(0, 72)
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.add_theme_font_size_override("font_size", 36)
 	var input_sb := StyleBoxFlat.new()
 	input_sb.bg_color = Color(0.1, 0.1, 0.15)
 	input_sb.border_color = Color(0.3, 0.5, 0.8)
 	input_sb.set_border_width_all(1)
 	input_sb.set_corner_radius_all(8)
-	input_sb.content_margin_left = 12.0
-	input_sb.content_margin_right = 12.0
+	input_sb.content_margin_left = 14.0
+	input_sb.content_margin_right = 14.0
 	line.add_theme_stylebox_override("normal", input_sb)
 	vbox.add_child(line)
 
 	var btn_row := HBoxContainer.new()
 	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	btn_row.add_theme_constant_override("separation", 16)
+	btn_row.add_theme_constant_override("separation", 20)
 	vbox.add_child(btn_row)
 
 	var ok_btn := Button.new()
-	ok_btn.text = "ZALOGUJ"
-	ok_btn.custom_minimum_size = Vector2(200, 56)
-	ok_btn.add_theme_font_size_override("font_size", 26)
+	ok_btn.text = "LOG IN"
+	ok_btn.custom_minimum_size = Vector2(240, 72)
+	ok_btn.add_theme_font_size_override("font_size", 30)
 	var ok_sb := StyleBoxFlat.new()
 	ok_sb.bg_color = Color(0.15, 0.5, 0.2)
 	ok_sb.set_corner_radius_all(8)
@@ -1188,9 +1092,9 @@ func _prompt_admin_password() -> void:
 	btn_row.add_child(ok_btn)
 
 	var cancel_btn := Button.new()
-	cancel_btn.text = "ANULUJ"
-	cancel_btn.custom_minimum_size = Vector2(200, 56)
-	cancel_btn.add_theme_font_size_override("font_size", 26)
+	cancel_btn.text = "CANCEL"
+	cancel_btn.custom_minimum_size = Vector2(240, 72)
+	cancel_btn.add_theme_font_size_override("font_size", 30)
 	var c_sb := StyleBoxFlat.new()
 	c_sb.bg_color = Color(0.3, 0.1, 0.1)
 	c_sb.set_corner_radius_all(8)
@@ -1210,10 +1114,10 @@ func _prompt_admin_password() -> void:
 				print("Admin login OK: %s (%s)" % [ApiClient.player_name, ApiClient.player_id])
 				PlayerData.player_name = ApiClient.player_name
 				PlayerData.save()
-				_set_status("Zalogowano jako admin!")
+				_set_status("Logged in as admin!")
 			else:
-				_set_status("Bledne haslo!")
-				ok_btn.text = "ZALOGUJ"
+				_set_status("Wrong password!")
+				ok_btn.text = "LOG IN"
 				ok_btn.disabled = false
 				return
 			overlay.queue_free()
@@ -1239,47 +1143,23 @@ func _show_link_code_modal(code: String) -> void:
 	if _link_modal:
 		_link_modal.queue_free()
 
-	_link_modal = Panel.new()
-	_link_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.0, 0.0, 0.0, 0.92)
-	_link_modal.add_theme_stylebox_override("panel", bg)
-	add_child(_link_modal)
-
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_link_modal.add_child(center)
-
-	var content := PanelContainer.new()
-	var box_sb := StyleBoxFlat.new()
-	box_sb.bg_color = Color(0.05, 0.05, 0.08)
-	box_sb.border_color = Color(0.6, 0.4, 1.0)
-	box_sb.set_border_width_all(2)
-	box_sb.set_corner_radius_all(12)
-	box_sb.content_margin_left = 32
-	box_sb.content_margin_right = 32
-	box_sb.content_margin_top = 24
-	box_sb.content_margin_bottom = 24
-	content.add_theme_stylebox_override("panel", box_sb)
-	content.custom_minimum_size = Vector2(500, 400)
-	center.add_child(content)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
+	var m := UIStyle.modal(self, Color(0.6, 0.4, 1.0), 0.1)
+	_link_modal = m.scrim
+	var vbox: VBoxContainer = m.vbox
+	vbox.add_theme_constant_override("separation", 20)
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	content.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "POLACZ Z WEB"
+	title.text = "LINK TO WEB"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_font_size_override("font_size", 48)
 	title.add_theme_color_override("font_color", Color(0.6, 0.4, 1.0))
 	vbox.add_child(title)
 
 	var desc := Label.new()
-	desc.text = "Enter this code in the web editor:"
+	desc.text = "Enter this code in web editor:"
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	desc.add_theme_font_size_override("font_size", 26)
+	desc.add_theme_font_size_override("font_size", 30)
 	desc.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
 	vbox.add_child(desc)
 
@@ -1287,24 +1167,24 @@ func _show_link_code_modal(code: String) -> void:
 	code_label.text = code
 	code_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var code_s := LabelSettings.new()
-	code_s.font_size = 72
+	code_s.font_size = 120
 	code_s.font_color = Color(1.0, 0.9, 0.2)
-	code_s.outline_size = 4
+	code_s.outline_size = 5
 	code_s.outline_color = Color(0.2, 0.15, 0.0)
 	code_label.label_settings = code_s
 	vbox.add_child(code_label)
 
 	var timer_label := Label.new()
-	timer_label.text = "Wazny 5 minut"
+	timer_label.text = "Valid 5 minutes"
 	timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	timer_label.add_theme_font_size_override("font_size", 22)
+	timer_label.add_theme_font_size_override("font_size", 26)
 	timer_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 	vbox.add_child(timer_label)
 
 	var close_btn := Button.new()
-	close_btn.text = "ZAMKNIJ"
-	close_btn.custom_minimum_size = Vector2(0, 56)
-	close_btn.add_theme_font_size_override("font_size", 26)
+	close_btn.text = "CLOSE"
+	close_btn.custom_minimum_size = Vector2(0, 72)
+	close_btn.add_theme_font_size_override("font_size", 32)
 	close_btn.focus_mode = Control.FOCUS_NONE
 	var close_sb := StyleBoxFlat.new()
 	close_sb.bg_color = Color(0.2, 0.05, 0.05)

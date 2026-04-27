@@ -29,49 +29,49 @@
     "SLOWDOWN": 18
   },
   "categories": [
-    {"id": "basic",      "name": "Podstawowe",    "pieces": [0, 1, 2, 24, 25, 26, 27, 5, 8, 11]},
-    {"id": "special",    "name": "Specjalne",      "pieces": [6, 7, 9, 10, 39, 40, 41]},
-    {"id": "surfaces",   "name": "Nawierzchnie",   "pieces": [36, 37, 38]},
-    {"id": "ramps",      "name": "Rampy",          "pieces": [3, 4, 30, 31, 34, 35, 21, 32, 33, 22, 23]},
-    {"id": "banked",     "name": "Banked",         "pieces": [28, 29]},
-    {"id": "wallride",   "name": "Wall Ride",      "pieces": [12, 13, 14]},
-    {"id": "loop",       "name": "Petla",          "pieces": [19]},
-    {"id": "slopes",     "name": "Slopes",         "pieces": [42, 43, 44, 45, 46, 47]},
-    {"id": "qp",         "name": "Quarter-Pipes",  "pieces": [48, 49, 50, 51, 52, 53]},
-    {"id": "obstacles",  "name": "Przeszkody",     "pieces": [54, 55, 56, 63, 64, 65]},
-    {"id": "slope_turn", "name": "Slope Turn",     "pieces": [61, 62, 57, 58, 59, 60]}
+    {"id": "basic",      "name": "Basic",         "pieces": [0, 1, 2, 24, 25, 26, 27, 5, 8, 11]},
+    {"id": "special",    "name": "Special",       "pieces": [6, 7, 9, 10, 39, 40, 41]},
+    {"id": "surfaces",   "name": "Surfaces",      "pieces": [36, 37, 38]},
+    {"id": "ramps",      "name": "Ramps",         "pieces": [3, 4, 30, 31, 34, 35, 21, 32, 33, 22, 23]},
+    {"id": "banked",     "name": "Banked",        "pieces": [28, 29]},
+    {"id": "wallride",   "name": "Wall Ride",     "pieces": [12, 13, 14]},
+    {"id": "loop",       "name": "Loop",          "pieces": [19]},
+    {"id": "slopes",     "name": "Slopes",        "pieces": [42, 43, 44, 45, 46, 47]},
+    {"id": "qp",         "name": "Quarter-Pipes", "pieces": [48, 49, 50, 51, 52, 53]},
+    {"id": "obstacles",  "name": "Obstacles",     "pieces": [54, 55, 56, 63, 64, 65]},
+    {"id": "slope_turn", "name": "Slope Turn",    "pieces": [61, 62, 57, 58, 59, 60]}
   ],
   "pieces": {
     "0": {
-      "name": "Prosta",
+      "name": "Straight",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "1": {
-      "name": "Zakret prawo",
+      "name": "Turn right",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "E", "dir": [1, 0]}],
       "height_delta": 0,
       "flags": {"is_turn": true},
       "preview_type": "voxel"
     },
     "2": {
-      "name": "Zakret lewo",
+      "name": "Turn left",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "W", "dir": [-1, 0]}],
       "height_delta": 0,
       "flags": {"is_turn": true},
       "preview_type": "voxel"
     },
     "3": {
-      "name": "Rampa gora",
+      "name": "Ramp up",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 6,
       "flags": {"is_ramp": true},
       "preview_type": "voxel"
     },
     "4": {
-      "name": "Rampa dol",
+      "name": "Ramp down",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": -6,
       "flags": {"is_ramp": true},
@@ -85,7 +85,7 @@
       "preview_type": "voxel"
     },
     "6": {
-      "name": "Szykana",
+      "name": "Chicane",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
@@ -106,14 +106,14 @@
       "preview_type": "voxel"
     },
     "9": {
-      "name": "Lod",
+      "name": "Ice",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "10": {
-      "name": "Ziemia",
+      "name": "Dirt",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
@@ -127,196 +127,196 @@
       "preview_type": "voxel"
     },
     "12": {
-      "name": "Wall Ride wejscie",
+      "name": "Wall Ride entry",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "shape"
     },
     "13": {
-      "name": "Wall Ride prosta",
+      "name": "Wall Ride straight",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "shape"
     },
     "14": {
-      "name": "Wall Ride wyjscie",
+      "name": "Wall Ride exit",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "shape"
     },
     "15": {
-      "name": "Loop wjazd",
+      "name": "Loop entry",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {"disabled": true},
       "preview_type": "shape"
     },
     "16": {
-      "name": "Loop gora",
+      "name": "Loop top",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {"disabled": true},
       "preview_type": "shape"
     },
     "17": {
-      "name": "Loop zjazd",
+      "name": "Loop descent",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {"disabled": true},
       "preview_type": "shape"
     },
     "18": {
-      "name": "Loop wyjazd",
+      "name": "Loop exit",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {"disabled": true},
       "preview_type": "shape"
     },
     "19": {
-      "name": "Petla",
+      "name": "Loop",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {"spans_cells": 2},
       "preview_type": "shape"
     },
     "20": {
-      "name": "(petla cell2)",
+      "name": "(loop cell2)",
       "ports": [],
       "height_delta": 0,
       "flags": {"marker": true},
       "preview_type": "none"
     },
     "21": {
-      "name": "Platforma",
+      "name": "Platform",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "22": {
-      "name": "Lacznik gora",
+      "name": "Link up",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 2,
       "flags": {"is_ramp": true},
       "preview_type": "shape"
     },
     "23": {
-      "name": "Lacznik dol",
+      "name": "Link down",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": -2,
       "flags": {"is_ramp": true},
       "preview_type": "shape"
     },
     "24": {
-      "name": "Lagodny prawo",
+      "name": "Gentle right",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "E", "dir": [1, 0]}],
       "height_delta": 0,
       "flags": {"is_turn": true},
       "preview_type": "voxel"
     },
     "25": {
-      "name": "Lagodny lewo",
+      "name": "Gentle left",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "W", "dir": [-1, 0]}],
       "height_delta": 0,
       "flags": {"is_turn": true},
       "preview_type": "voxel"
     },
     "26": {
-      "name": "Esowka prawo",
+      "name": "S-curve right",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "27": {
-      "name": "Esowka lewo",
+      "name": "S-curve left",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "28": {
-      "name": "Banked prawo",
+      "name": "Banked right",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "E", "dir": [1, 0]}],
       "height_delta": 0,
       "flags": {"is_turn": true},
       "preview_type": "shape"
     },
     "29": {
-      "name": "Banked lewo",
+      "name": "Banked left",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "W", "dir": [-1, 0]}],
       "height_delta": 0,
       "flags": {"is_turn": true},
       "preview_type": "shape"
     },
     "30": {
-      "name": "Rampa lagodna gora",
+      "name": "Ramp gentle up",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 3,
       "flags": {"is_ramp": true},
       "preview_type": "voxel"
     },
     "31": {
-      "name": "Rampa lagodna dol",
+      "name": "Ramp gentle down",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": -3,
       "flags": {"is_ramp": true},
       "preview_type": "voxel"
     },
     "32": {
-      "name": "Most",
+      "name": "Bridge",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "33": {
-      "name": "Tunel",
+      "name": "Tunnel",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "34": {
-      "name": "Rampa zakret prawo",
+      "name": "Ramp turn right",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "E", "dir": [1, 0]}],
       "height_delta": 6,
       "flags": {"is_ramp": true, "is_turn": true},
       "preview_type": "shape"
     },
     "35": {
-      "name": "Rampa zakret lewo",
+      "name": "Ramp turn left",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "W", "dir": [-1, 0]}],
       "height_delta": 6,
       "flags": {"is_ramp": true, "is_turn": true},
       "preview_type": "shape"
     },
     "36": {
-      "name": "Piasek",
+      "name": "Sand",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "37": {
-      "name": "Woda",
+      "name": "Water",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "38": {
-      "name": "Bruk",
+      "name": "Cobblestone",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "39": {
-      "name": "Skok",
+      "name": "Jump",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
@@ -330,7 +330,7 @@
       "preview_type": "voxel"
     },
     "41": {
-      "name": "Spowolnienie",
+      "name": "Slowdown",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
@@ -421,7 +421,7 @@
       "preview_type": "shape"
     },
     "54": {
-      "name": "Slupki",
+      "name": "Pillars",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
@@ -435,70 +435,70 @@
       "preview_type": "voxel"
     },
     "56": {
-      "name": "Zwezenie",
+      "name": "Narrowing",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "57": {
-      "name": "Slope zakret R +2",
+      "name": "Slope turn R +2",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "E", "dir": [1, 0]}],
       "height_delta": 2,
       "flags": {"is_ramp": true, "is_turn": true},
       "preview_type": "shape"
     },
     "58": {
-      "name": "Slope zakret L +2",
+      "name": "Slope turn L +2",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "W", "dir": [-1, 0]}],
       "height_delta": 2,
       "flags": {"is_ramp": true, "is_turn": true},
       "preview_type": "shape"
     },
     "59": {
-      "name": "Slope zakret R +4",
+      "name": "Slope turn R +4",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "E", "dir": [1, 0]}],
       "height_delta": 4,
       "flags": {"is_ramp": true, "is_turn": true},
       "preview_type": "shape"
     },
     "60": {
-      "name": "Slope zakret L +4",
+      "name": "Slope turn L +4",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "W", "dir": [-1, 0]}],
       "height_delta": 4,
       "flags": {"is_ramp": true, "is_turn": true},
       "preview_type": "shape"
     },
     "61": {
-      "name": "Slope zakret R",
+      "name": "Slope turn R",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "E", "dir": [1, 0]}],
       "height_delta": 0,
       "flags": {"is_turn": true},
       "preview_type": "shape"
     },
     "62": {
-      "name": "Slope zakret L",
+      "name": "Slope turn L",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "W", "dir": [-1, 0]}],
       "height_delta": 0,
       "flags": {"is_turn": true},
       "preview_type": "shape"
     },
     "63": {
-      "name": "Zwezenie drogi",
+      "name": "Road narrow",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "64": {
-      "name": "Trampolina",
+      "name": "Trampoline",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
       "preview_type": "voxel"
     },
     "65": {
-      "name": "Barierki",
+      "name": "Barriers",
       "ports": [{"side": "S", "dir": [0, -1]}, {"side": "N", "dir": [0, 1]}],
       "height_delta": 0,
       "flags": {},
